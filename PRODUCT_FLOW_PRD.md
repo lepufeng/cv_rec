@@ -67,13 +67,15 @@ flowchart LR
 | 结构化 schema | 已实现 | 当前 `schema_version=1.6`，含 `ranking`、`internship_experience`、`campus_experience`、`skills.tools`、实习/工作部门、`facts`、`extra_sections` |
 | 动态事实 facts | 部分实现 | 解析时抽取，但尚未接入独立推理审阅 |
 | 用户端预览/修正 | 已实现 | Profile 页展示并支持 patch |
+| 插件连接页 | 已实现 | 用户端 `/plugin` 提供平台首页、API 地址、登录 token、简历 ID 复制入口 |
 | 管理员模型配置 | 已实现 | OCR 模型、视觉模型、对话模型、推理模型配置；可设置默认 Thinking 策略 |
 | 用户 Thinking 开关 | 已实现 | 上传时可选择增强推理；插件请求填表方案时可传 `thinkingMode` |
 | 填表方案接口 | 已实现 | `POST /api/v1/fill-plans` |
 | 填表方案缓存 | 已实现 | 同用户 + 同简历版本 + 同表单结构 hash 命中缓存 |
 | 解析 trace 日志 | 已实现 | 上传、预处理、模型调用、schema 校验、入库等事件 |
-| 插件字段扫描 | 未实现 | 队友负责，平台需给出协议 |
-| 插件自动填写 | 未实现 | 队友负责，平台返回填写方案 |
+| 插件字段扫描 | 已接入 | 插件扫描当前页面字段，并可调用 `/fill-plans/plugin-scan` 做校验 |
+| 插件方案预览 | 已接入 | 插件调用 `/fill-plans/plugin-match`，展示 mappings/skipped/warnings，不执行真实填写 |
+| 插件自动填写 | 待实现 | 下一阶段由插件端按 mappings 执行真实 DOM 填写 |
 | 插件填写反馈 | 未实现 | 队友负责回传，平台未来用于学习 |
 | 表单模板知识库 | 未实现 | 未来将高频平台/公司字段映射沉淀为模板 |
 | 用户修正学习 | 未实现 | 未来将用户确认/修改沉淀为个人记忆 |
@@ -153,7 +155,7 @@ sequenceDiagram
 
     P->>DOM: 扫描 input/select/radio/checkbox/textarea/repeater
     P->>P: 生成 fieldId 与本地 DOM 映射
-    P->>API: POST /api/v1/fill-plans(fields, thinkingMode?)
+    P->>API: POST /api/v1/fill-plans/plugin-match(fields, resumeId, thinkingMode?)
     API->>F: create_plan(user_id, payload)
     F->>DB: 读取用户最新 completed 简历
     F->>F: 计算 form_structure_hash
@@ -170,8 +172,9 @@ sequenceDiagram
         M-->>F: FillPlan JSON
     end
     F->>DB: 保存 FillPlanCache + CostLog
-    API-->>P: FillPlanResponse
-    P->>DOM: 按 fieldId 执行填写动作
+    API-->>P: PluginMatchResponse(mappings/skipped/warnings)
+    P->>P: 当前 MVP 展示方案预览，不执行真实填写
+    P-->>DOM: 下一阶段按 fieldId 执行填写动作
     P-->>API: 未来回传 FillFeedback
 ```
 

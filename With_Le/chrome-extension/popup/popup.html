@@ -6,17 +6,32 @@
 </head>
 <body>
   <div id="popup-container">
-    <h2>Resume Auto-fill</h2>
+    <h2>CV Rec 插件</h2>
+
+    <div class="toolbar">
+      <button id="open-platform-btn" class="secondary compact">打开主页</button>
+      <button id="save-settings-btn" class="secondary compact">保存配置</button>
+    </div>
+
+    <label for="platform-home">平台主页</label>
+    <input id="platform-home" type="url" placeholder="http://localhost:5173">
+
+    <label for="backend-base">后端 API 地址</label>
+    <input id="backend-base" type="url" placeholder="http://127.0.0.1:8000/api/v1">
+
+    <label for="auth-token">登录 token</label>
+    <textarea id="auth-token" rows="3" placeholder="从网页「连接插件」页复制"></textarea>
+
     <label for="resume-id">简历 ID</label>
     <input id="resume-id" type="text" placeholder="输入简历 ID">
+
     <div id="status"></div>
-    <button id="fill-btn">一键填充</button>
-    <button id="scan-btn" class="secondary">扫描页面字段并上传</button>
+    <button id="fill-btn">生成填表方案</button>
+    <button id="scan-btn" class="secondary">仅扫描并校验字段</button>
     <label id="expand-toggle-label">
       <input type="checkbox" id="expand-toggle">
       <span>扫描前自动点击"添加"按钮</span>
     </label>
-    <button id="debug-btn" class="secondary">调试：强制填入测试值</button>
     <div id="debug-info"></div>
   </div>
   <script src="../shared/message-types.js"></script>

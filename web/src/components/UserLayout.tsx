@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 const NAV = [
   { to: "/profile", label: "我的简历" },
   { to: "/upload", label: "上传简历" },
+  { to: "/plugin", label: "连接插件" },
 ];
 
 export default function UserLayout() {

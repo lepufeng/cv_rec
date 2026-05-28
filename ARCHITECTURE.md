@@ -86,6 +86,8 @@ cv_rec/
 │   ├── integration/         端到端 API 流程
 │   ├── fakes/               FakeModel
 │   └── fixtures/            测试样本
+├── web/                     用户端/管理员端 React 前端
+├── With_Le/chrome-extension/ 浏览器插件（队友项目，已纳入仓库管理）
 ├── data/uploads/            本地文件存储根目录（.gitignore）
 ├── docker-compose.yml       Postgres 可选栈
 ├── Dockerfile
@@ -219,7 +221,7 @@ Thinking 模式：
 
 ```
 Extension          API            FillService                  ChatModel
-   │ POST /fill-plans │                  │                          │
+   │ POST /fill-plans/plugin-match        │                          │
    │ ────────────────▶│ ──create_plan──▶│                          │
    │                  │                  │ load parsed_data         │
    │                  │                  │ structure_hash = sha(form)│
@@ -232,10 +234,12 @@ Extension          API            FillService                  ChatModel
    │                  │                  │ validate against Schema  │
    │                  │                  │ cache.set(ttl=7d)        │
    │                  │                  │ insert CostLog           │
-   │ ◀── FillPlan ────│                  │                          │
+   │ ◀── FillPlan + mappings ────────────│                          │
 ```
 
-`POST /fill-plans` 可选传入 `thinkingMode=enabled|disabled`。填表方案缓存会把 thinking 模式纳入 `form_structure_hash`，避免用户切换增强推理后仍命中普通模式生成的旧方案。
+当前 MVP 中，插件主流程只展示匹配方案预览，不执行真实 DOM 填写；真实填写执行器与填写反馈学习链路是下一阶段工作。
+
+`POST /fill-plans` 与 `POST /fill-plans/plugin-match` 均可选传入 `thinkingMode=enabled|disabled`。填表方案缓存会把 thinking 模式纳入 `form_structure_hash`，避免用户切换增强推理后仍命中普通模式生成的旧方案。
 
 ### 5.3 用户修正后缓存失效
 

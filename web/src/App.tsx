@@ -7,6 +7,7 @@ import AdminAuth from "./pages/AdminAuth";
 import UserAuth from "./pages/UserAuth";
 import Profile from "./pages/Profile";
 import Upload from "./pages/Upload";
+import PluginConnect from "./pages/PluginConnect";
 import AdminStats from "./pages/admin/Stats";
 import AdminModelConfig from "./pages/admin/ModelConfig";
 import AdminUsers from "./pages/admin/Users";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/profile" replace />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/upload" element={<Upload />} />
+        <Route path="/plugin" element={<PluginConnect />} />
       </Route>
 
       {/* admin app */}
