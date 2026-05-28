@@ -68,6 +68,7 @@ test('select handler supports custom pseudo-radio and dropdown controls', () => 
 test('choice handler can fill standalone wrapped checkboxes', () => {
   const handler = read('content/handlers/choice-handler.js');
 
+  assert.match(handler, /\(el\.type \|\| ''\)\.toLowerCase\(\) === 'checkbox'/);
   assert.match(handler, /_fillStandalone\(el, values\)/);
   assert.match(handler, /el\.closest\('label'\)/);
   assert.match(handler, /el\.dispatchEvent\(new Event\('change'/);

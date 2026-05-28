@@ -6,6 +6,9 @@ var ChoiceHandler = {
   fill(el, value) {
     const name = el.name || el.getAttribute('data-group');
     const values = Array.isArray(value) ? value : [value];
+    if ((el.type || '').toLowerCase() === 'checkbox') {
+      return this._fillStandalone(el, values);
+    }
     if (!name) {
       return this._fillStandalone(el, values);
     }

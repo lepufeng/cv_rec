@@ -44,4 +44,5 @@ test('local ATS test instructions cover expected safety checks', () => {
   assert.match(testingDoc, /must not click `提交投递`/);
   assert.match(testingDoc, /复制诊断报告/);
   assert.match(testingDoc, /stopReason: submit_only/);
+  assert.match(testingDoc, /multiple checked skills/);
 });
