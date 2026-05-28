@@ -264,6 +264,83 @@ async def test_plugin_match_uses_rules_fallback_when_model_schema_is_invalid(app
 
 
 @pytest.mark.asyncio
+async def test_rules_fallback_maps_repeated_project_fields_by_index(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("repeat-project-fallback-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    parsed = {
+        **SAMPLE_PARSED_RESUME,
+        "project_experience": [
+            {
+                "name": "旧项目",
+                "role": "成员",
+                "start_date": "2023-01",
+                "end_date": "2023-03",
+                "tech_stack": ["Python"],
+                "achievements": ["维护旧系统"],
+            },
+            {
+                "name": "智能投递助手",
+                "role": "项目负责人",
+                "start_date": "2024-01",
+                "end_date": "2024-06",
+                "tech_stack": ["TypeScript", "FastAPI"],
+                "achievements": ["实现多招聘站点自动填写"],
+            },
+        ],
+    }
+    fake.queue_response(parsed)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    fake.queue_response({"filled": {"bad": {"value": "x", "confidence": 2}}})
+    fake.queue_response({"filled": {"bad": {"value": "x", "confidence": 2}}})
+    payload = _form_payload(rid)
+    payload["fields"] = [
+        {"fieldId": "p2_name", "label": "项目名称", "type": "text", "repeatSection": "项目经历", "repeatIndex": 1},
+        {"fieldId": "p2_role", "label": "项目角色", "type": "text", "repeatSection": "项目经历", "repeatIndex": 1},
+        {
+            "fieldId": "p2_start",
+            "label": "项目时间",
+            "type": "date",
+            "groupIndex": 0,
+            "groupSize": 2,
+            "repeatSection": "项目经历",
+            "repeatIndex": 1,
+        },
+        {
+            "fieldId": "p2_end",
+            "label": "项目时间",
+            "type": "date",
+            "groupIndex": 1,
+            "groupSize": 2,
+            "repeatSection": "项目经历",
+            "repeatIndex": 1,
+        },
+        {"fieldId": "p2_stack", "label": "技术栈", "type": "text", "repeatSection": "项目经历", "repeatIndex": 1},
+        {"fieldId": "p2_result", "label": "项目成果", "type": "textarea", "repeatSection": "项目经历", "repeatIndex": 1},
+    ]
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["model_used"] == "fake-chat+rules-fallback"
+    assert body["mappings"] == {
+        "p2_name": "智能投递助手",
+        "p2_role": "项目负责人",
+        "p2_start": "2024-01",
+        "p2_end": "2024-06",
+        "p2_stack": "TypeScript、FastAPI",
+        "p2_result": "实现多招聘站点自动填写",
+    }
+    assert body["filled"]["p2_name"]["source"] == "project_experience[1].name"
+    assert body["filled"]["p2_result"]["source"] == "project_experience[1].achievements"
+
+
+@pytest.mark.asyncio
 async def test_plugin_scan_endpoint_validates_real_scan_payload(app_client, make_user):
     client, _ = app_client
     user = await make_user("plugin-scan-user")

@@ -343,6 +343,10 @@ def _match_field_from_resume(
     if field_type == "file" or _contains_any(text, ("附件", "上传", "简历文件", "resume file", "upload")):
         return None
 
+    repeated_match = _match_repeated_item_field(field, resume_data)
+    if repeated_match is not None:
+        return repeated_match
+
     basic = _dict(resume_data.get("basic_info"))
     intent = _dict(resume_data.get("job_intent"))
     education = _first_dict(resume_data.get("education"))
@@ -404,6 +408,170 @@ def _match_field_from_resume(
                 return None
             return _filled(_coerce_option_value(field, value_text), source, confidence)
 
+    return None
+
+
+def _match_repeated_item_field(
+    field: dict[str, Any],
+    resume_data: dict[str, Any],
+) -> tuple[Any, str, float] | None:
+    section_key = _repeat_section_key(field)
+    if not section_key:
+        return None
+
+    items = resume_data.get(section_key)
+    if not isinstance(items, list) or not items:
+        return None
+
+    index = _safe_repeat_index(field)
+    if index < 0 or index >= len(items):
+        return None
+
+    item = _dict(items[index])
+    if not item:
+        return None
+
+    text = _field_search_text(field)
+    item_key = _repeated_item_key_for_field(section_key, text, field)
+    if item_key is None:
+        return None
+
+    value = _value_from_repeated_item(item, item_key)
+    if value is None:
+        return None
+
+    normalized_value = _as_text(value) if isinstance(value, (list, dict)) else value
+    return _filled(
+        _coerce_option_value(field, normalized_value),
+        f"{section_key}[{index}].{item_key}",
+        0.82,
+    )
+
+
+def _repeat_section_key(field: dict[str, Any]) -> str | None:
+    text = " ".join(
+        str(value)
+        for value in (
+            field.get("repeatSection"),
+            field.get("repeat_section"),
+            field.get("section"),
+            field.get("label"),
+        )
+        if value
+    ).casefold()
+    if not text:
+        return None
+    if "项目" in text or "project" in text:
+        return "project_experience"
+    if "教育" in text or "学历" in text or "院校" in text or "education" in text:
+        return "education"
+    if "实习" in text or "intern" in text:
+        return "internship_experience"
+    if "工作经历" in text or "工作经验" in text or "work experience" in text:
+        return "work_experience"
+    if "校园" in text or "社团" in text or "学生干部" in text or "campus" in text:
+        return "campus_experience"
+    return None
+
+
+def _safe_repeat_index(field: dict[str, Any]) -> int:
+    value = field.get("repeatIndex")
+    if value is None:
+        value = field.get("repeat_index")
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _repeated_item_key_for_field(
+    section_key: str,
+    text: str,
+    field: dict[str, Any],
+) -> str | None:
+    range_key = _date_range_key(field, text)
+    if range_key:
+        return range_key
+
+    if section_key == "project_experience":
+        rules = [
+            (("项目名称", "项目名", "project name", "name"), "name"),
+            (("项目角色", "担任角色", "角色", "role"), "role"),
+            (("开始", "起始", "start"), "start_date"),
+            (("结束", "截止", "end"), "end_date"),
+            (("技术", "工具", "环境", "tech", "stack"), "tech_stack"),
+            (("描述", "简介", "介绍", "背景", "description"), "description"),
+            (("成果", "业绩", "职责", "内容", "工作内容", "项目内容", "主要工作", "achievement"), "achievements"),
+        ]
+    elif section_key == "education":
+        rules = [
+            (("学校", "院校", "school", "university"), "school"),
+            (("学历", "学位", "degree"), "degree"),
+            (("专业", "major"), "major"),
+            (("开始", "入学", "start"), "start_date"),
+            (("结束", "毕业", "end"), "end_date"),
+            (("gpa", "绩点"), "gpa"),
+            (("排名", "rank"), "ranking"),
+            (("荣誉", "奖励", "honor", "award"), "honors"),
+            (("课程", "course"), "courses"),
+        ]
+    elif section_key in {"work_experience", "internship_experience"}:
+        rules = [
+            (("公司", "单位", "company"), "company"),
+            (("部门", "department"), "department"),
+            (("职位", "岗位", "职务", "title", "position"), "title"),
+            (("开始", "入职", "start"), "start_date"),
+            (("结束", "离职", "end"), "end_date"),
+            (("技术", "工具", "环境", "tech", "stack"), "tech_stack"),
+            (("成果", "业绩", "职责", "内容", "工作内容", "主要工作", "achievement"), "achievements"),
+        ]
+    elif section_key == "campus_experience":
+        rules = [
+            (("组织", "社团", "学校", "organization"), "organization"),
+            (("部门", "department"), "department"),
+            (("角色", "职务", "职位", "role", "position"), "role"),
+            (("类别", "类型", "category"), "category"),
+            (("开始", "start"), "start_date"),
+            (("结束", "end"), "end_date"),
+            (("成果", "职责", "内容", "achievement"), "achievements"),
+            (("标签", "tag"), "tags"),
+        ]
+    else:
+        return None
+
+    for terms, key in rules:
+        if _contains_any(text, terms):
+            return key
+    return None
+
+
+def _date_range_key(field: dict[str, Any], text: str) -> str | None:
+    if not _contains_any(text, ("起止", "时间", "日期", "年月", "period", "date", "time")):
+        return None
+    group_index = field.get("groupIndex")
+    if group_index is None:
+        group_index = field.get("group_index")
+    try:
+        parsed = int(group_index)
+    except (TypeError, ValueError):
+        parsed = -1
+    if parsed == 0:
+        return "start_date"
+    if parsed == 1:
+        return "end_date"
+    return None
+
+
+def _value_from_repeated_item(item: dict[str, Any], key: str) -> Any:
+    value = item.get(key)
+    if key == "ranking" and isinstance(value, dict):
+        return value.get("raw") or value.get("rank")
+    if value:
+        return value
+    if key == "description":
+        return _as_text(item.get("achievements"))
+    if key == "achievements":
+        return item.get("description") or item.get("achievements")
     return None
 
 
