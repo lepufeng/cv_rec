@@ -52,6 +52,7 @@ var SectionManager = {
 
     const headings = document.querySelectorAll(this.HEADING_SELECTOR);
     headings.forEach(h => {
+      if (!this._isVisible(h)) return;
       const text = h.textContent.trim();
       if (!text || text.length > 50 || seen.has(text)) return;
       seen.add(text);

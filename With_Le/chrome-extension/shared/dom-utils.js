@@ -1,12 +1,21 @@
 var DOMUtils = {
   isVisible(el) {
     if (!el || !el.getBoundingClientRect) return false;
+    let cur = el;
+    while (cur && cur.nodeType === 1) {
+      const curStyle = window.getComputedStyle(cur);
+      if (curStyle.display === 'none') return false;
+      if (cur !== el && (curStyle.visibility === 'hidden' || curStyle.visibility === 'collapse')) {
+        return false;
+      }
+      cur = cur.parentElement;
+    }
+
     const style = window.getComputedStyle(el);
-    if (style.display === 'none') return false;
     // Radio / checkbox driver inputs are routinely hidden via visibility,
     // opacity, clip-path, or zero size while remaining interactive (the
     // wrapping <label> is what the user actually sees and clicks). Keep
-    // them as long as they're not display:none — they're real controls
+    // them as long as no ancestor is display:none — they're real controls
     // and we need them in the field list.
     const tag = (el.tagName || '').toLowerCase();
     const type = (el.type || '').toLowerCase();
@@ -16,6 +25,8 @@ var DOMUtils = {
     if (style.visibility === 'hidden' || style.opacity === '0') {
       return false;
     }
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 && rect.height <= 0) return false;
     return true;
   },
 

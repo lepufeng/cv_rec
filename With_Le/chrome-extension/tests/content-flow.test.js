@@ -80,6 +80,7 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /_countRepeatItems\(container\)/);
   assert.match(manager, /_collectSectionsFromAddButtons/);
   assert.match(manager, /_deriveSectionNameFromAddText/);
+  assert.match(manager, /if \(!this\._isVisible\(h\)\) return/);
   assert.match(manager, /moka/);
   assert.match(manager, /beisen/);
   assert.match(manager, /atsx/);
@@ -91,4 +92,14 @@ test('navigation detector skips final submit style buttons', () => {
   assert.match(detector, /FINAL_SUBMIT_REGEX/);
   assert.match(detector, /if \(this\._looksLikeFinalSubmit\(text\)\) continue/);
   assert.match(detector, /if \(this\.findNextButton\(\)\) return false/);
+});
+
+test('dom utils ignores controls hidden by ancestor pages', () => {
+  const domUtils = read('shared/dom-utils.js');
+
+  assert.match(domUtils, /cur\.parentElement/);
+  assert.match(domUtils, /curStyle\.display === 'none'/);
+  assert.match(domUtils, /cur !== el && \(curStyle\.visibility === 'hidden'/);
+  assert.match(domUtils, /rect\.width <= 0 && rect\.height <= 0/);
+  assert.match(domUtils, /type === 'radio' \|\| type === 'checkbox'/);
 });
