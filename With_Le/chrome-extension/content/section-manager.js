@@ -7,14 +7,14 @@ var SectionManager = {
   depth: 0,
 
   HEADING_SELECTOR:
-    'h2, h3, h4, fieldset legend, [class*="section-title"], [class*="sectionTitle"], [class*="step-title"], [class*="stepTitle"], [class*="module-title"], [class*="moduleTitle"], [class*="block-title"], [class*="blockTitle"]',
+    'h2, h3, h4, fieldset legend, [class*="section-title"], [class*="sectionTitle"], [class*="step-title"], [class*="stepTitle"], [class*="module-title"], [class*="moduleTitle"], [class*="block-title"], [class*="blockTitle"], [class*="atsx-title"], [class*="atsxTitle"], [class*="moka-title"], [class*="mokaTitle"], [class*="beisen-title"], [class*="beisenTitle"], [data-section-title]',
   BUTTON_SELECTOR:
     'button, [role="button"], a[href="#"], a:not([href]), span[class*="btn"], div[class*="btn"], span[class*="button"], div[class*="button"]',
   ADD_TEXT_REGEX: /^\+$|添加|新增|继续添加|增加|\badd\b|\bnew\b/i,
   REPEAT_SECTION_REGEX:
     /项目|教育|学历|院校|实习|工作经历|工作经验|校园|社团|学生干部|project|education|intern|work experience|campus|experience/i,
   REPEAT_ITEM_SELECTOR:
-    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"]',
+    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"]',
 
   reset() {
     this.expansionCount = 0;
@@ -101,7 +101,7 @@ var SectionManager = {
       const sectionName = this._deriveSectionNameFromAddText(text);
       if (!sectionName || seen.has(sectionName) || !this.REPEAT_SECTION_REGEX.test(sectionName)) continue;
 
-      const container = btn.closest('[class*="section"], [class*="module"], [class*="block"], fieldset') ||
+      const container = btn.closest('[class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], fieldset') ||
         btn.parentElement;
       sections.push({
         name: sectionName,
@@ -128,6 +128,10 @@ var SectionManager = {
       (parent && parent.closest('[class*="section"]')) ||
       (parent && parent.closest('[class*="module"]')) ||
       (parent && parent.closest('[class*="block"]')) ||
+      (parent && parent.closest('[class*="moka"]')) ||
+      (parent && parent.closest('[class*="beisen"]')) ||
+      (parent && parent.closest('[class*="atsx"]')) ||
+      (parent && parent.closest('[data-form-field-i18n-name]')) ||
       parent;
   },
 

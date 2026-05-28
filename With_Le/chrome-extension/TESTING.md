@@ -1,0 +1,33 @@
+# Chrome extension local ATS test
+
+This local page is a repeatable pre-flight check for Moka, Feishu and Beisen style forms.
+
+## Run the page
+
+From this directory:
+
+```bash
+python3 -m http.server 8090
+```
+
+Open:
+
+```text
+http://127.0.0.1:8090/test-form.html
+```
+
+## What it covers
+
+- Moka-style field markers such as `data-moka-field`.
+- Feishu/Formily-style labels such as `data-form-field-i18n-name`.
+- Beisen-style repeated experience containers.
+- Dynamic `项目经历` cards with one initial item and an add button.
+- Custom radio/combobox controls.
+- A final `提交投递` button that writes an error marker if clicked.
+
+## Expected plugin behavior
+
+- Click `开始自动填写`.
+- The plugin may click `下一步`, but must not click `提交投递`.
+- If the resume has multiple project experiences, project cards should be added before filling.
+- `复制诊断报告` should include `sectionActions`, `expandedFieldCount`, `repeatIndex`-backed mappings, and `stopReason: submit_only` on the final page.

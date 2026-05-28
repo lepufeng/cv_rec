@@ -39,6 +39,9 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /repeatIndex/);
   assert.match(scanner, /repeatSize/);
   assert.match(scanner, /repeatSection/);
+  assert.match(scanner, /data-moka-field/);
+  assert.match(scanner, /data-beisen-field/);
+  assert.match(scanner, /atsx-form-item/);
 });
 
 test('fill engine uses scanner metadata and keeps unsafe controls skipped', () => {
@@ -77,6 +80,9 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /_countRepeatItems\(container\)/);
   assert.match(manager, /_collectSectionsFromAddButtons/);
   assert.match(manager, /_deriveSectionNameFromAddText/);
+  assert.match(manager, /moka/);
+  assert.match(manager, /beisen/);
+  assert.match(manager, /atsx/);
 });
 
 test('navigation detector skips final submit style buttons', () => {

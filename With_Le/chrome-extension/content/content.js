@@ -107,10 +107,10 @@ async function startFill(resumeId) {
       pageReport.mappingCount = Object.keys(mappings).length;
       pageReport.backendSkippedCount = matchSkipped.length;
 
-      // 3. Execute section expansions. Dynamic pages such as Tencent often
-      // render only one project/education card first. If the backend asks us
-      // to add cards, expand the DOM, then re-scan and re-match the full page
-      // so repeated groups can be mapped in document order.
+      // 3. Execute section expansions. ATS pages such as Moka, Feishu and
+      // Beisen often render only one project/education card first. If the
+      // backend asks us to add cards, expand the DOM, then re-scan and
+      // re-match the full page so repeated groups can be mapped in order.
       if (firstMatch.sectionActions && Object.keys(firstMatch.sectionActions).length > 0) {
         pageReport.sectionActions = firstMatch.sectionActions;
         sendProgress(`正在展开板块... (第 ${page + 1} 页)`);

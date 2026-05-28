@@ -111,6 +111,10 @@ var FieldScanner = {
     '[class*="page-title"]', '[class*="pageTitle"]',
     '[class*="sub-title"]', '[class*="subTitle"]',
     '[class*="header-title"]', '[class*="headerTitle"]',
+    '[class*="atsx-title"]', '[class*="atsxTitle"]',
+    '[class*="moka-title"]', '[class*="mokaTitle"]',
+    '[class*="beisen-title"]', '[class*="beisenTitle"]',
+    '[data-section-title]',
   ].join(','),
 
   // Icons / decorations that hint a control opens a popup. We look for these
@@ -174,6 +178,10 @@ var FieldScanner = {
     'data-display-name',
     'data-label-text',
     'data-field-label',
+    'data-moka-label',
+    'data-moka-field',
+    'data-beisen-label',
+    'data-beisen-field',
   ],
 
   _CASCADER_HINT_CLASS: /(cascader|cascade|tree-?select)/i,
@@ -806,9 +814,9 @@ var FieldScanner = {
 
   // ----------------------------------------------------- form-item grouping
   //
-  // Many SPAs put 2+ controls inside a single form-item (e.g. Tencent's
-  // "手机号码" wraps a country-code <input> + a phone-number <input>; "个人
-  // 证件" wraps a type picker + a number <input>). Segment-based label
+  // Many SPAs put 2+ controls inside a single form-item (e.g. ATS pages wrap
+  // "手机号码" as a country-code input + phone-number input; identity fields
+  // often wrap a type picker + a number input). Segment-based label
   // resolution gives only the first control a meaningful label and leaves
   // the rest blank, which loses semantic information for the backend.
   //
@@ -823,6 +831,12 @@ var FieldScanner = {
     '[class*="formily-item"]', '[class*="formilyItem"]',
     '[class*="form-row"]', '[class*="formRow"]',
     '[class*="form-line"]', '[class*="formLine"]',
+    '[class*="atsx-form-item"]', '[class*="atsxFormItem"]',
+    '[class*="moka-form-item"]', '[class*="mokaFormItem"]',
+    '[class*="moka-field"]', '[class*="mokaField"]',
+    '[class*="beisen-form-item"]', '[class*="beisenFormItem"]',
+    '[class*="beisen-field"]', '[class*="beisenField"]',
+    '[class*="b-form-item"]',
     '[class*="info-row"]', '[class*="infoRow"]',
     '[class*="info-item"]', '[class*="infoItem"]',
     '[class*="info-line"]', '[class*="infoLine"]',
@@ -837,7 +851,7 @@ var FieldScanner = {
     /项目|教育|学历|院校|实习|工作经历|工作经验|校园|社团|学生干部|project|education|intern|work experience|campus|experience/i,
 
   _REPEAT_ITEM_HINT_REGEX:
-    /card|entry|record|block|module|panel|resume|experience|project|education|intern|campus|work|经历|项目|教育|实习|校园/i,
+    /card|entry|record|block|module|panel|resume|experience|project|education|intern|campus|work|moka|beisen|atsx|feishu|经历|项目|教育|实习|校园/i,
 
   _findItemContainer(el) {
     for (const sel of this._ITEM_GROUP_SELECTORS) {
