@@ -9,9 +9,12 @@ const openPlatformBtn = document.getElementById('open-platform-btn');
 const saveSettingsBtn = document.getElementById('save-settings-btn');
 const expandToggle = document.getElementById('expand-toggle');
 const debugInfoEl = document.getElementById('debug-info');
+const copyReportBtn = document.getElementById('copy-report-btn');
+const clearReportBtn = document.getElementById('clear-report-btn');
 
 const DEFAULT_PLATFORM_HOME = 'http://localhost:5173';
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:8000/api/v1';
+let lastFillReport = null;
 
 const CONTENT_SCRIPTS = [
   'shared/message-types.js',
@@ -39,6 +42,10 @@ function storageGet(keys) {
 
 function storageSet(values) {
   return new Promise(resolve => chrome.storage.local.set(values, resolve));
+}
+
+function storageRemove(keys) {
+  return new Promise(resolve => chrome.storage.local.remove(keys, resolve));
 }
 
 function normalizeUrl(value, fallback) {
@@ -366,6 +373,7 @@ function renderScanResult(resp, payload) {
 
 function renderFillReport(report, title) {
   if (!report) return;
+  lastFillReport = report;
   const lines = [];
   lines.push(title || '自动填写结果');
   if (report.host) lines.push(`站点: ${report.host}`);
@@ -398,6 +406,38 @@ function renderFillReport(report, title) {
   debugInfoEl.textContent = lines.join('\n');
 }
 
+function fillReportText(report) {
+  if (!report) return '';
+  const summary = [
+    '自动填写诊断报告',
+    `站点: ${report.host || ''}`,
+    `页面: ${report.url || ''}`,
+    `已填: ${report.totalFilled || 0}`,
+    `跳过: ${report.totalSkipped || 0}`,
+    `错误: ${report.error || ''}`,
+    '',
+    '原始 JSON:',
+    JSON.stringify(report, null, 2),
+  ];
+  return summary.join('\n');
+}
+
+async function copyText(text) {
+  if (!text) throw new Error('没有可复制的内容');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
+}
+
 async function runWithButtonsDisabled(fn) {
   fillBtn.disabled = true;
   scanBtn.disabled = true;
@@ -424,6 +464,23 @@ openPlatformBtn.addEventListener('click', async () => {
 
 expandToggle.addEventListener('change', () => {
   chrome.storage.local.set({ expandOnScan: expandToggle.checked });
+});
+
+copyReportBtn.addEventListener('click', async () => {
+  try {
+    if (!lastFillReport) throw new Error('暂无诊断报告');
+    await copyText(fillReportText(lastFillReport));
+    statusEl.textContent = '诊断报告已复制';
+  } catch (err) {
+    statusEl.textContent = '复制失败: ' + (err && err.message ? err.message : err);
+  }
+});
+
+clearReportBtn.addEventListener('click', async () => {
+  lastFillReport = null;
+  debugInfoEl.textContent = '';
+  await storageRemove(['resumeAutofillLastReport']);
+  statusEl.textContent = '诊断报告已清除';
 });
 
 fillBtn.addEventListener('click', async () => {

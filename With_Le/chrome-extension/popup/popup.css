@@ -27,6 +27,9 @@ textarea {
 .toolbar {
   display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
 }
+.diagnostic-toolbar {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;
+}
 .secondary.compact {
   margin-top: 0; padding: 7px 8px;
 }
