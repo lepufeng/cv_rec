@@ -42,6 +42,18 @@ async function startFill(resumeId) {
   NavigationDetector.reset();
   FieldScanner._resetMap();
 
+  const report = {
+    url: location.href,
+    title: document.title,
+    host: location.host,
+    startedAt: new Date().toISOString(),
+    pages: [],
+    safety: {
+      noFinalSubmit: true,
+      noFileUpload: true,
+    },
+  };
+
   try {
     if (!resumeId) {
       sendProgress('未配置简历 ID');
@@ -70,6 +82,20 @@ async function startFill(resumeId) {
 
       if (initialFields.length === 0) break;
       if (NavigationDetector.isDuplicatePage(initialFields)) break;
+      const pageReport = {
+        page: page + 1,
+        initialFieldCount: initialFields.length,
+        sectionCount: sectionInfo.length,
+        sectionActions: {},
+        expandedFieldCount: null,
+        mappingCount: 0,
+        backendSkippedCount: 0,
+        filledCount: 0,
+        runtimeSkippedCount: 0,
+        navigated: false,
+        stopReason: '',
+      };
+      report.pages.push(pageReport);
 
       // 2. First match to get safe mappings and dynamic section actions.
       sendProgress(`正在匹配字段... (${initialFields.length} 个字段)`);
@@ -78,17 +104,21 @@ async function startFill(resumeId) {
       let mappings = firstMatch.mappings || {};
       let activeFields = initialFields;
       let matchSkipped = firstMatch.skipped || [];
+      pageReport.mappingCount = Object.keys(mappings).length;
+      pageReport.backendSkippedCount = matchSkipped.length;
 
       // 3. Execute section expansions. Dynamic pages such as Tencent often
       // render only one project/education card first. If the backend asks us
       // to add cards, expand the DOM, then re-scan and re-match the full page
       // so repeated groups can be mapped in document order.
       if (firstMatch.sectionActions && Object.keys(firstMatch.sectionActions).length > 0) {
+        pageReport.sectionActions = firstMatch.sectionActions;
         sendProgress(`正在展开板块... (第 ${page + 1} 页)`);
         await SectionManager.executeActions(firstMatch.sectionActions);
         await new Promise(r => setTimeout(r, 600));
 
         const expandedFields = FieldScanner.scan();
+        pageReport.expandedFieldCount = expandedFields.length;
         if (expandedFields.length > 0) {
           const expandedSectionInfo = SectionManager.collectSectionInfo();
           sendProgress(`板块已展开，正在重新匹配 ${expandedFields.length} 个字段...`);
@@ -96,6 +126,8 @@ async function startFill(resumeId) {
           mappings = secondMatch.mappings || {};
           activeFields = expandedFields;
           matchSkipped = secondMatch.skipped || [];
+          pageReport.mappingCount = Object.keys(mappings).length;
+          pageReport.backendSkippedCount = matchSkipped.length;
         }
       }
 
@@ -108,27 +140,47 @@ async function startFill(resumeId) {
 
       totalFilled += filled;
       totalSkipped = totalSkipped.concat(backendSkipped, skipped);
+      pageReport.filledCount = filled;
+      pageReport.runtimeSkippedCount = skipped.length;
 
-      if (NavigationDetector.isSubmitOnly()) break;
+      if (NavigationDetector.isSubmitOnly()) {
+        pageReport.stopReason = 'submit_only';
+        break;
+      }
 
       sendProgress(`正在翻到下一页...`);
       const navigated = await NavigationDetector.clickNext();
-      if (!navigated) break;
+      pageReport.navigated = navigated;
+      if (!navigated) {
+        pageReport.stopReason = 'no_next_page';
+        break;
+      }
     }
+
+    report.completedAt = new Date().toISOString();
+    report.totalFilled = totalFilled;
+    report.totalSkipped = totalSkipped.length;
+    report.skipped = totalSkipped.slice(0, 50);
+    persistLastReport(report);
 
     // Only show overlay in the frame that actually filled something.
     if (totalFilled > 0 || totalSkipped.length > 0) {
-      ResultAnnotator.show(totalFilled, totalSkipped);
+      ResultAnnotator.show(totalFilled, totalSkipped, report);
     }
 
     chrome.runtime.sendMessage({
       type: MSG.FILL_COMPLETE,
       summary: `已填: ${totalFilled} 个字段, 跳过: ${totalSkipped.length} 个字段`,
+      report,
     });
   } catch (err) {
+    report.completedAt = new Date().toISOString();
+    report.error = err.message || '填充过程出错';
+    persistLastReport(report);
     chrome.runtime.sendMessage({
       type: MSG.FILL_ERROR,
       error: err.message || '填充过程出错',
+      report,
     });
   } finally {
     running = false;
@@ -190,4 +242,13 @@ function describeSkippedFields(fieldIds, fields, mappings) {
         reason: '后端未找到足够可靠的简历来源，需人工确认',
       };
     });
+}
+
+function persistLastReport(report) {
+  try {
+    window.__resumeAutofillLastReport = report;
+    if (chrome && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ resumeAutofillLastReport: report });
+    }
+  } catch (_) {}
 }

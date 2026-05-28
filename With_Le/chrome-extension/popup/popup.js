@@ -75,12 +75,16 @@ async function restoreSettings() {
     'authToken',
     'resumeId',
     'expandOnScan',
+    'resumeAutofillLastReport',
   ]);
   platformHomeInput.value = data.platformHome || DEFAULT_PLATFORM_HOME;
   backendBaseInput.value = data.backendBase || DEFAULT_BACKEND_BASE;
   authTokenInput.value = data.authToken || '';
   resumeIdInput.value = data.resumeId || '';
   expandToggle.checked = !!data.expandOnScan;
+  if (data.resumeAutofillLastReport) {
+    renderFillReport(data.resumeAutofillLastReport, '上次自动填写结果');
+  }
 }
 
 function isInjectableUrl(url) {
@@ -180,6 +184,12 @@ async function scanFieldsInAllFrames(tabId) {
             out.groupId = f.groupId;
             out.groupSize = f.groupSize;
             out.groupIndex = f.groupIndex;
+          }
+          if (f.repeatGroupId) {
+            out.repeatGroupId = f.repeatGroupId;
+            out.repeatSize = f.repeatSize;
+            out.repeatIndex = f.repeatIndex;
+            out.repeatSection = f.repeatSection;
           }
           if (f.maxLength != null) out.maxLength = f.maxLength;
           if (f.min != null) out.min = f.min;
@@ -354,6 +364,40 @@ function renderScanResult(resp, payload) {
   debugInfoEl.textContent = lines.join('\n');
 }
 
+function renderFillReport(report, title) {
+  if (!report) return;
+  const lines = [];
+  lines.push(title || '自动填写结果');
+  if (report.host) lines.push(`站点: ${report.host}`);
+  if (report.url) lines.push(`页面: ${report.url}`);
+  if (report.error) lines.push(`错误: ${report.error}`);
+  lines.push(`已填: ${report.totalFilled || 0} 个`);
+  lines.push(`跳过: ${report.totalSkipped || 0} 个`);
+  lines.push('安全边界: 不点击最终提交，不上传文件');
+
+  if (Array.isArray(report.pages) && report.pages.length) {
+    lines.push('');
+    lines.push('页面执行明细:');
+    report.pages.slice(0, 8).forEach(page => {
+      const actions = page.sectionActions ? Object.keys(page.sectionActions).length : 0;
+      const expanded = page.expandedFieldCount == null ? '-' : page.expandedFieldCount;
+      lines.push(
+        `  #${page.page}: 初扫 ${page.initialFieldCount}, 展开后 ${expanded}, 匹配 ${page.mappingCount}, 已填 ${page.filledCount}, 跳过 ${page.backendSkippedCount + page.runtimeSkippedCount}, 动态动作 ${actions}`
+      );
+      if (page.stopReason) lines.push(`      停止原因: ${page.stopReason}`);
+    });
+  }
+
+  if (Array.isArray(report.skipped) && report.skipped.length) {
+    lines.push('');
+    lines.push('跳过示例:');
+    report.skipped.slice(0, 12).forEach(item => {
+      lines.push(`  - ${item.label || item.fieldId || '未知字段'}: ${item.reason || '未知原因'}`);
+    });
+  }
+  debugInfoEl.textContent = lines.join('\n');
+}
+
 async function runWithButtonsDisabled(fn) {
   fillBtn.disabled = true;
   scanBtn.disabled = true;
@@ -441,9 +485,11 @@ chrome.runtime.onMessage.addListener((message) => {
   }
   if (message.type === MSG.FILL_COMPLETE) {
     statusEl.textContent = message.summary;
+    renderFillReport(message.report, message.summary);
   }
   if (message.type === MSG.FILL_ERROR) {
     statusEl.textContent = '错误: ' + message.error;
+    renderFillReport(message.report, '自动填写失败');
   }
 });
 

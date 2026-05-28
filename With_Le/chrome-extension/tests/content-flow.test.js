@@ -19,6 +19,18 @@ test('content direct fill force-refreshes before and after dynamic expansion', (
   assert.match(content, /describeSkippedFields\(matchSkipped, activeFields, mappings\)/);
 });
 
+test('content records a fill report for real-page diagnostics', () => {
+  const content = read('content/content.js');
+
+  assert.match(content, /const report = \{/);
+  assert.match(content, /initialFieldCount/);
+  assert.match(content, /expandedFieldCount/);
+  assert.match(content, /backendSkippedCount/);
+  assert.match(content, /runtimeSkippedCount/);
+  assert.match(content, /resumeAutofillLastReport/);
+  assert.match(content, /report,/);
+});
+
 test('scanner emits repeat metadata for expanded experience cards', () => {
   const scanner = read('content/field-scanner.js');
 

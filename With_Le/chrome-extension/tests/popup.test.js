@@ -33,6 +33,8 @@ test('popup primary flow starts real fill while scan remains preview-only', () =
   assert.match(popupJs, /__resumeAutofillStart/);
   assert.match(popupJs, /type: MSG\.UPLOAD_SCAN/);
   assert.match(popupJs, /不会点击最终提交按钮/);
+  assert.match(popupJs, /renderFillReport/);
+  assert.match(popupJs, /resumeAutofillLastReport/);
   assert.match(popupJs, /请先在插件中粘贴网页登录 token/);
 
   const fillHandler = popupJs.slice(
