@@ -10,8 +10,9 @@ var FillEngine = {
     this.skipped = [];
   },
 
-  async fillAll(mappings) {
+  async fillAll(mappings, fields) {
     const entries = Object.entries(mappings);
+    const fieldsById = new Map((fields || []).map(field => [field.fieldId, field]));
     let filled = 0;
 
     for (let i = 0; i < entries.length; i++) {
@@ -27,9 +28,24 @@ var FillEngine = {
         continue;
       }
 
-      const handler = this.handlers.find(h => h.canHandle({ type: this._detectType(el) }));
+      const field = fieldsById.get(fieldId) || { fieldId, type: this._detectType(el) };
+      const safety = this._safeToFill(el, field);
+      if (!safety.ok) {
+        this.skipped.push({
+          fieldId,
+          label: field.label || this._getLabel(el),
+          reason: safety.reason,
+        });
+        continue;
+      }
+
+      const handler = this.handlers.find(h => h.canHandle(field));
       if (!handler) {
-        this.skipped.push({ fieldId, reason: `不支持的控件类型: ${el.type || el.tagName}` });
+        this.skipped.push({
+          fieldId,
+          label: field.label || this._getLabel(el),
+          reason: `不支持的控件类型: ${field.type || el.type || el.tagName}`,
+        });
         continue;
       }
 
@@ -90,5 +106,19 @@ var FillEngine = {
     let prev = el.previousElementSibling;
     if (prev) return prev.textContent.trim();
     return el.name || el.id || '';
+  },
+
+  _safeToFill(el, field) {
+    const htmlType = (el.type || '').toLowerCase();
+    if (field.type === 'file' || htmlType === 'file') {
+      return { ok: false, reason: '文件上传需人工处理' };
+    }
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') {
+      return { ok: false, reason: '字段已禁用' };
+    }
+    if (!DOMUtils.isVisible(el)) {
+      return { ok: false, reason: '字段当前不可见' };
+    }
+    return { ok: true };
   },
 };

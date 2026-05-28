@@ -127,6 +127,10 @@ def test_form_field_accepts_plugin_scan_naming_and_keeps_metadata():
                 "groupIndex": 1,
                 "groupSize": 2,
                 "subLabel": "手机号码",
+                "repeatGroupId": "r_0",
+                "repeatIndex": 1,
+                "repeatSize": 3,
+                "repeatSection": "项目经历",
             },
         ],
     })
@@ -138,6 +142,10 @@ def test_form_field_accepts_plugin_scan_naming_and_keeps_metadata():
     assert req.fields[0].fieldFingerprint
     assert req.fields[1].groupId == "g_0"
     assert req.fields[1].subLabel == "手机号码"
+    assert req.fields[1].repeatGroupId == "r_0"
+    assert req.fields[1].repeatIndex == 1
+    assert req.fields[1].repeatSize == 3
+    assert req.fields[1].repeatSection == "项目经历"
 
 
 def test_fill_plan_request_still_accepts_legacy_platform_naming():

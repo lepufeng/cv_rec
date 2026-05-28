@@ -30,9 +30,18 @@ var SelectHandler = {
   },
 
   async _fillCustom(el, value) {
-    el.focus();
-    el.value = value;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+    const str = value == null ? '' : String(value);
+    const target = this._editableTarget(el);
+
+    try { el.click(); } catch (_) {}
+    try { target.focus(); } catch (_) {}
+    if (typeof target.value !== 'undefined') {
+      DOMUtils.setNativeValue(target, str);
+      DOMUtils.fireInputEvents(target);
+    } else if (target.hasAttribute && target.hasAttribute('contenteditable')) {
+      target.textContent = str;
+      DOMUtils.fireInputEvents(target);
+    }
 
     await new Promise(r => setTimeout(r, 300));
 
@@ -40,14 +49,24 @@ var SelectHandler = {
     if (dropdown) {
       const items = dropdown.querySelectorAll('[role="option"], li, div');
       for (const item of items) {
-        if (item.textContent.trim() === value) {
+        const itemText = item.textContent.trim();
+        if (itemText === str || itemText.includes(str) || str.includes(itemText)) {
           item.click();
           return true;
         }
       }
     }
 
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return el.value === value;
+    DOMUtils.fireInputEvents(target);
+    return target.value === str || target.textContent === str;
+  },
+
+  _editableTarget(el) {
+    if (typeof el.value !== 'undefined' || (el.hasAttribute && el.hasAttribute('contenteditable'))) {
+      return el;
+    }
+    return el.querySelector(
+      'input:not([type="hidden"]), textarea, [contenteditable="true"], [role="textbox"], [role="searchbox"]'
+    ) || el;
   },
 };

@@ -247,6 +247,7 @@ var FieldScanner = {
     //    so the backend can recognize composite fields like "手机号码 = 区号
     //    + 号码".
     this._propagateGroupLabels(fields);
+    this._annotateRepeatInstances(fields);
 
     return fields;
   },
@@ -830,6 +831,13 @@ var FieldScanner = {
   ],
 
   MAX_GROUP_PROPAGATE: 5,
+  MAX_REPEAT_ITEM_CONTROLS: 30,
+
+  _REPEAT_SECTION_REGEX:
+    /项目|教育|学历|院校|实习|工作经历|工作经验|校园|社团|学生干部|project|education|intern|work experience|campus|experience/i,
+
+  _REPEAT_ITEM_HINT_REGEX:
+    /card|entry|record|block|module|panel|resume|experience|project|education|intern|campus|work|经历|项目|教育|实习|校园/i,
 
   _findItemContainer(el) {
     for (const sel of this._ITEM_GROUP_SELECTORS) {
@@ -938,5 +946,131 @@ var FieldScanner = {
     if (!stripped) return '';
     if (stripped.length > this.MAX_LABEL_LEN) return '';
     return stripped;
+  },
+
+  _annotateRepeatInstances(fields) {
+    if (fields.length === 0) return;
+
+    const parentBuckets = new Map();
+    fields.forEach((field, idx) => {
+      const el = this._elementMap.get(field.fieldId);
+      if (!el) return;
+      const item = this._findRepeatItemContainer(el, field);
+      if (!item || !item.parentElement) return;
+
+      let bySection = parentBuckets.get(item.parentElement);
+      if (!bySection) {
+        bySection = new Map();
+        parentBuckets.set(item.parentElement, bySection);
+      }
+
+      const section = field.section || this._detectSection(item) || '';
+      const sectionKey = this._cleanLabel(section || 'repeat');
+      let entries = bySection.get(sectionKey);
+      if (!entries) {
+        entries = [];
+        bySection.set(sectionKey, entries);
+      }
+      entries.push({ field, idx, item, section: sectionKey });
+    });
+
+    let repeatCounter = 0;
+    for (const [, bySection] of parentBuckets) {
+      for (const [, entries] of bySection) {
+        const uniqueItems = [];
+        for (const entry of entries) {
+          if (!uniqueItems.includes(entry.item)) uniqueItems.push(entry.item);
+        }
+        uniqueItems.sort((a, b) => {
+          const cmp = a.compareDocumentPosition(b);
+          if (cmp & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+          if (cmp & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+          return 0;
+        });
+        if (uniqueItems.length < 2) continue;
+
+        const repeatGroupId = `r_${repeatCounter++}`;
+        for (const entry of entries) {
+          const repeatIndex = uniqueItems.indexOf(entry.item);
+          if (repeatIndex < 0) continue;
+          entry.field.repeatGroupId = repeatGroupId;
+          entry.field.repeatIndex = repeatIndex;
+          entry.field.repeatSize = uniqueItems.length;
+          entry.field.repeatSection = entry.section || entry.field.section || '';
+        }
+      }
+    }
+  },
+
+  _findRepeatItemContainer(el, field) {
+    const section = field.section || '';
+    let cur = el.parentElement;
+    let depth = 0;
+
+    while (cur && cur !== document.body && depth < 12) {
+      const controlCount = this._countControlsIn(cur);
+      if (controlCount >= 2 && controlCount <= this.MAX_REPEAT_ITEM_CONTROLS) {
+        const repeatishSection = this._isRepeatSection(section) || this._looksLikeRepeatItem(cur);
+        if (repeatishSection && this._hasRepeatSiblings(cur)) return cur;
+      }
+      cur = cur.parentElement;
+      depth++;
+    }
+    return null;
+  },
+
+  _isRepeatSection(section) {
+    return !!section && this._REPEAT_SECTION_REGEX.test(section);
+  },
+
+  _hasRepeatSiblings(container) {
+    const parent = container.parentElement;
+    if (!parent) return false;
+    const siblings = Array.from(parent.children).filter(child => {
+      if (child === container) return true;
+      if (!this._repeatContainersLookAlike(container, child)) return false;
+      const count = this._countControlsIn(child);
+      return count >= 2 && count <= this.MAX_REPEAT_ITEM_CONTROLS;
+    });
+    return siblings.length >= 2;
+  },
+
+  _repeatContainersLookAlike(a, b) {
+    if (!a || !b || a.tagName !== b.tagName) return false;
+    if (!this._looksLikeRepeatItem(a) && !this._looksLikeRepeatItem(b)) {
+      return false;
+    }
+
+    const aTokens = this._classTokens(a);
+    const bTokens = this._classTokens(b);
+    if (aTokens.length === 0 || bTokens.length === 0) {
+      return this._looksLikeRepeatItem(a) && this._looksLikeRepeatItem(b);
+    }
+    return aTokens.some(token => bTokens.includes(token));
+  },
+
+  _looksLikeRepeatItem(el) {
+    const text = [
+      this._attrText(el, 'class'),
+      this._attrText(el, 'data-testid'),
+      this._attrText(el, 'data-test-id'),
+      this._attrText(el, 'data-name'),
+      this._attrText(el, 'data-field'),
+      this._attrText(el, 'role'),
+    ].join(' ');
+    return this._REPEAT_ITEM_HINT_REGEX.test(text);
+  },
+
+  _classTokens(el) {
+    return this._attrText(el, 'class')
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(token => token.length >= 3)
+      .filter(token => !/^(active|selected|checked|disabled|required|error)$/i.test(token));
+  },
+
+  _attrText(el, name) {
+    const value = el && el.getAttribute ? el.getAttribute(name) : '';
+    return value == null ? '' : String(value);
   },
 };

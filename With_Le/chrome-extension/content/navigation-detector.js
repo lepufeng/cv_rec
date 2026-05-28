@@ -3,6 +3,7 @@ var NavigationDetector = {
   NAV_TIMEOUT: 5000,
 
   previousFieldSignature: '',
+  FINAL_SUBMIT_REGEX: /提交|投递|申请|完成|确认|submit|apply|finish|confirm/i,
 
   reset() {
     this.previousFieldSignature = '';
@@ -14,6 +15,7 @@ var NavigationDetector = {
     for (const btn of buttons) {
       if (!this._isVisible(btn)) continue;
       const text = btn.textContent.trim();
+      if (this._looksLikeFinalSubmit(text)) continue;
       if (/^下一步$|^继续$|^保存并继续$|^Next$/i.test(text)) {
         return btn;
       }
@@ -22,6 +24,7 @@ var NavigationDetector = {
     for (const btn of buttons) {
       if (!this._isVisible(btn)) continue;
       const text = btn.textContent.trim();
+      if (this._looksLikeFinalSubmit(text)) continue;
       if (text.includes('下一步') || text.includes('继续') || /next/i.test(text)) {
         return btn;
       }
@@ -31,11 +34,12 @@ var NavigationDetector = {
   },
 
   isSubmitOnly() {
+    if (this.findNextButton()) return false;
     const buttons = document.querySelectorAll('button, a, [role="button"]');
     for (const btn of buttons) {
       if (!this._isVisible(btn)) continue;
       const text = btn.textContent.trim();
-      if (/^提交$|^确认$|^保存$|^Submit$|^Confirm$/i.test(text)) {
+      if (this._looksLikeFinalSubmit(text)) {
         return true;
       }
     }
@@ -86,5 +90,11 @@ var NavigationDetector = {
 
   _isVisible(el) {
     return DOMUtils.isVisibleStrict(el);
+  },
+
+  _looksLikeFinalSubmit(text) {
+    if (!text) return false;
+    if (/^保存并继续$|^下一步$|^继续$|^next$/i.test(text.trim())) return false;
+    return this.FINAL_SUBMIT_REGEX.test(text);
   },
 };

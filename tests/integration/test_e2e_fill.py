@@ -158,6 +158,79 @@ async def test_plugin_match_returns_extension_mappings(app_client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("plugin-section-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    parsed = {
+        **SAMPLE_PARSED_RESUME,
+        "education": [
+            SAMPLE_PARSED_RESUME["education"][0],
+            {**SAMPLE_PARSED_RESUME["education"][0], "school": "南京大学"},
+        ],
+        "project_experience": [
+            {"name": f"项目{i}", "role": "负责人", "start_date": "2024-01", "end_date": "2024-06", "achievements": [], "tech_stack": []}
+            for i in range(4)
+        ],
+    }
+    fake.queue_response(parsed)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    payload = _form_payload(rid)
+    payload["sections"] = [
+        {"name": "项目经历", "currentCount": 1, "addButton": True},
+        {"name": "教育经历", "currentCount": 1, "addButton": True},
+        {"name": "工作城市", "currentCount": 1, "addButton": True},
+    ]
+    fake.queue_response(SAMPLE_FILL_PLAN)
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    assert resp.json()["sectionActions"] == {
+        "项目经历": "add_3",
+        "教育经历": "add_1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_force_refresh_bypasses_fill_plan_cache(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("force-refresh-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    fake.queue_response(SAMPLE_FILL_PLAN)
+    first = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=_form_payload(rid))
+    assert first.status_code == 200, first.text
+
+    refreshed_plan = {
+        "filled": {
+            "name": {"value": "张刷新", "confidence": 1.0, "reasoning": "force", "source": "basic_info.name"}
+        },
+        "needs_user_input": [],
+        "warnings": [],
+    }
+    payload = _form_payload(rid)
+    payload["forceRefresh"] = True
+    fake.queue_response(refreshed_plan)
+    second = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert second.status_code == 200, second.text
+
+    body = second.json()
+    assert body["cache_hit"] is False
+    assert body["mappings"]["name"] == "张刷新"
+
+
+@pytest.mark.asyncio
 async def test_plugin_match_uses_rules_fallback_when_model_schema_is_invalid(app_client, make_user):
     client, fake = app_client
     user = await make_user("plugin-fallback-user")

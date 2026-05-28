@@ -12,7 +12,7 @@ const MSG = {
 };
 
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:8000/api/v1';
-const REQUEST_TIMEOUT_MS = 45000;
+const REQUEST_TIMEOUT_MS = 120000;
 
 const resumeCache = new Map();
 
@@ -126,7 +126,7 @@ async function fetchResume(resumeId) {
   return data;
 }
 
-async function matchFields(fields, resume, sections, payload, sender) {
+async function matchFields(fields, resume, sections, payload, sender, forceRefresh) {
   const resumeId = resume && (resume.resume_id || resume.resumeId || resume.id);
   if (!resumeId) throw new Error('缺少简历 ID');
   const requestBody = {
@@ -137,6 +137,7 @@ async function matchFields(fields, resume, sections, payload, sender) {
     frames: payload && payload.frames ? payload.frames : [],
     fields,
     sections: sections || [],
+    forceRefresh: !!forceRefresh || !!(payload && payload.forceRefresh),
   };
   return requestJson('/fill-plans/plugin-match', requestBody);
 }
@@ -155,7 +156,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === MSG.REQUEST_MATCH) {
-    matchFields(message.fields || [], message.resume || {}, message.sections || [], message.payload || null, sender)
+    matchFields(
+      message.fields || [],
+      message.resume || {},
+      message.sections || [],
+      message.payload || null,
+      sender,
+      message.forceRefresh
+    )
       .then(data => sendResponse({ type: MSG.MATCH_RESULT, data }))
       .catch(err => sendResponse({ type: MSG.FILL_ERROR, error: err.message }));
     return true;

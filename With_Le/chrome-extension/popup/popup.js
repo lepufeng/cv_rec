@@ -102,6 +102,21 @@ async function injectIntoAllFrames(tabId) {
   });
 }
 
+async function triggerFillInAllFrames(tabId, resumeId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: (id) => {
+      if (typeof window.__resumeAutofillStart !== 'function') {
+        return { started: false, href: location.href, reason: 'starter-missing' };
+      }
+      window.__resumeAutofillStart(id);
+      return { started: true, href: location.href };
+    },
+    args: [resumeId],
+  });
+  return (results || []).map(r => r.result).filter(Boolean);
+}
+
 async function expandDynamicSections(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId, allFrames: true },
@@ -373,26 +388,28 @@ fillBtn.addEventListener('click', async () => {
     if (!settings.resumeId) throw new Error('请输入简历 ID');
     if (!settings.authToken) throw new Error('请先在插件中粘贴网页登录 token');
 
-    statusEl.textContent = '准备生成填表方案...';
+    statusEl.textContent = '准备自动填写...';
     debugInfoEl.textContent = '';
     const tab = await getActiveTab();
-    const payload = await collectPagePayload(tab, message => {
-      statusEl.textContent = message;
-    });
+    statusEl.textContent = '正在注入填写脚本...';
+    await injectIntoAllFrames(tab.id);
+    await sleep(150);
 
-    statusEl.textContent = `扫描到 ${payload.fields.length} 个字段，正在请求后端匹配...`;
-    const plan = await sendRuntimeMessage({
-      type: MSG.REQUEST_MATCH,
-      payload,
-      fields: payload.fields,
-      resume: { resume_id: settings.resumeId },
-      sections: [],
-    });
-    renderPlanPreview(plan, payload);
-    const count = plan && plan.mappings ? Object.keys(plan.mappings).length : 0;
-    statusEl.textContent = `方案已生成，可填 ${count} 个字段`;
+    statusEl.textContent = '已启动自动填写，请勿关闭当前页面';
+    const frameResults = await triggerFillInAllFrames(tab.id, settings.resumeId);
+    const startedFrames = frameResults.filter(r => r.started);
+    if (startedFrames.length === 0) {
+      throw new Error('当前页面没有可启动的填写脚本');
+    }
+    debugInfoEl.textContent = [
+      `已在 ${startedFrames.length} 个 frame 启动填写流程`,
+      '安全边界：不会点击最终提交按钮，不会上传文件。',
+      '',
+      'Frame：',
+      ...startedFrames.slice(0, 8).map(r => `  - ${r.href}`),
+    ].join('\n');
   }).catch(err => {
-    statusEl.textContent = '生成失败: ' + (err && err.message ? err.message : err);
+    statusEl.textContent = '填写启动失败: ' + (err && err.message ? err.message : err);
   });
 });
 

@@ -7,7 +7,7 @@ const extensionRoot = path.resolve(__dirname, '..');
 const popupHtml = fs.readFileSync(path.join(extensionRoot, 'popup/popup.html'), 'utf8');
 const popupJs = fs.readFileSync(path.join(extensionRoot, 'popup/popup.js'), 'utf8');
 
-test('popup exposes the product-preview connection controls', () => {
+test('popup exposes direct-fill connection controls', () => {
   for (const id of [
     'open-platform-btn',
     'save-settings-btn',
@@ -23,18 +23,22 @@ test('popup exposes the product-preview connection controls', () => {
 
   assert.match(popupHtml, /打开主页/);
   assert.match(popupHtml, /保存配置/);
-  assert.match(popupHtml, /生成填表方案/);
+  assert.match(popupHtml, /开始自动填写/);
   assert.match(popupHtml, /仅扫描并校验字段/);
 });
 
-test('popup preview flow calls match and scan APIs without starting real fill', () => {
+test('popup primary flow starts real fill while scan remains preview-only', () => {
   assert.match(popupJs, /chrome\.tabs\.create\(\{ url: settings\.platformHome \}\)/);
-  assert.match(popupJs, /type: MSG\.REQUEST_MATCH/);
+  assert.match(popupJs, /triggerFillInAllFrames/);
+  assert.match(popupJs, /__resumeAutofillStart/);
   assert.match(popupJs, /type: MSG\.UPLOAD_SCAN/);
-  assert.match(popupJs, /renderPlanPreview/);
+  assert.match(popupJs, /不会点击最终提交按钮/);
   assert.match(popupJs, /请先在插件中粘贴网页登录 token/);
 
-  assert.doesNotMatch(popupJs, /START_FILL/);
-  assert.doesNotMatch(popupJs, /__resumeAutofillStart/);
-  assert.doesNotMatch(popupJs, /triggerFillInAllFrames/);
+  const fillHandler = popupJs.slice(
+    popupJs.indexOf("fillBtn.addEventListener('click'"),
+    popupJs.indexOf("scanBtn.addEventListener('click'")
+  );
+  assert.doesNotMatch(fillHandler, /type: MSG\.REQUEST_MATCH/);
+  assert.doesNotMatch(fillHandler, /renderPlanPreview/);
 });

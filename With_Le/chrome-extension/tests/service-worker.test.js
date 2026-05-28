@@ -71,6 +71,7 @@ test('REQUEST_MATCH posts plugin scan payload to FastAPI plugin-match endpoint',
     type: 'REQUEST_MATCH',
     resume: { resume_id: 'resume-1' },
     fields: [{ fieldId: 'name', label: '姓名', type: 'text' }],
+    forceRefresh: true,
     payload: {
       url: 'https://jobs.example/apply',
       title: 'Apply',
@@ -89,6 +90,7 @@ test('REQUEST_MATCH posts plugin scan payload to FastAPI plugin-match endpoint',
   assert.equal(calls[0].body.url, 'https://jobs.example/apply');
   assert.equal(calls[0].body.title, 'Apply');
   assert.equal(calls[0].body.fieldCount, 1);
+  assert.equal(calls[0].body.forceRefresh, true);
   assert.deepEqual(calls[0].body.fields, [{ fieldId: 'name', label: '姓名', type: 'text' }]);
 });
 

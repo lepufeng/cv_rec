@@ -1,6 +1,7 @@
 """Fill plan route — Stage B endpoint consumed by the browser extension."""
 from __future__ import annotations
 
+from typing import Any
 import uuid
 
 from fastapi import APIRouter
@@ -34,7 +35,12 @@ async def create_plugin_match(
 ) -> PluginMatchResponse:
     """Return a fill plan plus the simple mapping shape used by the extension."""
     plan = await svc.create_plan(user.id, payload)
-    return PluginMatchResponse.from_fill_plan(plan)
+    section_actions: dict[str, str] = {}
+    if payload.resumeId:
+        resume = await svc.resume_repo.get(payload.resumeId)
+        if resume and resume.user_id == user.id and resume.parsed_data:
+            section_actions = _build_section_actions(payload.sections or [], resume.parsed_data)
+    return PluginMatchResponse.from_fill_plan(plan, section_actions=section_actions)
 
 
 @router.post("/plugin-scan", response_model=PluginScanResponse)
@@ -60,3 +66,61 @@ async def receive_plugin_scan(
         fieldCount=actual_count,
         warnings=warnings,
     )
+
+
+def _build_section_actions(sections: list[dict[str, Any]], resume_data: dict[str, Any]) -> dict[str, str]:
+    """Suggest dynamic form expansions for repeated resume sections."""
+    actions: dict[str, str] = {}
+    if not sections:
+        return actions
+
+    target_counts = {
+        "project_experience": _list_len(resume_data.get("project_experience")),
+        "education": _list_len(resume_data.get("education")),
+        "internship_experience": _list_len(resume_data.get("internship_experience")),
+        "work_experience": _list_len(resume_data.get("work_experience")),
+        "campus_experience": _list_len(resume_data.get("campus_experience")),
+    }
+
+    for section in sections:
+        name = str(section.get("name") or "").strip()
+        if not name or not section.get("addButton"):
+            continue
+        key = _section_key(name)
+        if not key:
+            continue
+        target_count = target_counts.get(key, 0)
+        if target_count <= 1:
+            continue
+        current_count = _safe_positive_int(section.get("currentCount"), default=1)
+        add_count = target_count - current_count
+        if add_count > 0:
+            actions[name] = f"add_{add_count}"
+    return actions
+
+
+def _list_len(value: Any) -> int:
+    return len(value) if isinstance(value, list) else 0
+
+
+def _safe_positive_int(value: Any, *, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(parsed, 0)
+
+
+def _section_key(name: str) -> str | None:
+    text = name.casefold()
+    if "项目" in text or "project" in text:
+        return "project_experience"
+    if "教育" in text or "学历" in text or "院校" in text or "education" in text:
+        return "education"
+    if "实习" in text or "intern" in text:
+        return "internship_experience"
+    if "工作经历" in text or "工作经验" in text or "work experience" in text:
+        return "work_experience"
+    if "校园" in text or "社团" in text or "学生干部" in text or "campus" in text:
+        return "campus_experience"
+    return None

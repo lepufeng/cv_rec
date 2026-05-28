@@ -70,6 +70,22 @@ class FormField(BaseModel):
         default=None,
         validation_alias=AliasChoices("group_index", "groupIndex"),
     )
+    repeatGroupId: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("repeat_group_id", "repeatGroupId"),
+    )
+    repeatIndex: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("repeat_index", "repeatIndex"),
+    )
+    repeatSize: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("repeat_size", "repeatSize"),
+    )
+    repeatSection: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("repeat_section", "repeatSection"),
+    )
     fieldFingerprint: str | None = Field(
         default=None,
         validation_alias=AliasChoices("field_fingerprint", "fieldFingerprint"),
@@ -130,6 +146,9 @@ class FormField(BaseModel):
             "subLabel": self.subLabel,
             "groupIndex": self.groupIndex,
             "groupSize": self.groupSize,
+            "repeatIndex": self.repeatIndex,
+            "repeatSize": self.repeatSize,
+            "repeatSection": self.repeatSection,
             "options": [_option_fingerprint_part(o) for o in (self.options or [])],
         }
         canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -156,6 +175,11 @@ class FillPlanRequest(BaseModel):
     title: str | None = Field(default=None, validation_alias=AliasChoices("title", "page_title"))
     fieldCount: int | None = Field(default=None, validation_alias=AliasChoices("fieldCount", "field_count"))
     frames: list[dict[str, Any]] | None = None
+    sections: list[dict[str, Any]] | None = None
+    forceRefresh: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("forceRefresh", "force_refresh"),
+    )
     thinkingMode: ThinkingMode | None = Field(
         default=None,
         validation_alias=AliasChoices("thinkingMode", "thinking_mode"),
@@ -198,7 +222,11 @@ class PluginMatchResponse(FillPlanResponse):
     sectionActions: dict[str, str] = Field(default_factory=dict)
 
     @classmethod
-    def from_fill_plan(cls, plan: FillPlanResponse) -> "PluginMatchResponse":
+    def from_fill_plan(
+        cls,
+        plan: FillPlanResponse,
+        section_actions: dict[str, str] | None = None,
+    ) -> "PluginMatchResponse":
         mappings: dict[str, Any] = {}
         skipped = list(plan.needs_user_input)
 
@@ -220,7 +248,7 @@ class PluginMatchResponse(FillPlanResponse):
             cost_cny=plan.cost_cny,
             mappings=mappings,
             skipped=list(dict.fromkeys(skipped)),
-            sectionActions={},
+            sectionActions=section_actions or {},
         )
 
 

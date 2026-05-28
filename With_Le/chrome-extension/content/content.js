@@ -71,37 +71,43 @@ async function startFill(resumeId) {
       if (initialFields.length === 0) break;
       if (NavigationDetector.isDuplicatePage(initialFields)) break;
 
-      // 2. First match to get section actions
+      // 2. First match to get safe mappings and dynamic section actions.
       sendProgress(`正在匹配字段... (${initialFields.length} 个字段)`);
-      const firstMatch = await requestMatch(initialFields, resume, sectionInfo);
+      const firstMatch = await requestMatch(initialFields, resume, sectionInfo, true);
 
-      // 3. Execute section expansions
-      if (firstMatch.sectionActions) {
+      let mappings = firstMatch.mappings || {};
+      let activeFields = initialFields;
+      let matchSkipped = firstMatch.skipped || [];
+
+      // 3. Execute section expansions. Dynamic pages such as Tencent often
+      // render only one project/education card first. If the backend asks us
+      // to add cards, expand the DOM, then re-scan and re-match the full page
+      // so repeated groups can be mapped in document order.
+      if (firstMatch.sectionActions && Object.keys(firstMatch.sectionActions).length > 0) {
         sendProgress(`正在展开板块... (第 ${page + 1} 页)`);
         await SectionManager.executeActions(firstMatch.sectionActions);
-      }
+        await new Promise(r => setTimeout(r, 600));
 
-      // 4. Re-scan after expansion
-      const expandedFields = FieldScanner.scan();
-      let mappings = firstMatch.mappings;
-
-      // 5. If new fields appeared, re-match only new ones
-      if (expandedFields.length > initialFields.length) {
-        const newFields = expandedFields.filter(
-          f => !initialFields.some(orig => orig.fieldId === f.fieldId)
-        );
-        if (newFields.length > 0) {
-          const secondMatch = await requestMatch(newFields, resume, []);
-          mappings = { ...firstMatch.mappings, ...secondMatch.mappings };
+        const expandedFields = FieldScanner.scan();
+        if (expandedFields.length > 0) {
+          const expandedSectionInfo = SectionManager.collectSectionInfo();
+          sendProgress(`板块已展开，正在重新匹配 ${expandedFields.length} 个字段...`);
+          const secondMatch = await requestMatch(expandedFields, resume, expandedSectionInfo, true);
+          mappings = secondMatch.mappings || {};
+          activeFields = expandedFields;
+          matchSkipped = secondMatch.skipped || [];
         }
       }
 
-      // 6. Fill all merged mappings
+      // 4. Fill all mappings for the current visible page. We never click the
+      // final submit button or upload files; unsupported/sensitive fields stay
+      // in skipped/needs_user_input from the backend.
       sendProgress(`正在填写... (第 ${page + 1} 页)`);
-      const { filled, skipped } = await FillEngine.fillAll(mappings);
+      const { filled, skipped } = await FillEngine.fillAll(mappings, activeFields);
+      const backendSkipped = describeSkippedFields(matchSkipped, activeFields, mappings);
 
       totalFilled += filled;
-      totalSkipped = totalSkipped.concat(skipped);
+      totalSkipped = totalSkipped.concat(backendSkipped, skipped);
 
       if (NavigationDetector.isSubmitOnly()) break;
 
@@ -149,10 +155,10 @@ function requestResume(resumeId) {
   });
 }
 
-function requestMatch(fields, resume, sections) {
+function requestMatch(fields, resume, sections, forceRefresh) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
-      { type: MSG.REQUEST_MATCH, fields, resume, sections },
+      { type: MSG.REQUEST_MATCH, fields, resume, sections, forceRefresh: !!forceRefresh },
       response => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message || '后台未响应'));
@@ -167,4 +173,21 @@ function requestMatch(fields, resume, sections) {
       }
     );
   });
+}
+
+function describeSkippedFields(fieldIds, fields, mappings) {
+  if (!Array.isArray(fieldIds) || fieldIds.length === 0) return [];
+  const mappedIds = new Set(Object.keys(mappings || {}));
+  const fieldsById = new Map((fields || []).map(field => [field.fieldId, field]));
+
+  return fieldIds
+    .filter(fieldId => !mappedIds.has(fieldId))
+    .map(fieldId => {
+      const field = fieldsById.get(fieldId) || {};
+      return {
+        fieldId,
+        label: field.label || field.placeholder || fieldId,
+        reason: '后端未找到足够可靠的简历来源，需人工确认',
+      };
+    });
 }

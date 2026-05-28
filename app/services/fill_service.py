@@ -87,11 +87,13 @@ class FillService:
             effective_thinking_mode,
         )
 
-        cached = await self.cache_repo.get(
-            user_id=user_id,
-            resume_id=resume.id,
-            form_structure_hash=structure_hash,
-        )
+        cached = None
+        if not request.forceRefresh:
+            cached = await self.cache_repo.get(
+                user_id=user_id,
+                resume_id=resume.id,
+                form_structure_hash=structure_hash,
+            )
         if cached and cached.resume_data_version == resume.parsed_data_version:
             await self.cache_repo.increment_hit(cached)
             log.info(
@@ -416,7 +418,7 @@ def _field_search_text(field: dict[str, Any]) -> str:
     parts: list[str] = []
     for key in (
         "fieldId", "id", "label", "placeholder", "name", "ariaLabel",
-        "autocomplete", "section", "subLabel", "htmlType", "type",
+        "autocomplete", "section", "repeatSection", "subLabel", "htmlType", "type",
     ):
         value = field.get(key)
         if value:
