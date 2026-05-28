@@ -223,6 +223,12 @@ function ResumeViewer({
             >
               {reparsing ? "解析中…" : "重新解析"}
             </button>
+            <Link
+              className="btn-secondary"
+              to={`/plugin?rid=${detail.resume_id}`}
+            >
+              连接插件
+            </Link>
             <button className="btn-danger" onClick={onDelete}>
               删除
             </button>

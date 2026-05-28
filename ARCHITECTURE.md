@@ -21,7 +21,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    FastAPI (HTTP API)                       │
-│   /resumes  /fill-plans  /users/register  /health           │
+│   /auth  /resumes  /fill-plans  /users  /admin  /health     │
 └──────┬──────────────┬─────────────┬───────────────┬─────────┘
        │              │             │               │
        ▼              ▼             ▼               ▼
@@ -332,18 +332,24 @@ ORM 已预留 `parse_status / parse_started_at / parse_completed_at` 字段。
 
 ## 8. API 速查表
 
-所有接口前缀 `/api/v1`。除 `/health` 与 `/users/register` 外，需 `Authorization: Bearer <api_key>` 头。
+所有接口前缀 `/api/v1`。除 `/health` 与 `/auth/*` 外，需 `Authorization: Bearer <token>` 头。
 
 | Method | Path | 说明 | 认证 |
 |--------|------|------|------|
 | GET | `/health` | 探活 | 否 |
-| POST | `/users/register` | 注册（仅一次返回明文 API Key） | 否 |
+| POST | `/auth/user/register` | 普通用户注册，返回登录 token | 否 |
+| POST | `/auth/user/login` | 普通用户登录，返回登录 token | 否 |
+| GET | `/users/me` | 当前用户信息 | 是 |
 | POST | `/resumes` | 上传简历（multipart/form-data 字段名 `file`，可选 `thinking_mode`） | 是 |
+| GET | `/resumes` | 当前用户简历列表 | 是 |
 | GET | `/resumes/{id}` | 获取结构化简历 | 是 |
 | GET | `/resumes/{id}/status` | 查询解析状态 | 是 |
 | PATCH | `/resumes/{id}` | 修正结构化数据（`{"patch": {...}}` deep-merge） | 是 |
 | DELETE | `/resumes/{id}` | 删除简历及关联缓存与原始文件 | 是 |
+| POST | `/resumes/{id}/reparse` | 重新解析已上传简历 | 是 |
 | POST | `/fill-plans` | 提交表单字段，返回填写方案（可选 `thinkingMode`） | 是 |
+| POST | `/fill-plans/plugin-scan` | 插件扫描 payload 校验，不调用模型 | 是 |
+| POST | `/fill-plans/plugin-match` | 插件兼容方案接口，返回 `mappings/skipped/sectionActions` | 是 |
 
 错误响应统一格式：
 
@@ -399,15 +405,15 @@ export GLM_API_KEY=sk-...
 uvicorn app.main:app --reload &
 
 # 注册
-curl -X POST http://127.0.0.1:8000/api/v1/users/register \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/user/register \
      -H 'Content-Type: application/json' \
-     -d '{"username":"alice"}'
-# → {"user_id": "...", "api_key": "cvr_..."}
+     -d '{"username":"alice","password":"pass123456"}'
+# → {"user_id": "...", "username": "alice", "token": "...", "is_admin": false}
 
 # 上传简历
-KEY=cvr_xxxxxxxxxxxx
+TOKEN=...
 curl -X POST http://127.0.0.1:8000/api/v1/resumes \
-     -H "Authorization: Bearer $KEY" \
+     -H "Authorization: Bearer $TOKEN" \
      -F "file=@./examples/sample.pdf"
 ```
 

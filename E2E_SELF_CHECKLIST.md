@@ -1,7 +1,7 @@
 # 端到端架构自查 Checklist
 
 > 目的：判断当前“简历解析平台 + 浏览器插件 + 招聘网页自动填写”是否真正跑通。  
-> 结论先行：当前后端解析链路已基本跑通；插件扫描 JSON 已可被平台直接接收；但“完整自动填写闭环”还没有完全跑通，主要缺 `FillAction v2`、真实插件执行验证、填写反馈与自学习链路。
+> 结论先行：当前“不含真实 DOM 填写”的产品闭环已可跑通：用户注册/登录、上传解析、网页复制插件配置、插件扫描招聘页、后端生成方案预览。完整自动填写闭环仍未完成，后续主要缺真实 fill-engine 验证、填写反馈与自学习链路。
 
 ---
 
@@ -11,7 +11,9 @@
 |---|---:|---|
 | 用户登录/上传简历/解析入库 | 基本跑通 | 已有测试与本地实际解析记录 |
 | 后端接收插件扫描 JSON | 已跑通 | 队友 QQ JSON 可直接通过 `FillPlanRequest` 校验 |
-| 后端生成填表方案 | 部分跑通 | 当前返回 `filled[fieldId].value`，尚非动作级计划 |
+| 插件连接 Web 账户 | 已跑通 | Web `/plugin` 提供 API、token、简历 ID；插件弹窗可保存配置并打开主页 |
+| 插件扫描并生成方案预览 | 已跑通 | 插件调用 `/plugin-scan` / `/plugin-match`，展示 mappings/skipped/warnings |
+| 后端生成填表方案 | 已跑通 | 当前返回 `filled[fieldId].value` 与插件友好的 `mappings`，尚非动作级计划 |
 | 插件根据平台结果真实填写网页 | 未完全跑通 | 队友说明中 fill-engine 尚未在 join.qq.com 完整验证 |
 | 动态下拉/日期/级联选择 | 未完全跑通 | 需要动作协议与插件执行策略配合 |
 | 文件上传简历 | 未跑通 | 插件 `upload-handler` 仍是占位，平台也缺文件下载接口 |
@@ -28,7 +30,7 @@
 - [ ] 每次修改插件字段或填表返回结构时同步更新 `SCHEMA.md` 与 `PLUGIN_INTEGRATION_REVIEW.md`
 - [ ] 每次修改数据流或产品边界时同步更新 `PRODUCT_FLOW_PRD.md`
 - [ ] 每次修改架构模块/API 行为时同步更新 `ARCHITECTURE.md`
-- [ ] 每次新增/调整自检脚本时同步更新本文件
+- [x] 每次新增/调整自检脚本时同步更新本文件
 
 ---
 
@@ -192,6 +194,7 @@ tests/fixtures/plugin_scans/1779866110428_zhdbld__xiaopeng.jobs.feishu.cn.json
 
 ```bash
 .venv/bin/python -m pytest tests/unit/test_plugin_scan_fixture.py -q
+node --test With_Le/chrome-extension/tests/service-worker.test.js
 ```
 
 ---
@@ -200,12 +203,12 @@ tests/fixtures/plugin_scans/1779866110428_zhdbld__xiaopeng.jobs.feishu.cn.json
 
 - [x] 插件原始 JSON 可直接 POST 到 `/api/v1/fill-plans`
 - [x] 插件可调用 `/api/v1/fill-plans/plugin-match` 获取执行器友好的 `mappings`
-- [ ] 后端能找到用户最新 completed 简历
-- [ ] 后端能把完整 `fields` 和 `parsed_data` 传给模型
-- [ ] 模型返回 JSON
-- [ ] 返回 key 使用原始 `fieldId`
-- [ ] `filled` 包含 value/confidence/source/reasoning
-- [ ] 无法确定字段进入 `needs_user_input`
+- [x] 后端能找到用户最新 completed 简历
+- [x] 后端能把完整 `fields` 和 `parsed_data` 传给模型
+- [x] 模型返回 JSON
+- [x] 返回 key 使用原始 `fieldId`
+- [x] `filled` 包含 value/confidence/source/reasoning
+- [x] 无法确定字段进入 `needs_user_input`
 - [x] 动态下拉 `enumerable=false` 时不强制要求 options 内选择
 - [ ] `groupId` 复合字段能正确拆分，如手机号区号/号码
 - [ ] 日期字段能返回标准日期值
@@ -316,13 +319,18 @@ tests/fixtures/plugin_scans/1779866110428_zhdbld__xiaopeng.jobs.feishu.cn.json
 
 ## 10. 端到端验收用例
 
-### Case 1：最小闭环
+### Case 1：最小预览闭环（当前目标，不含真实填写）
 
-- [ ] 用户上传简历并解析成功
-- [ ] 插件扫描本地简单表单
-- [ ] 插件 POST 扫描 JSON 到平台
-- [ ] 平台返回姓名/电话/邮箱
-- [ ] 插件成功填写文本字段
+- [x] 用户注册/登录后进入简历解析平台
+- [x] 用户上传简历并解析成功
+- [x] Web `/plugin` 提供后端 API、登录 token、简历 ID
+- [x] 插件弹窗可打开主页并保存 API/token/简历 ID
+- [x] 插件扫描表单字段
+- [x] 插件 POST 扫描 JSON 到平台校验
+- [x] 插件 POST 字段与简历 ID 到平台生成方案
+- [x] 平台返回 `mappings/skipped/warnings`
+- [x] 插件展示方案预览
+- [ ] 插件成功填写文本字段（下一阶段，不属于当前“不含真实填写”的验收）
 
 ### Case 2：腾讯 join.qq.com
 
@@ -347,7 +355,7 @@ tests/fixtures/plugin_scans/1779866110428_zhdbld__xiaopeng.jobs.feishu.cn.json
 
 ## 11. 当前最小下一步
 
-按优先级：
+真实填写阶段按优先级：
 
 1. 实现 `FillAction v2` 响应，明确动作类型。
 2. 用 QQ JSON 真实请求 `/fill-plans`，检查模型返回质量。

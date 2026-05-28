@@ -1,5 +1,10 @@
 # Mock Backend Server
 
+> Legacy-only helper. The production MVP now connects the extension to the
+> FastAPI backend at `http://127.0.0.1:8000/api/v1` through
+> `/fill-plans/plugin-scan` and `/fill-plans/plugin-match`. Use this mock
+> server only when developing the extension in isolation.
+
 Simulates the backend API for the Resume Auto-fill Chrome extension.
 
 ## Usage

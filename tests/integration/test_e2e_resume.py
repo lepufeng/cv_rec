@@ -1,6 +1,7 @@
 """End-to-end resume upload + parse + patch flow."""
 from __future__ import annotations
 
+import copy
 import io
 
 import pytest
@@ -50,6 +51,37 @@ async def test_register_and_upload_and_get(app_client, make_user):
     assert resp.status_code == 200
     assert resp.json()["data"]["basic_info"]["name"] == "张四"
     assert resp.json()["parsed_data_version"] == 2
+
+
+@pytest.mark.asyncio
+async def test_reparse_resume_uses_saved_file_and_increments_version(app_client, make_user):
+    client, fake = app_client
+
+    user = await make_user("reparse-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    files = {"file": (
+        "reparse.docx",
+        _make_docx_bytes(),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )}
+    created = await client.post("/api/v1/resumes", headers=headers, files=files)
+    assert created.status_code == 201, created.text
+    resume_id = created.json()["resume_id"]
+
+    reparsed_data = copy.deepcopy(SAMPLE_PARSED_RESUME)
+    reparsed_data["basic_info"]["name"] = "张五"
+    fake.queue_response(reparsed_data)
+
+    resp = await client.post(f"/api/v1/resumes/{resume_id}/reparse", headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["resume_id"] == resume_id
+    assert body["status"] == "completed"
+    assert body["data"]["basic_info"]["name"] == "张五"
+    assert body["parsed_data_version"] == 2
 
 
 @pytest.mark.asyncio

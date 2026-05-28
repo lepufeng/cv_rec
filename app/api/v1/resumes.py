@@ -81,7 +81,6 @@ async def get_resume(
     resume_id: str,
     user: CurrentUser,
     svc: ResumeSvc,
-    thinking_mode: str | None = Form(default=None),
 ) -> ResumeDetailResponse:
     resume = await svc.get(user.id, resume_id)
     return ResumeDetailResponse(
@@ -126,6 +125,7 @@ async def reparse_resume(
     resume_id: str,
     user: CurrentUser,
     svc: ResumeSvc,
+    thinking_mode: str | None = Form(default=None),
 ) -> ResumeDetailResponse:
     """Re-run parsing on a previously uploaded file."""
     resume = await svc.reparse(user.id, resume_id, thinking_mode=thinking_mode)
