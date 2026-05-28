@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Resume Auto-fill",
+  "version": "0.1.0",
+  "description": "Auto-fill corporate recruitment forms using resume data",
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Resume Auto-fill"
+  },
+  "background": {
+    "service_worker": "service-worker/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": [
+        "shared/message-types.js",
+        "shared/dom-utils.js",
+        "content/handlers/text-handler.js",
+        "content/handlers/select-handler.js",
+        "content/handlers/date-handler.js",
+        "content/handlers/choice-handler.js",
+        "content/handlers/upload-handler.js",
+        "content/field-scanner.js",
+        "content/section-manager.js",
+        "content/fill-engine.js",
+        "content/navigation-detector.js",
+        "content/result-annotator.js",
+        "content/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": false
+    }
+  ]
+}

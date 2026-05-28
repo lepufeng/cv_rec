@@ -1,0 +1,22 @@
+{
+  "name": "张三",
+  "email": "zhangsan@example.com",
+  "phone": "13800138000",
+  "gender": "男",
+  "birth": "1998-06-15",
+  "education": [
+    {
+      "school": "清华大学",
+      "degree": "硕士",
+      "major": "计算机科学与技术"
+    },
+    {
+      "school": "北京大学",
+      "degree": "本科",
+      "major": "软件工程"
+    }
+  ],
+  "skills": ["Python", "JavaScript", "Go"],
+  "self_intro": "具有5年全栈开发经验，熟悉多种编程语言和框架。",
+  "resume_file": "zhangsan_resume.pdf"
+}

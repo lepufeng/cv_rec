@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test Recruitment Form</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+    label { display: block; margin-top: 12px; font-weight: 600; font-size: 14px; }
+    input, select, textarea { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+    button { margin-top: 20px; padding: 10px 24px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+    h2 { border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div id="page1">
+    <h2>基本信息</h2>
+    <label for="name">姓名</label>
+    <input id="name" type="text" required>
+
+    <label for="email">邮箱</label>
+    <input id="email" type="text" required>
+
+    <label for="phone">手机号</label>
+    <input id="phone" type="text" required>
+
+    <label for="gender">性别</label>
+    <div>
+      <label><input type="radio" name="gender" value="male"> 男</label>
+      <label><input type="radio" name="gender" value="female"> 女</label>
+    </div>
+
+    <label for="birth">出生日期</label>
+    <input id="birth" type="date">
+
+    <button onclick="showPage2()">下一步</button>
+  </div>
+
+  <div id="page2" style="display:none">
+    <h2>教育经历</h2>
+    <div class="education-card">
+      <label for="school">学校</label>
+      <input id="school" type="text">
+
+      <label for="degree">学历</label>
+      <select id="degree">
+        <option value="">请选择</option>
+        <option>本科</option>
+        <option>硕士</option>
+        <option>博士</option>
+      </select>
+
+      <label for="major">专业</label>
+      <input id="major" type="text">
+    </div>
+
+    <button id="add-education">+ 添加教育经历</button>
+
+    <button onclick="showPage1()">上一步</button>
+    <button onclick="showPage3()">下一步</button>
+  </div>
+
+  <div id="page3" style="display:none">
+    <h2>技能与自我评价</h2>
+    <label>技能</label>
+    <div>
+      <label><input type="checkbox" name="skill" value="Python"> Python</label>
+      <label><input type="checkbox" name="skill" value="Java"> Java</label>
+      <label><input type="checkbox" name="skill" value="JavaScript"> JavaScript</label>
+      <label><input type="checkbox" name="skill" value="Go"> Go</label>
+    </div>
+
+    <label for="self-intro">自我评价</label>
+    <textarea id="self-intro" rows="4"></textarea>
+
+    <label for="resume-file">附件简历</label>
+    <input id="resume-file" type="file">
+
+    <button onclick="showPage2()">上一步</button>
+    <button>提交</button>
+  </div>
+
+  <script>
+    function showPage1() {
+      document.getElementById('page2').style.display = 'none';
+      document.getElementById('page3').style.display = 'none';
+      document.getElementById('page1').style.display = 'block';
+    }
+    function showPage2() {
+      document.getElementById('page1').style.display = 'none';
+      document.getElementById('page3').style.display = 'none';
+      document.getElementById('page2').style.display = 'block';
+    }
+    function showPage3() {
+      document.getElementById('page1').style.display = 'none';
+      document.getElementById('page2').style.display = 'none';
+      document.getElementById('page3').style.display = 'block';
+    }
+
+    document.getElementById('add-education').addEventListener('click', function() {
+      const card = document.createElement('div');
+      card.className = 'education-card';
+      card.innerHTML = `
+        <hr>
+        <label>学校</label><input type="text" placeholder="学校名称">
+        <label>学历</label><select><option value="">请选择</option><option>本科</option><option>硕士</option><option>博士</option></select>
+        <label>专业</label><input type="text" placeholder="专业名称">
+      `;
+      this.before(card);
+    });
+  </script>
+</body>
+</html>

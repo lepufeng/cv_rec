@@ -1,0 +1,33 @@
+body { width: 280px; margin: 0; font-family: -apple-system, sans-serif; }
+#popup-container { padding: 16px; }
+h2 { margin: 0 0 12px 0; font-size: 16px; }
+label { display: block; margin-bottom: 4px; font-size: 13px; color: #374151; }
+#resume-id {
+  width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #d1d5db;
+  border-radius: 6px; font-size: 14px; box-sizing: border-box;
+}
+#status { margin-bottom: 12px; font-size: 13px; color: #666; min-height: 18px; }
+#fill-btn {
+  width: 100%; padding: 10px; border: none; border-radius: 6px;
+  background: #2563eb; color: #fff; font-size: 15px; cursor: pointer;
+}
+#fill-btn:hover { background: #1d4ed8; }
+#fill-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+#debug-btn, #scan-btn {
+  width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #d1d5db;
+  border-radius: 6px; background: #f9fafb; color: #374151; font-size: 13px;
+  cursor: pointer;
+}
+#debug-btn:hover, #scan-btn:hover { background: #f3f4f6; }
+#debug-info {
+  margin-top: 10px; font-size: 12px; color: #4b5563; max-height: 240px;
+  overflow: auto; white-space: pre-wrap; word-break: break-all;
+}
+
+#expand-toggle-label {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 10px; font-size: 12px; color: #4b5563;
+  cursor: pointer; user-select: none;
+}
+#expand-toggle { margin: 0; }

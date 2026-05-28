@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="popup-container">
+    <h2>Resume Auto-fill</h2>
+    <label for="resume-id">简历 ID</label>
+    <input id="resume-id" type="text" placeholder="输入简历 ID">
+    <div id="status"></div>
+    <button id="fill-btn">一键填充</button>
+    <button id="scan-btn" class="secondary">扫描页面字段并上传</button>
+    <label id="expand-toggle-label">
+      <input type="checkbox" id="expand-toggle">
+      <span>扫描前自动点击"添加"按钮</span>
+    </label>
+    <button id="debug-btn" class="secondary">调试：强制填入测试值</button>
+    <div id="debug-info"></div>
+  </div>
+  <script src="../shared/message-types.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
