@@ -49,7 +49,7 @@ var FillEngine = {
         continue;
       }
 
-      let success = await handler.fill(el, value);
+      let success = await handler.fill(el, value, field);
 
       if (!success) {
         // Fallback: write through the native setter so frameworks like

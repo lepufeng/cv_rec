@@ -5,9 +5,11 @@ var ChoiceHandler = {
 
   fill(el, value) {
     const name = el.name || el.getAttribute('data-group');
-    if (!name) return false;
-
     const values = Array.isArray(value) ? value : [value];
+    if (!name) {
+      return this._fillStandalone(el, values);
+    }
+
     const group = document.querySelectorAll(`input[name="${CSS.escape(name)}"]`);
     let matched = false;
 
@@ -30,5 +32,21 @@ var ChoiceHandler = {
     });
 
     return matched;
+  },
+
+  _fillStandalone(el, values) {
+    const label = el.closest('label');
+    const labelText = label ? label.textContent.trim() : (el.value || '');
+    const matched = values.some(v => {
+      const text = v == null ? '' : String(v);
+      return labelText === text || labelText.includes(text) || text.includes(labelText);
+    });
+    if (!matched) return false;
+
+    if (!el.checked) {
+      el.click();
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return true;
   },
 };

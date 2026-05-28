@@ -35,7 +35,27 @@ test('fill engine uses scanner metadata and keeps unsafe controls skipped', () =
   assert.match(engine, /fillAll\(mappings, fields\)/);
   assert.match(engine, /fieldsById/);
   assert.match(engine, /this\._safeToFill\(el, field\)/);
+  assert.match(engine, /handler\.fill\(el, value, field\)/);
   assert.match(engine, /文件上传需人工处理/);
+});
+
+test('select handler supports custom pseudo-radio and dropdown controls', () => {
+  const handler = read('content/handlers/select-handler.js');
+
+  assert.match(handler, /field && field\.widget === 'pseudo-radio'/);
+  assert.match(handler, /_fillPseudoGroup\(el, value\)/);
+  assert.match(handler, /_pseudoOptions\(el\)/);
+  assert.match(handler, /_visibleDropdowns\(\)/);
+  assert.match(handler, /aria-checked/);
+  assert.match(handler, /aria-selected/);
+});
+
+test('choice handler can fill standalone wrapped checkboxes', () => {
+  const handler = read('content/handlers/choice-handler.js');
+
+  assert.match(handler, /_fillStandalone\(el, values\)/);
+  assert.match(handler, /el\.closest\('label'\)/);
+  assert.match(handler, /el\.dispatchEvent\(new Event\('change'/);
 });
 
 test('section manager counts repeat cards instead of ordinary form items', () => {
