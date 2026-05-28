@@ -1,0 +1,29 @@
+{
+  "site_url": "https://jobs.example.com/apply/sde",
+  "form_fields": [
+    {"id": "name", "label": "姓名", "type": "text", "required": true},
+    {"id": "gender", "label": "性别", "type": "select", "options": ["男", "女"], "required": true},
+    {"id": "phone", "label": "手机号码", "type": "tel", "required": true},
+    {"id": "email", "label": "电子邮箱", "type": "email", "required": true},
+    {"id": "current_city", "label": "现居城市", "type": "text"},
+    {"id": "edu_level", "label": "最高学历", "type": "select",
+     "options": ["大专", "本科", "硕士", "博士"], "required": true},
+    {"id": "school", "label": "毕业院校", "type": "text", "required": true},
+    {"id": "major", "label": "专业", "type": "text", "required": true},
+    {"id": "graduation_year", "label": "毕业年份", "type": "number"},
+    {"id": "current_company", "label": "目前公司", "type": "text"},
+    {"id": "current_title", "label": "目前职位", "type": "text"},
+    {"id": "expected_salary", "label": "期望薪资", "type": "text"},
+    {"id": "available_date", "label": "可入职时间", "type": "date"},
+    {"id": "work_exp", "label": "工作经历", "type": "repeater",
+     "sub_fields": [
+       {"id": "company", "label": "公司", "type": "text"},
+       {"id": "title", "label": "职位", "type": "text"},
+       {"id": "start", "label": "起始", "type": "text"},
+       {"id": "end", "label": "结束", "type": "text"},
+       {"id": "description", "label": "工作内容", "type": "textarea"}
+     ]
+    },
+    {"id": "self_eval", "label": "自我评价", "type": "textarea"}
+  ]
+}

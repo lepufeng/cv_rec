@@ -1,0 +1,26 @@
+{
+  "site_url": "https://hr.cross-label-test.com/apply",
+  "form_fields": [
+    { "id": "applicant_name", "label": "申请人姓名", "type": "text", "required": true },
+    { "id": "contact_phone", "label": "联系电话", "type": "tel", "required": true },
+    { "id": "contact_email", "label": "电子信箱", "type": "email", "required": true },
+
+    { "id": "highest_education", "label": "最高学历", "type": "select",
+      "options": ["大专", "本科", "硕士", "博士"], "required": true },
+    { "id": "graduation_school", "label": "毕业学校", "type": "text", "required": true },
+    { "id": "rank_in_class", "label": "在校排名", "type": "text" },
+
+    { "id": "research_exp", "label": "研究经历", "type": "textarea",
+      "placeholder": "请描述你的研究背景与方向" },
+    { "id": "academic_supervisor", "label": "指导教师", "type": "text" },
+
+    { "id": "main_achievement", "label": "主要业绩", "type": "textarea",
+      "placeholder": "请描述你过往工作的主要成就" },
+
+    { "id": "personal_intro", "label": "个人陈述", "type": "textarea",
+      "placeholder": "可视为 cover letter" },
+
+    { "id": "extracurricular", "label": "课外活动 / 社团", "type": "textarea" },
+    { "id": "hobbies", "label": "兴趣特长", "type": "textarea" }
+  ]
+}
