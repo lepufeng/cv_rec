@@ -14,6 +14,7 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import Any
 from urllib.parse import urlparse
 
 from pydantic import ValidationError as PydanticValidationError
@@ -21,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.models.base import ChatModel
 from app.core.config import get_settings
-from app.core.exceptions import BusinessError, ModelError, NotFoundError
+from app.core.exceptions import BusinessError, NotFoundError
 from app.core.logging import get_logger
 from app.models.cost_log import CostLog
 from app.models.fill_plan_cache import FillPlanCache
@@ -34,6 +35,7 @@ from app.repositories.cost_log_repo import CostLogRepository
 from app.repositories.fill_cache_repo import FillPlanCacheRepository
 from app.repositories.resume_repo import ResumeRepository
 from app.schemas.fill_plan import (
+    FilledField,
     FillPlanLLMOutput,
     FillPlanRequest,
     FillPlanResponse,
@@ -183,10 +185,21 @@ class FillService:
         )
         plan2 = self._try_parse(response2.content)
         if plan2 is None:
-            raise ModelError(
-                "Fill plan failed schema validation after retry",
-                code="MODEL_SCHEMA_INVALID",
+            log.warning(
+                "fill_model_invalid_using_rules_fallback",
+                model=response2.model_id,
+                field_count=len(form_fields),
             )
+            fallback = _build_rules_fallback_plan(resume_data, form_fields)
+            merged = ModelResponse(
+                content=fallback.model_dump_json(),
+                model_id=f"{response2.model_id}+rules-fallback",
+                input_tokens=response.input_tokens + response2.input_tokens,
+                output_tokens=response.output_tokens + response2.output_tokens,
+                cost_cny=response.cost_cny + response2.cost_cny,
+                latency_ms=response.latency_ms + response2.latency_ms,
+            )
+            return fallback, merged
         merged = ModelResponse(
             content=response2.content,
             model_id=response2.model_id,
@@ -275,6 +288,252 @@ def _extract_domain(url: str) -> str:
         return urlparse(url).hostname or "unknown"
     except Exception:
         return "unknown"
+
+
+def _build_rules_fallback_plan(resume_data: dict, form_fields: list[dict]) -> FillPlanLLMOutput:
+    """Conservative deterministic mapping when the model returns invalid JSON/schema."""
+    filled: dict[str, FilledField] = {}
+    needs_user_input: list[str] = []
+
+    for field in _iter_fields(form_fields):
+        field_id = str(field.get("fieldId") or field.get("id") or "").strip()
+        if not field_id:
+            continue
+        match = _match_field_from_resume(field, resume_data)
+        if match is None:
+            needs_user_input.append(field_id)
+            continue
+        value, source, confidence = match
+        filled[field_id] = FilledField(
+            value=value,
+            confidence=confidence,
+            reasoning="模型输出未通过校验，使用后端规则兜底匹配",
+            source=source,
+        )
+
+    return FillPlanLLMOutput(
+        filled=filled,
+        needs_user_input=list(dict.fromkeys(needs_user_input)),
+        warnings=["模型输出校验失败，已使用规则匹配兜底"],
+    )
+
+
+def _iter_fields(fields: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for field in fields:
+        out.append(field)
+        children = field.get("subFields") or field.get("sub_fields") or []
+        if isinstance(children, list):
+            out.extend(_iter_fields([child for child in children if isinstance(child, dict)]))
+    return out
+
+
+def _match_field_from_resume(
+    field: dict[str, Any],
+    resume_data: dict[str, Any],
+) -> tuple[Any, str, float] | None:
+    field_type = str(field.get("type") or "").casefold()
+    text = _field_search_text(field)
+    label = str(field.get("label") or "").strip()
+
+    if field.get("disabled") or field.get("readonly"):
+        return None
+    if field_type == "file" or _contains_any(text, ("附件", "上传", "简历文件", "resume file", "upload")):
+        return None
+
+    basic = _dict(resume_data.get("basic_info"))
+    intent = _dict(resume_data.get("job_intent"))
+    education = _first_dict(resume_data.get("education"))
+    work = _first_dict(resume_data.get("work_experience"))
+    internship = _first_dict(resume_data.get("internship_experience"))
+
+    if _contains_any(text, ("自我评价", "个人评价", "自我介绍", "intro", "summary", "profile")):
+        value = resume_data.get("self_evaluation")
+        value_text = _as_text(value)
+        if not value_text:
+            return None
+        return _filled(value_text, "self_evaluation", 0.8)
+
+    gender = _as_text(basic.get("gender"))
+    if _contains_any(text, ("性别", "gender")):
+        if _looks_like_option_label(label, {"男", "女", "male", "female"}):
+            if not _option_label_matches(label, gender):
+                return None
+        value = _coerce_option_value(field, gender)
+        return _filled(value, "basic_info.gender", 0.86)
+
+    skill_values = _skill_values(resume_data.get("skills"))
+    if _contains_any(text, ("技能", "skill", "技术栈", "tech stack")):
+        if field_type == "checkbox" and label:
+            matched = _match_one_from_list(label, skill_values)
+            if matched is None:
+                return None
+            return _filled(_coerce_option_value(field, matched), "skills", 0.82)
+        if skill_values:
+            return _filled("、".join(skill_values), "skills", 0.74)
+
+    rules: list[tuple[tuple[str, ...], Any, str, float]] = [
+        (("姓名", "真实姓名", "full name", "name"), basic.get("name"), "basic_info.name", 0.9),
+        (("邮箱", "电子邮箱", "email", "e-mail"), basic.get("email"), "basic_info.email", 0.9),
+        (("手机号", "手机", "电话", "phone", "mobile", "tel"), basic.get("phone"), "basic_info.phone", 0.9),
+        (("出生", "生日", "birth", "birthday"), basic.get("birth_date"), "basic_info.birth_date", 0.86),
+        (("年龄", "age"), basic.get("age"), "basic_info.age", 0.78),
+        (("现居", "所在地", "当前城市", "居住地", "location", "city"), basic.get("location"), "basic_info.location", 0.72),
+        (("籍贯", "hometown"), basic.get("hometown"), "basic_info.hometown", 0.78),
+        (("婚姻", "marital"), basic.get("marital_status"), "basic_info.marital_status", 0.78),
+        (("政治", "political"), basic.get("political_status"), "basic_info.political_status", 0.78),
+        (("民族", "ethnicity"), basic.get("ethnicity"), "basic_info.ethnicity", 0.78),
+        (("目标岗位", "期望岗位", "应聘岗位", "职位", "position", "job title"), intent.get("target_position"), "job_intent.target_position", 0.76),
+        (("期望薪资", "薪资", "salary"), intent.get("expected_salary"), "job_intent.expected_salary", 0.76),
+        (("到岗", "入职", "available"), intent.get("available_date"), "job_intent.available_date", 0.76),
+        (("期望城市", "意向城市", "工作地点"), intent.get("work_location_preference"), "job_intent.work_location_preference", 0.74),
+        (("学校", "院校", "school", "university"), education.get("school"), "education[0].school", 0.84),
+        (("学历", "学位", "degree"), education.get("degree"), "education[0].degree", 0.82),
+        (("专业", "major"), education.get("major"), "education[0].major", 0.82),
+        (("公司", "单位", "company"), work.get("company") or internship.get("company"), "work_experience[0].company", 0.68),
+        (("部门", "department"), work.get("department") or internship.get("department"), "work_experience[0].department", 0.66),
+        (("github", "git hub"), _fact_value(resume_data, "github"), "facts.github_profile", 0.76),
+    ]
+
+    for terms, value, source, confidence in rules:
+        if _contains_any(text, terms):
+            value_text = _as_text(value)
+            if not value_text:
+                return None
+            return _filled(_coerce_option_value(field, value_text), source, confidence)
+
+    return None
+
+
+def _filled(value: Any, source: str, confidence: float) -> tuple[Any, str, float] | None:
+    value_text = _as_text(value)
+    if not value_text:
+        return None
+    return value, source, confidence
+
+
+def _field_search_text(field: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key in (
+        "fieldId", "id", "label", "placeholder", "name", "ariaLabel",
+        "autocomplete", "section", "subLabel", "htmlType", "type",
+    ):
+        value = field.get(key)
+        if value:
+            parts.append(str(value))
+    section_path = field.get("sectionPath") or field.get("section_path")
+    if isinstance(section_path, list):
+        parts.extend(str(part) for part in section_path if part)
+    return " ".join(parts).casefold()
+
+
+def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term.casefold() in text for term in terms)
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _first_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict):
+                return item
+    return {}
+
+
+def _as_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float, Decimal)):
+        return str(value)
+    if isinstance(value, list):
+        return "、".join(item for item in (_as_text(v) for v in value) if item)
+    if isinstance(value, dict):
+        return "、".join(item for item in (_as_text(v) for v in value.values()) if item)
+    return str(value).strip()
+
+
+def _skill_values(value: Any) -> list[str]:
+    skills = _dict(value)
+    out: list[str] = []
+    for item in skills.values():
+        if isinstance(item, list):
+            out.extend(_as_text(v) for v in item)
+        else:
+            out.append(_as_text(item))
+    return [item for item in dict.fromkeys(out) if item]
+
+
+def _match_one_from_list(label: str, values: list[str]) -> str | None:
+    normalized_label = label.casefold().strip()
+    for value in values:
+        normalized_value = value.casefold().strip()
+        if normalized_label == normalized_value or normalized_value in normalized_label:
+            return value
+    return None
+
+
+def _looks_like_option_label(label: str, options: set[str]) -> bool:
+    normalized = label.casefold().strip()
+    return normalized in {item.casefold() for item in options}
+
+
+def _option_label_matches(label: str, value: str) -> bool:
+    label_norm = label.casefold().strip()
+    value_norm = value.casefold().strip()
+    if not label_norm or not value_norm:
+        return False
+    if label_norm == value_norm:
+        return True
+    return (
+        (value == "男" and label_norm in {"male", "男"})
+        or (value == "女" and label_norm in {"female", "女"})
+    )
+
+
+def _coerce_option_value(field: dict[str, Any], value: Any) -> Any:
+    value_text = _as_text(value)
+    if not value_text:
+        return value
+    option_sources = []
+    options = field.get("optionObjects") or field.get("option_objects") or []
+    if isinstance(options, list):
+        option_sources.extend(options)
+    raw_options = field.get("options") or []
+    if isinstance(raw_options, list):
+        option_sources.extend(raw_options)
+
+    for option in option_sources:
+        if isinstance(option, dict):
+            label = _as_text(option.get("label"))
+            option_value = _as_text(option.get("value")) or label
+        else:
+            label = _as_text(option)
+            option_value = label
+        haystacks = {label.casefold(), option_value.casefold()}
+        if value_text.casefold() in haystacks:
+            return option_value
+        if value_text == "男" and ({"男", "male"} & haystacks):
+            return option_value
+        if value_text == "女" and ({"女", "female"} & haystacks):
+            return option_value
+    return value
+
+
+def _fact_value(resume_data: dict[str, Any], key: str) -> str:
+    facts = resume_data.get("facts")
+    if not isinstance(facts, list):
+        return ""
+    for fact in facts:
+        if not isinstance(fact, dict):
+            continue
+        if str(fact.get("key") or "").casefold() == key.casefold():
+            return _as_text(fact.get("normalized_value") or fact.get("value"))
+    return ""
 
 
 # Lightweight protocol for type hint (kept as module-level alias)

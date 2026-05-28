@@ -158,6 +158,39 @@ async def test_plugin_match_returns_extension_mappings(app_client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_plugin_match_uses_rules_fallback_when_model_schema_is_invalid(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("plugin-fallback-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    fake.queue_response({"filled": {"name": {"value": "x", "confidence": 2}}})
+    fake.queue_response({"filled": {"name": {"value": "x", "confidence": 2}}})
+    payload = _form_payload(rid)
+    payload["fields"].extend([
+        {"fieldId": "skill_python", "label": "Python", "type": "checkbox", "section": "技能"},
+        {"fieldId": "self_intro", "label": "自我评价", "type": "textarea", "section": "技能与自我评价"},
+    ])
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["mappings"]["name"] == "张三"
+    assert body["mappings"]["email"] == "zhangsan@example.com"
+    assert body["mappings"]["phone"] == "13800138000"
+    assert body["mappings"]["skill_python"] == "Python"
+    assert body["mappings"]["self_intro"] == "5年互联网后端开发经验"
+    assert "height" in body["skipped"]
+    assert body["model_used"] == "fake-chat+rules-fallback"
+    assert body["warnings"] == ["模型输出校验失败，已使用规则匹配兜底"]
+
+
+@pytest.mark.asyncio
 async def test_plugin_scan_endpoint_validates_real_scan_payload(app_client, make_user):
     client, _ = app_client
     user = await make_user("plugin-scan-user")
