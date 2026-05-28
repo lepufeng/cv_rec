@@ -31,7 +31,7 @@ npm run dev
 # 4. 测试
 pytest                                  # 后端测试
 cd web && npm run build                 # 前端构建检查
-node --test With_Le/chrome-extension/tests/service-worker.test.js
+node --test With_Le/chrome-extension/tests/*.test.js
 
 # 5. 后端基础连通自检
 .venv/bin/python scripts/backend_smoke_check.py
@@ -132,7 +132,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
 - ✅ 管理员后台（模型配置 / 用户管理 / 成本统计）
 - ✅ React 前端（用户预览 / 上传 / 管理员后台）
 - ✅ 浏览器插件连接页 + 插件扫描/方案预览接口
-- ✅ 62 项后端自动化测试 + 插件 service worker 消息测试
+- ✅ 62 项后端自动化测试 + 插件 manifest / service worker 消息测试
 
 未在 MVP 中：异步队列、对象存储、多模型路由降级、Redis 缓存、敏感字段加密、速率限制 — 见 ARCHITECTURE.md 第 10 节。
 

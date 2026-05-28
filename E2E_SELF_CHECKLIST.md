@@ -194,7 +194,7 @@ tests/fixtures/plugin_scans/1779866110428_zhdbld__xiaopeng.jobs.feishu.cn.json
 
 ```bash
 .venv/bin/python -m pytest tests/unit/test_plugin_scan_fixture.py -q
-node --test With_Le/chrome-extension/tests/service-worker.test.js
+node --test With_Le/chrome-extension/tests/*.test.js
 ```
 
 ---
