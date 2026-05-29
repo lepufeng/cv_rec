@@ -168,6 +168,32 @@ def test_repeated_fields_can_infer_section_from_label_and_repeat_index():
     ) == ("未来科技", "work_experience[1].company", 0.82)
 
 
+def test_repeated_current_flag_maps_when_end_date_is_open():
+    resume = {
+        "work_experience": [
+            {"company": "旧公司", "title": "开发", "end_date": "2022-12"},
+            {"company": "当前公司", "title": "后端工程师", "end_date": None},
+        ],
+        "project_experience": [
+            {"name": "已结束项目", "end_date": "2023-06"},
+            {"name": "进行中项目", "end_date": "Present"},
+        ],
+    }
+
+    assert _match_field_from_resume(
+        {"label": "至今", "type": "checkbox", "options": ["至今"], "repeatSection": "工作经历", "repeatIndex": 1},
+        resume,
+    ) == ("至今", "work_experience[1].end_date", 0.82)
+    assert _match_field_from_resume(
+        {"label": "Present", "type": "checkbox", "options": ["Present"], "repeatSection": "项目经历", "repeatIndex": 1},
+        resume,
+    ) == ("Present", "project_experience[1].end_date", 0.82)
+    assert _match_field_from_resume(
+        {"label": "至今", "type": "checkbox", "options": ["至今"], "repeatSection": "工作经历", "repeatIndex": 0},
+        resume,
+    ) is None
+
+
 def test_location_preference_list_maps_to_multi_select_text():
     resume = {
         "job_intent": {

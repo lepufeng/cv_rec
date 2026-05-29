@@ -436,14 +436,19 @@ def _match_repeated_item_field(
     if item_key is None:
         return None
 
-    value = _value_from_repeated_item(item, item_key)
+    if item_key == "current_flag":
+        value = _present_flag_value(field, item)
+        source_key = "end_date"
+    else:
+        value = _value_from_repeated_item(item, item_key)
+        source_key = item_key
     if value is None:
         return None
 
     normalized_value = _as_text(value) if isinstance(value, (list, dict)) else value
     return _filled(
         _coerce_option_value(field, normalized_value),
-        f"{section_key}[{index}].{item_key}",
+        f"{section_key}[{index}].{source_key}",
         0.82,
     )
 
@@ -503,6 +508,9 @@ def _repeated_item_key_for_field(
     text: str,
     field: dict[str, Any],
 ) -> str | None:
+    if _present_flag_field(text, field):
+        return "current_flag"
+
     range_key = _date_range_key(field, text)
     if range_key:
         return range_key
@@ -559,6 +567,13 @@ def _repeated_item_key_for_field(
     return None
 
 
+def _present_flag_field(text: str, field: dict[str, Any]) -> bool:
+    field_type = str(field.get("type") or "").casefold()
+    if field_type not in {"checkbox", "radio", "select"}:
+        return False
+    return _contains_any(text, ("至今", "目前", "现在", "当前", "present", "current", "now", "ongoing"))
+
+
 def _date_range_key(field: dict[str, Any], text: str) -> str | None:
     if not _contains_any(text, ("起止", "时间", "日期", "年月", "period", "date", "time")):
         return None
@@ -574,6 +589,33 @@ def _date_range_key(field: dict[str, Any], text: str) -> str | None:
     if parsed == 1:
         return "end_date"
     return None
+
+
+def _present_flag_value(field: dict[str, Any], item: dict[str, Any]) -> str | None:
+    end_text = _as_text(item.get("end_date")).casefold()
+    is_current = not end_text or _contains_any(
+        end_text,
+        ("至今", "目前", "现在", "当前", "present", "current", "now", "ongoing"),
+    )
+    if not is_current:
+        return None
+
+    for option in field.get("options") or []:
+        option_text = _as_text(option.get("label") if isinstance(option, dict) else option)
+        if option_text and _present_flag_label(option_text):
+            return option_text
+
+    label = _as_text(field.get("label"))
+    if label and _present_flag_label(label):
+        return label
+    return "至今"
+
+
+def _present_flag_label(text: str) -> bool:
+    return _contains_any(
+        text.casefold(),
+        ("至今", "目前", "现在", "当前", "present", "current", "now", "ongoing"),
+    )
 
 
 def _value_from_repeated_item(item: dict[str, Any], key: str) -> Any:

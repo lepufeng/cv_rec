@@ -859,6 +859,64 @@ test('select handler fills multi-value custom and native selects', async t => {
   }
 });
 
+test('fill engine checks current experience checkbox from mapped present value', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <section>
+        <h2>工作经历</h2>
+        <div class="work-experience-card">
+          <label>公司<input type="text"></label>
+          <label>职位<input type="text"></label>
+          <label>至今<input id="current-work" type="checkbox"></label>
+        </div>
+      </section>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const current = fields.find(field => field.label === '至今');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [current.fieldId]: '至今' }, fields);
+      return {
+        fill,
+        checked: document.getElementById('current-work').checked,
+        field: {
+          label: current.label,
+          type: current.type,
+          options: current.options,
+        },
+      };
+    });
+
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.checked, true);
+    assert.deepEqual(result.field, {
+      label: '至今',
+      type: 'checkbox',
+      options: ['至今'],
+    });
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
