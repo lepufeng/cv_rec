@@ -276,7 +276,7 @@ var FieldScanner = {
   // ---------------------------------------------------------------- collect
   _collectAllControls() {
     const real = DOMUtils.querySelectorAllDeep(this._CONTROL_SELECTOR)
-      .filter(el => this._isVisible(el));
+      .filter(el => this._isVisible(el) || this._isHiddenFileInputInVisibleUpload(el));
 
     // ARIA wrappers are kept even when they contain a real <input>/<select>
     // inside. Modern SPA select widgets (Ant Design, Feishu UD's atsx-select,
@@ -671,6 +671,7 @@ var FieldScanner = {
     if (currentValue) out.currentValue = currentValue;
     if (this._isDisabledControl(el)) out.disabled = true;
     if (this._isReadonlyControl(el)) out.readonly = true;
+    if (!this._isVisible(el)) out.visible = false;
     if (this._isMultiselectControl(el)) out.isMultiselect = true;
     if (widget === 'search-select') out.isSearchableSelect = true;
     return out;
@@ -797,6 +798,11 @@ var FieldScanner = {
         cur = cur.parentElement;
         depth++;
       }
+    }
+
+    if (this._isFileInput(el)) {
+      const uploadLabel = this._fileUploadLabel(el);
+      if (uploadLabel) return this._cleanLabel(uploadLabel);
     }
 
     if (segLabel) return this._cleanLabel(segLabel);
@@ -1010,6 +1016,67 @@ var FieldScanner = {
 
   _isVisible(el) {
     return DOMUtils.isVisible(el);
+  },
+
+  _isFileInput(el) {
+    return !!el && (el.tagName || '').toLowerCase() === 'input' &&
+      (el.type || '').toLowerCase() === 'file';
+  },
+
+  _fileUploadLabel(el) {
+    const item = this._findItemContainer(el) ||
+      (el.closest && el.closest('[class*="upload"], [class*="Upload"], [class*="file"], [class*="File"]')) ||
+      el.parentElement;
+    if (!item) return '';
+
+    const section = this._detectSection(el);
+    if (section && /简历|照片|作品|附件|resume|cv|photo|portfolio/i.test(section)) return section;
+
+    const title = this._nearestUploadTitle(item);
+    if (title) return title;
+
+    const text = (item.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return '';
+    const matched = text.match(/附件简历|简历附件|上传简历|简历文件|个人照片|作品集附件|作品集|证件照|resume|cv|portfolio|photo/i);
+    return matched ? matched[0] : text.slice(0, this.MAX_LABEL_LEN);
+  },
+
+  _isHiddenFileInputInVisibleUpload(el) {
+    if (!this._isFileInput(el) || this._isVisible(el)) return false;
+    const container = (el.closest && el.closest(
+      'label, [class*="upload"], [class*="Upload"], [class*="file"], [class*="File"], [class*="drop"], [class*="Drop"]'
+    )) || el.parentElement;
+    return !!(container && this._isVisible(container));
+  },
+
+  _nearestUploadTitle(item) {
+    let cur = item;
+    let depth = 0;
+    while (cur && cur !== document.body && depth < 5) {
+      const headings = Array.from(cur.querySelectorAll(this._TITLE_SELECTOR))
+        .filter(node => node !== item && this._isVisible(node))
+        .map(node => (node.textContent || '').replace(/\s+/g, ' ').trim())
+        .filter(text => text && text.length <= 60);
+      const relevant = headings.find(text => /简历|照片|作品|附件|resume|cv|photo|portfolio/i.test(text));
+      if (relevant) return relevant;
+
+      let previous = cur.previousElementSibling;
+      let hops = 0;
+      while (previous && hops < 3) {
+        const text = (previous.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text && text.length <= 60 && /简历|照片|作品|附件|resume|cv|photo|portfolio/i.test(text)) {
+          return text;
+        }
+        previous = previous.previousElementSibling;
+        hops++;
+      }
+
+      cur = cur.parentElement;
+      depth++;
+    }
+    return '';
   },
 
   // ----------------------------------------------------- form-item grouping

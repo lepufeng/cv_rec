@@ -285,6 +285,8 @@ async def test_plugin_match_returns_resume_upload_action_for_file_field(app_clie
         "fields": [
             {"fieldId": "name", "label": "姓名", "type": "text"},
             {"fieldId": "resume_file", "label": "附件简历", "type": "file", "widget": "file-upload"},
+            {"fieldId": "photo_file", "label": "个人照片", "type": "file", "widget": "file-upload"},
+            {"fieldId": "portfolio_file", "label": "作品集附件", "type": "file", "widget": "file-upload"},
         ],
     }
     fake.queue_response({
@@ -300,11 +302,13 @@ async def test_plugin_match_returns_resume_upload_action_for_file_field(app_clie
     body = resp.json()
 
     assert body["mappings"] == {"name": "张三"}
-    assert body["needs_user_input"] == []
-    assert body["skipped"] == []
+    assert body["needs_user_input"] == ["photo_file", "portfolio_file"]
+    assert body["skipped"] == ["photo_file", "portfolio_file"]
     assert {action["fieldId"]: action["actionType"] for action in body["actions"]} == {
         "name": "set_text",
         "resume_file": "upload_file",
+        "photo_file": "needs_user_input",
+        "portfolio_file": "needs_user_input",
     }
     upload_action = body["actions"][1]
     assert upload_action["value"] == {"resumeId": rid}

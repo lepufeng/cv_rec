@@ -226,6 +226,7 @@ class FormField(BaseModel):
 边界：
 
 - 只上传当前登录用户自己的原始简历文件。
+- 只对标签/板块明确指向“简历附件、上传简历、resume/CV”的 file 字段自动上传；个人照片、作品集、证明材料等文件字段保持人工确认。
 - 插件不会读取本地路径，也不会点击最终提交。
 - 隐藏 file input 可被赋值；复杂第三方上传组件仍需在真实站点逐项验收。
 
@@ -264,7 +265,7 @@ POST /api/v1/fill-plans/{plan_id}/feedback
 | Prompt 加入 widget/enumerable 规则 | 已完成：`enumerable=false` / options 为空时允许返回目标语义值 |
 | 插件兼容响应 | 已完成：`POST /api/v1/fill-plans/plugin-match` 额外返回 `mappings/actions/skipped/sectionActions/sectionActionDetails` |
 | 插件扫描校验入口 | 已完成：`POST /api/v1/fill-plans/plugin-scan` 校验扫描 JSON，不调用模型 |
-| 返回动作类型 | 已完成基础动作：`set_text/select_option/set_date/check/needs_user_input`；repeater 由结构化 `sectionActionDetails` + 旧 `sectionActions` 兼容表达，`upload_file` 继续安全跳过 |
+| 返回动作类型 | 已完成基础动作：`set_text/select_option/set_date/check/upload_file/needs_user_input`；repeater 由结构化 `sectionActionDetails` + 旧 `sectionActions` 兼容表达，`upload_file` 仅上传当前用户已保存的原始简历文件 |
 | 缓存 hash 改用稳定 fingerprint | 已完成：结构 hash 忽略随机 `fieldId`，缓存命中后按 `fieldFingerprint` 重映射到本次扫描的 `fieldId` |
 
 ### P1：满足自动填写和学习闭环

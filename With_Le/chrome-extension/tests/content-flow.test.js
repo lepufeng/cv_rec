@@ -68,6 +68,10 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /_inferRepeatSectionFromItem\(item\)/);
   assert.match(scanner, /data-form-field-id/);
   assert.match(scanner, /_extractFieldMetadata\(ctrl, widget\)/);
+  assert.match(scanner, /_isFileInput\(el\)/);
+  assert.match(scanner, /_isHiddenFileInputInVisibleUpload\(el\)/);
+  assert.match(scanner, /_fileUploadLabel\(el\)/);
+  assert.match(scanner, /out\.visible = false/);
   assert.match(scanner, /out\.frameUrl = location\.href/);
   assert.match(scanner, /isSearchableSelect/);
   assert.match(scanner, /_DATE_RANGE_HINT_CLASS/);

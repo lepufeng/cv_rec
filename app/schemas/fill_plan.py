@@ -280,6 +280,10 @@ class PluginMatchResponse(FillPlanResponse):
         ordered_ids.extend(field_id for field_id in plan.needs_user_input if field_id not in ordered_ids)
 
         for field_id, filled in plan.filled.items():
+            field = fields_by_id.get(field_id)
+            if _is_file_field(field):
+                skipped.append(field_id)
+                continue
             if field_id in plan.needs_user_input:
                 continue
             if filled.value is None:
@@ -298,15 +302,24 @@ class PluginMatchResponse(FillPlanResponse):
             for action in actions
             if action.actionType != "needs_user_input" and action.value is not None
         }
+        action_needs_ids = [
+            action.fieldId
+            for action in actions
+            if action.actionType == "needs_user_input"
+        ]
+        skipped.extend(action_needs_ids)
         skipped = [field_id for field_id in skipped if field_id not in action_mapped_ids]
         needs_user_input = [
             field_id for field_id in plan.needs_user_input if field_id not in action_mapped_ids
         ]
+        needs_user_input.extend(
+            field_id for field_id in action_needs_ids if field_id not in action_mapped_ids
+        )
 
         return cls(
             plan_id=plan.plan_id,
             filled=plan.filled,
-            needs_user_input=needs_user_input,
+            needs_user_input=list(dict.fromkeys(needs_user_input)),
             warnings=plan.warnings,
             cache_hit=plan.cache_hit,
             model_used=plan.model_used,
@@ -351,17 +364,29 @@ def _fill_action_for_field(
     needs_input: bool,
     resume_id: str | None = None,
 ) -> FillAction:
-    if _is_file_field(field) and resume_id:
+    if _is_file_field(field):
+        if resume_id and _is_resume_file_upload_field(field):
+            return FillAction(
+                fieldId=field_id,
+                actionType="upload_file",
+                value={"resumeId": resume_id},
+                label=field.label if field else None,
+                fieldType=field.type if field else None,
+                widget=field.widget if field else None,
+                confidence=filled.confidence if filled else 0.9,
+                source="resume.original_file",
+                reasoning="上传用户已保存的原始简历文件",
+            )
         return FillAction(
             fieldId=field_id,
-            actionType="upload_file",
-            value={"resumeId": resume_id},
+            actionType="needs_user_input",
+            value=None,
             label=field.label if field else None,
             fieldType=field.type if field else None,
             widget=field.widget if field else None,
-            confidence=filled.confidence if filled else 0.9,
-            source="resume.original_file",
-            reasoning="上传用户已保存的原始简历文件",
+            confidence=filled.confidence if filled else None,
+            source=filled.source if filled else "",
+            reasoning="文件字段不是简历附件，需用户确认后手动上传",
         )
 
     if needs_input:
@@ -418,3 +443,33 @@ def _is_file_field(field: FormField | None) -> bool:
     field_type = str(field.type or "").casefold()
     widget = str(field.widget or "").casefold()
     return field_type == "file" or widget == "file-upload"
+
+
+def _is_resume_file_upload_field(field: FormField | None) -> bool:
+    if field is None:
+        return False
+    text = " ".join(
+        str(part or "")
+        for part in (
+            field.label,
+            field.placeholder,
+            field.subLabel,
+            field.section,
+            field.ariaLabel,
+            field.name,
+        )
+    ).casefold()
+    if not text.strip():
+        return False
+    negative_terms = (
+        "照片", "头像", "证件照", "个人照片", "photo", "avatar", "portrait", "image",
+        "作品", "作品集", "portfolio", "work sample", "cover letter", "主页", "homepage",
+        "证明", "证书", "certificate", "transcript",
+    )
+    if any(term in text for term in negative_terms):
+        return False
+    positive_terms = (
+        "简历附件", "附件简历", "上传简历", "简历文件", "我的简历", "中文简历", "英文简历",
+        "resume", "cv", "curriculum vitae",
+    )
+    return any(term in text for term in positive_terms)

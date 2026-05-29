@@ -497,6 +497,97 @@ test('scanner annotates Formily-style repeated list items without card classes',
   }
 });
 
+test('scanner includes hidden file inputs with upload labels', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <main>
+        <section class="moka-form-section">
+          <h2>简历附件</h2>
+          <div class="moka-upload">
+            <p>将简历拖拽至此处</p>
+            <button type="button">上传文件</button>
+            <input id="resume-upload" type="file" style="display:none">
+          </div>
+        </section>
+        <section class="beisen-section">
+          <h2>个人照片</h2>
+          <div class="beisen-upload">
+            <button type="button">点击上传</button>
+            <input id="photo-upload" type="file" style="display:none">
+          </div>
+        </section>
+        <section class="atsx-form-section">
+          <h2>作品集附件</h2>
+          <div class="atsx-upload">
+            <button type="button">上传作品集</button>
+            <input id="portfolio-upload" type="file" style="display:none">
+          </div>
+        </section>
+      </main>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(() => {
+      const fields = FieldScanner.scan();
+      return fields
+        .filter(field => field.type === 'file')
+        .map(field => ({
+          id: field.fieldId,
+          label: field.label,
+          section: field.section,
+          type: field.type,
+          widget: field.widget,
+          visible: field.visible,
+        }));
+    });
+
+    assert.deepEqual(result, [
+      {
+        id: 'resume-upload',
+        label: '简历附件',
+        section: '简历附件',
+        type: 'file',
+        widget: 'file-upload',
+        visible: false,
+      },
+      {
+        id: 'photo-upload',
+        label: '个人照片',
+        section: '个人照片',
+        type: 'file',
+        widget: 'file-upload',
+        visible: false,
+      },
+      {
+        id: 'portfolio-upload',
+        label: '作品集附件',
+        section: '作品集附件',
+        type: 'file',
+        widget: 'file-upload',
+        visible: false,
+      },
+    ]);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('scanner infers repeat metadata from repeated field signatures', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

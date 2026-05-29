@@ -174,7 +174,7 @@ schema_version=1.4（升级至 1.6 后需重新解析以生成 internship_experi
 - [ ] 插件提供稳定 `fieldFingerprint`
 - [ ] 插件提供 `sectionPath`
 - [x] 插件提供 `currentValue/disabled/readonly`，执行器会跳过已有非占位值避免覆盖
-- [ ] 插件显式提供 `visible`
+- [x] 插件对隐藏 file input 显式提供 `visible=false`，用于受控附件上传诊断
 - [x] 插件提供 select/radio/checkbox 的 `{label,value}` 形式选项（`optionObjects`），并保留 `options` 文本兼容旧链路
 
 已验证样例：
@@ -246,10 +246,10 @@ node --test With_Le/chrome-extension/tests/*.test.js
 当前根据队友说明：
 
 - [x] 扫描链路基本 OK
-- [x] React/Vue value tracker 已考虑
-- [x] iframe 注入已考虑
-- [ ] join.qq.com 上真实 fill-engine 尚未完整验证
-- [ ] upload-handler 仍未实现
+- [x] React/Vue value tracker 已考虑并有本地回归
+- [x] iframe 注入已考虑并有本地回归
+- [x] upload-handler 已完成 MVP：通过后端读取当前用户原始简历并写入 file input
+- [ ] join.qq.com / Moka / 飞书 / 北森真实生产页仍需逐站点验收
 
 ---
 
