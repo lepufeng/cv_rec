@@ -18,6 +18,10 @@ test('content direct fill force-refreshes before and after dynamic expansion', (
   assert.match(content, /payload: pagePayload\(fields, forceRefresh\)/);
   assert.match(content, /url: location\.href/);
   assert.match(content, /frames: \[\{/);
+  assert.match(content, /mappingsFromMatch\(firstMatch\)/);
+  assert.match(content, /mappingsFromMatch\(secondMatch\)/);
+  assert.match(content, /skippedIdsFromMatch\(firstMatch\)/);
+  assert.match(content, /action\.actionType === 'needs_user_input'/);
   assert.match(content, /FillEngine\.fillAll\(mappings, activeFields\)/);
   assert.match(content, /describeSkippedFields\(matchSkipped, activeFields, mappings\)/);
 });

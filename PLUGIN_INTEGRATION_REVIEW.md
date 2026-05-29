@@ -261,9 +261,9 @@ POST /api/v1/fill-plans/{plan_id}/feedback
 | 支持插件扫描结果直接作为请求 | 已完成，直接接收 `url/fields/fieldId/maxLength` |
 | 保留插件元数据 | 已完成，保留 `widget/enumerable/groupId/subLabel/frameUrl` |
 | Prompt 加入 widget/enumerable 规则 | 已完成：`enumerable=false` / options 为空时允许返回目标语义值 |
-| 插件兼容响应 | 已完成：`POST /api/v1/fill-plans/plugin-match` 额外返回 `mappings/skipped/sectionActions` |
+| 插件兼容响应 | 已完成：`POST /api/v1/fill-plans/plugin-match` 额外返回 `mappings/actions/skipped/sectionActions` |
 | 插件扫描校验入口 | 已完成：`POST /api/v1/fill-plans/plugin-scan` 校验扫描 JSON，不调用模型 |
-| 返回动作类型 | 待完成：`set_text/select_option/set_date/check/fill_repeater/upload_file/needs_user_input` |
+| 返回动作类型 | 已完成基础动作：`set_text/select_option/set_date/check/needs_user_input`；repeater 仍由 `sectionActions` 表达，`upload_file` 继续安全跳过 |
 | 缓存 hash 改用稳定 fingerprint | 已完成：结构 hash 忽略随机 `fieldId`，缓存命中后按 `fieldFingerprint` 重映射到本次扫描的 `fieldId` |
 
 ### P1：满足自动填写和学习闭环

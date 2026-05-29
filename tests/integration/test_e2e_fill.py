@@ -211,6 +211,63 @@ async def test_plugin_match_returns_extension_mappings(app_client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_plugin_match_returns_typed_fill_actions(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("plugin-actions-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    payload = {
+        "resumeId": rid,
+        "url": "https://jobs.example.com/apply/actions",
+        "fields": [
+            {"fieldId": "name", "label": "姓名", "type": "text"},
+            {"fieldId": "degree", "label": "学历", "type": "select", "widget": "native-select"},
+            {"fieldId": "birth", "label": "出生日期", "type": "date", "widget": "date-picker"},
+            {"fieldId": "current", "label": "至今", "type": "checkbox"},
+            {"fieldId": "height", "label": "身高", "type": "number"},
+        ],
+    }
+    fake.queue_response({
+        "filled": {
+            "name": {"value": "张三", "confidence": 1.0, "reasoning": "x", "source": "basic_info.name"},
+            "degree": {"value": "硕士", "confidence": 0.9, "reasoning": "x", "source": "education[0].degree"},
+            "birth": {"value": "1996-05-15", "confidence": 0.9, "reasoning": "x", "source": "basic_info.birth_date"},
+            "current": {"value": "至今", "confidence": 0.8, "reasoning": "x", "source": "work_experience[0].end_date"},
+        },
+        "needs_user_input": ["height"],
+        "warnings": [],
+    })
+
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["mappings"]["name"] == "张三"
+    assert [action["fieldId"] for action in body["actions"]] == [
+        "name",
+        "degree",
+        "birth",
+        "current",
+        "height",
+    ]
+    assert {action["fieldId"]: action["actionType"] for action in body["actions"]} == {
+        "name": "set_text",
+        "degree": "select_option",
+        "birth": "set_date",
+        "current": "check",
+        "height": "needs_user_input",
+    }
+    assert body["actions"][0]["value"] == "张三"
+    assert body["actions"][-1]["value"] is None
+
+
+@pytest.mark.asyncio
 async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_user):
     client, fake = app_client
     user = await make_user("plugin-section-user")

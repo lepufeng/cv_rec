@@ -721,10 +721,10 @@ flowchart TD
 | 任务 | 负责人 |
 |---|---|
 | 定义并实现 `FormFields v2` 后端兼容 | 平台 |
-| 定义并实现 `FillAction v2` 响应 | 平台 |
+| 定义并实现基础 `FillAction v2` 响应 | 平台 |
 | 插件扫描字段并生成稳定 `fieldId` / `fieldFingerprint` | 插件 |
 | 插件保存 `fieldId -> DOM` 映射 | 插件 |
-| 插件按 action 执行填写 | 插件 |
+| 插件优先按 action 转换执行映射，兼容 mappings fallback | 插件 |
 | 增加 fill plan trace 日志 | 平台 |
 | 构造 5-10 份 ATS 表单 JSON 测试集 | 平台 + 插件 |
 

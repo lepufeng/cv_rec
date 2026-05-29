@@ -61,6 +61,7 @@ test('REQUEST_MATCH posts plugin scan payload to FastAPI plugin-match endpoint',
         plan_id: 'plan-1',
         filled: {},
         mappings: { name: '张三' },
+        actions: [{ fieldId: 'name', actionType: 'set_text', value: '张三' }],
         skipped: [],
         warnings: [],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -83,6 +84,7 @@ test('REQUEST_MATCH posts plugin scan payload to FastAPI plugin-match endpoint',
 
   assert.equal(response.type, 'MATCH_RESULT');
   assert.deepEqual(response.data.mappings, { name: '张三' });
+  assert.deepEqual(response.data.actions, [{ fieldId: 'name', actionType: 'set_text', value: '张三' }]);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/v1/fill-plans/plugin-match');
   assert.equal(calls[0].options.method, 'POST');

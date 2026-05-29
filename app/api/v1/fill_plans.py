@@ -40,7 +40,11 @@ async def create_plugin_match(
         resume = await svc.resume_repo.get(payload.resumeId)
         if resume and resume.user_id == user.id and resume.parsed_data:
             section_actions = _build_section_actions(payload.sections or [], resume.parsed_data)
-    return PluginMatchResponse.from_fill_plan(plan, section_actions=section_actions)
+    return PluginMatchResponse.from_fill_plan(
+        plan,
+        fields=payload.fields,
+        section_actions=section_actions,
+    )
 
 
 @router.post("/plugin-scan", response_model=PluginScanResponse)

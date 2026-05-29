@@ -13,9 +13,9 @@
 | 后端接收插件扫描 JSON | 已跑通 | 队友 QQ JSON 可直接通过 `FillPlanRequest` 校验 |
 | 插件连接 Web 账户 | 已跑通 | Web `/plugin` 提供 API、token、简历 ID；插件弹窗可保存配置并打开主页 |
 | 插件扫描并生成方案预览 | 已跑通 | 插件调用 `/plugin-scan` / `/plugin-match`，展示 mappings/skipped/warnings |
-| 后端生成填表方案 | 已跑通 | 当前返回 `filled[fieldId].value` 与插件友好的 `mappings`，尚非动作级计划 |
+| 后端生成填表方案 | 已跑通 | 当前返回 `filled[fieldId].value`、插件友好的 `mappings`，以及基础 `FillAction v2 actions` |
 | 插件根据平台结果真实填写网页 | 未完全跑通 | 队友说明中 fill-engine 尚未在 join.qq.com 完整验证 |
-| 动态下拉/日期/级联选择 | 未完全跑通 | 需要动作协议与插件执行策略配合 |
+| 动态下拉/日期/级联选择 | 本地回归跑通 | 真实生产站点仍需逐站点验收 |
 | 文件上传简历 | 未跑通 | 插件 `upload-handler` 仍是占位，平台也缺文件下载接口 |
 | 填写反馈/自学习 | 未跑通 | 还没有 feedback API、observation 表、模板学习 |
 
@@ -217,8 +217,8 @@ node --test With_Le/chrome-extension/tests/*.test.js
 
 当前缺口：
 
-- [ ] 返回还不是动作级 `FillAction v2`
-- [ ] 对 `custom-dropdown/cascader/date-picker` 的执行意图不够明确
+- [x] 返回基础动作级 `FillAction v2`：`set_text/select_option/set_date/check/needs_user_input`
+- [x] 对 `custom-dropdown/cascader/date-picker` 的执行意图已由 `actionType` + `widget` 明确
 - [ ] 对 repeater/group 的返回结构还需加强
 
 ---

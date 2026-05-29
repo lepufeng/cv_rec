@@ -14,6 +14,14 @@ FieldType = Literal[
     "select", "radio", "checkbox", "textarea", "repeater", "file",
 ]
 ThinkingMode = Literal["enabled", "disabled"]
+FillActionType = Literal[
+    "set_text",
+    "select_option",
+    "set_date",
+    "check",
+    "upload_file",
+    "needs_user_input",
+]
 
 
 class FormOption(BaseModel):
@@ -209,6 +217,22 @@ class FillPlanResponse(BaseModel):
     cost_cny: Decimal | None = None
 
 
+class FillAction(BaseModel):
+    """Typed execution step for the browser extension."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    fieldId: str
+    actionType: FillActionType
+    value: Any = None
+    label: str | None = None
+    fieldType: str | None = None
+    widget: str | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    source: str = ""
+    reasoning: str = ""
+
+
 class PluginMatchResponse(FillPlanResponse):
     """Chrome-extension friendly response shape.
 
@@ -218,6 +242,7 @@ class PluginMatchResponse(FillPlanResponse):
     """
 
     mappings: dict[str, Any] = Field(default_factory=dict)
+    actions: list[FillAction] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
     sectionActions: dict[str, str] = Field(default_factory=dict)
 
@@ -225,10 +250,16 @@ class PluginMatchResponse(FillPlanResponse):
     def from_fill_plan(
         cls,
         plan: FillPlanResponse,
+        fields: list[FormField] | None = None,
         section_actions: dict[str, str] | None = None,
     ) -> "PluginMatchResponse":
         mappings: dict[str, Any] = {}
         skipped = list(plan.needs_user_input)
+        actions: list[FillAction] = []
+        fields_by_id = {field.fieldId: field for field in (fields or [])}
+        ordered_ids = [field.fieldId for field in (fields or [])]
+        ordered_ids.extend(field_id for field_id in plan.filled if field_id not in ordered_ids)
+        ordered_ids.extend(field_id for field_id in plan.needs_user_input if field_id not in ordered_ids)
 
         for field_id, filled in plan.filled.items():
             if field_id in plan.needs_user_input:
@@ -237,6 +268,12 @@ class PluginMatchResponse(FillPlanResponse):
                 skipped.append(field_id)
                 continue
             mappings[field_id] = filled.value
+
+        for field_id in dict.fromkeys(ordered_ids):
+            field = fields_by_id.get(field_id)
+            filled = plan.filled.get(field_id)
+            needs_input = field_id in plan.needs_user_input or filled is None or filled.value is None
+            actions.append(_fill_action_for_field(field_id, field, filled, needs_input))
 
         return cls(
             plan_id=plan.plan_id,
@@ -247,6 +284,7 @@ class PluginMatchResponse(FillPlanResponse):
             model_used=plan.model_used,
             cost_cny=plan.cost_cny,
             mappings=mappings,
+            actions=actions,
             skipped=list(dict.fromkeys(skipped)),
             sectionActions=section_actions or {},
         )
@@ -275,3 +313,56 @@ def _option_fingerprint_part(option: str | FormOption) -> str | dict[str, str | 
     if isinstance(option, FormOption):
         return option.model_dump(mode="json", exclude_none=True)
     return option
+
+
+def _fill_action_for_field(
+    field_id: str,
+    field: FormField | None,
+    filled: FilledField | None,
+    needs_input: bool,
+) -> FillAction:
+    if needs_input:
+        return FillAction(
+            fieldId=field_id,
+            actionType="needs_user_input",
+            value=None,
+            label=field.label if field else None,
+            fieldType=field.type if field else None,
+            widget=field.widget if field else None,
+            confidence=filled.confidence if filled else None,
+            source=filled.source if filled else "",
+            reasoning=filled.reasoning if filled and filled.reasoning else "需要用户确认",
+        )
+
+    assert filled is not None
+    return FillAction(
+        fieldId=field_id,
+        actionType=_infer_action_type(field),
+        value=filled.value,
+        label=field.label if field else None,
+        fieldType=field.type if field else None,
+        widget=field.widget if field else None,
+        confidence=filled.confidence,
+        source=filled.source,
+        reasoning=filled.reasoning,
+    )
+
+
+def _infer_action_type(field: FormField | None) -> FillActionType:
+    if field is None:
+        return "set_text"
+
+    field_type = str(field.type or "").casefold()
+    widget = str(field.widget or "").casefold()
+    if field_type == "file" or widget == "file-upload":
+        return "upload_file"
+    if field_type == "date" or widget in {"date-picker", "date-range"}:
+        return "set_date"
+    if field_type == "checkbox":
+        return "check"
+    if (
+        field_type in {"select", "radio"}
+        or widget in {"native-select", "aria-combobox", "custom-dropdown", "search-select", "cascader", "pseudo-radio"}
+    ):
+        return "select_option"
+    return "set_text"

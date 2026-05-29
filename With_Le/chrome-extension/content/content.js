@@ -102,9 +102,9 @@ async function startFill(resumeId) {
       sendProgress(`正在匹配字段... (${initialFields.length} 个字段)`);
       const firstMatch = await requestMatch(initialFields, resume, sectionInfo, true);
 
-      let mappings = firstMatch.mappings || {};
+      let mappings = mappingsFromMatch(firstMatch);
       let activeFields = initialFields;
-      let matchSkipped = firstMatch.skipped || [];
+      let matchSkipped = skippedIdsFromMatch(firstMatch);
       pageReport.mappingCount = Object.keys(mappings).length;
       pageReport.backendSkippedCount = matchSkipped.length;
 
@@ -124,9 +124,9 @@ async function startFill(resumeId) {
           const expandedSectionInfo = SectionManager.collectSectionInfo();
           sendProgress(`板块已展开，正在重新匹配 ${expandedFields.length} 个字段...`);
           const secondMatch = await requestMatch(expandedFields, resume, expandedSectionInfo, true);
-          mappings = secondMatch.mappings || {};
+          mappings = mappingsFromMatch(secondMatch);
           activeFields = expandedFields;
-          matchSkipped = secondMatch.skipped || [];
+          matchSkipped = skippedIdsFromMatch(secondMatch);
           pageReport.mappingCount = Object.keys(mappings).length;
           pageReport.backendSkippedCount = matchSkipped.length;
         }
@@ -247,6 +247,32 @@ function pagePayload(fields, forceRefresh) {
     }],
     forceRefresh: !!forceRefresh,
   };
+}
+
+function mappingsFromMatch(match) {
+  if (match && Array.isArray(match.actions) && match.actions.length > 0) {
+    const mappings = {};
+    for (const action of match.actions) {
+      if (!action || !action.fieldId) continue;
+      if (action.actionType === 'needs_user_input') continue;
+      if (action.value === undefined || action.value === null) continue;
+      mappings[action.fieldId] = action.value;
+    }
+    return mappings;
+  }
+  return match && match.mappings ? match.mappings : {};
+}
+
+function skippedIdsFromMatch(match) {
+  const skipped = new Set(match && Array.isArray(match.skipped) ? match.skipped : []);
+  if (match && Array.isArray(match.actions)) {
+    for (const action of match.actions) {
+      if (action && action.fieldId && action.actionType === 'needs_user_input') {
+        skipped.add(action.fieldId);
+      }
+    }
+  }
+  return Array.from(skipped);
 }
 
 function describeSkippedFields(fieldIds, fields, mappings) {
