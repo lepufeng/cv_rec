@@ -2079,6 +2079,83 @@ test('date handler normalizes month and year resume dates for native inputs', as
   }
 });
 
+test('date handler selects custom picker options for readonly date widgets', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label for="grad-month">毕业时间</label>
+      <div class="ant-picker ant-picker-month">
+        <input id="grad-month" class="ant-picker-input date-picker" type="text" readonly placeholder="请选择月份">
+      </div>
+      <script>
+        window.clickedDateOption = '';
+        const input = document.getElementById('grad-month');
+        input.addEventListener('click', () => {
+          if (document.querySelector('.ant-picker-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'ant-picker-dropdown';
+          dropdown.innerHTML = '<div class="ant-picker-panel"><div class="ant-picker-cell" title="2025-05" data-value="2025-05">2025年5月</div><div class="ant-picker-cell" title="2025-06" data-value="2025-06">2025年6月</div></div>';
+          dropdown.querySelectorAll('[data-value]').forEach(option => {
+            option.addEventListener('click', event => {
+              window.clickedDateOption = option.getAttribute('data-value');
+              option.setAttribute('aria-selected', 'true');
+              input.value = option.getAttribute('data-value');
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              event.stopPropagation();
+            });
+          });
+          document.body.appendChild(dropdown);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const grad = fields.find(field => field.label === '毕业时间');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [grad.fieldId]: '2025-06' }, fields);
+      return {
+        fill,
+        value: document.getElementById('grad-month').value,
+        clickedDateOption: window.clickedDateOption,
+        field: {
+          type: grad.type,
+          widget: grad.widget,
+          readonly: grad.readonly,
+        },
+      };
+    });
+
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.value, '2025-06');
+    assert.equal(result.clickedDateOption, '2025-06');
+    assert.deepEqual(result.field, {
+      type: 'date',
+      widget: 'date-picker',
+      readonly: true,
+    });
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

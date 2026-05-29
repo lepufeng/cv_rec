@@ -115,6 +115,9 @@ test('date handler normalizes resume dates for native date widgets', () => {
   const handler = read('content/handlers/date-handler.js');
 
   assert.match(handler, /_candidateValues\(value, el, field\)/);
+  assert.match(handler, /_fillViaPicker\(el, target, values\)/);
+  assert.match(handler, /_visibleDateDropdowns\(\)/);
+  assert.match(handler, /_optionCandidates\(value\)/);
   assert.match(handler, /inputType === 'month'/);
   assert.match(handler, /inputType === 'date'/);
   assert.match(handler, /_wantsYearOnly\(el, field\)/);
