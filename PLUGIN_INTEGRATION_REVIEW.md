@@ -219,19 +219,20 @@ class FormField(BaseModel):
 
 或者让平台用模型/规则根据 `label/subLabel/placeholder/order` 推断 group role。
 
-### 5.5 file upload 尚未实现
+### 5.5 file upload 已有 MVP 实现
 
-说明文件写明 `upload-handler` 仍为空实现。
+平台已提供 `GET /api/v1/resumes/{id}/file`，插件在后端返回 `upload_file` action 时读取当前用户已保存的原始简历文件，并写入招聘页的 file input。
 
-影响：
+边界：
 
-- 很多 ATS 必填“上传简历”或“附件简历”。
-- 平台目前也没有面向插件的原始简历下载/临时文件接口。
+- 只上传当前登录用户自己的原始简历文件。
+- 插件不会读取本地路径，也不会点击最终提交。
+- 隐藏 file input 可被赋值；复杂第三方上传组件仍需在真实站点逐项验收。
 
-建议拆两步：
+后续增强：
 
-1. 平台增加 `GET /api/v1/resumes/{id}/file` 或临时下载 URL。
-2. 插件实现 file input 注入/上传动作。
+1. 增加上传成功后的站点 UI 状态识别。
+2. 对必须点击上传区域才能触发校验的组件做站点适配。
 
 ### 5.6 填写反馈尚未对接
 

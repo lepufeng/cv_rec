@@ -61,7 +61,7 @@ var ResultAnnotator = {
         ${skippedRows}
       </ul>
       <div style="margin-bottom:10px;color:#6b7280;font-size:12px">
-        安全边界：不会点击最终提交按钮，不会上传文件。
+        安全边界：不会点击最终提交按钮；附件仅上传已保存的原始简历。
       </div>
       <button id="resume-autofill-close" style="
         display:block;width:100%;padding:8px;border:none;border-radius:6px;

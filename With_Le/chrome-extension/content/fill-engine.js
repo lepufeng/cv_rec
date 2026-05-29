@@ -54,7 +54,7 @@ var FillEngine = {
 
       let success = await handler.fill(el, value, field);
 
-      if (!success) {
+      if (!success && !this._isFileControl(el, field)) {
         // Fallback: write through the native setter so frameworks like
         // React / Vue don't reset our value on the next render.
         try {
@@ -134,12 +134,17 @@ var FillEngine = {
   },
 
   _safeToFill(el, field, value) {
-    const htmlType = (el.type || '').toLowerCase();
-    if (field.type === 'file' || htmlType === 'file') {
-      return { ok: false, reason: '文件上传需人工处理' };
-    }
     if (el.disabled || el.getAttribute('aria-disabled') === 'true') {
       return { ok: false, reason: '字段已禁用' };
+    }
+    if (this._isFileControl(el, field)) {
+      if (!this._hasUploadPayload(value)) {
+        return { ok: false, reason: '文件上传缺少后端授权文件' };
+      }
+      if (el.files && el.files.length > 0) {
+        return { ok: false, reason: '文件上传字段已有文件，跳过自动覆盖', alreadyFilled: true };
+      }
+      return { ok: true };
     }
     if (!DOMUtils.isVisible(el)) {
       return { ok: false, reason: '字段当前不可见' };
@@ -296,6 +301,16 @@ var FillEngine = {
       node = node.parentElement;
     }
     return false;
+  },
+
+  _isFileControl(el, field) {
+    const htmlType = (el && el.type || '').toLowerCase();
+    return (field && field.type === 'file') || (field && field.widget === 'file-upload') || htmlType === 'file';
+  },
+
+  _hasUploadPayload(value) {
+    if (!value || typeof value !== 'object') return false;
+    return !!(value.dataBase64 || value.resumeId || value.resume_id || value.id);
   },
 
   _skipRecord(fieldId, field, el, value, reason) {

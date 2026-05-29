@@ -1,7 +1,7 @@
 # 端到端架构自查 Checklist
 
 > 目的：判断当前“简历解析平台 + 浏览器插件 + 招聘网页自动填写”是否真正跑通。  
-> 结论先行：当前“不含真实 DOM 填写”的产品闭环已可跑通：用户注册/登录、上传解析、网页复制插件配置、插件扫描招聘页、后端生成方案预览。完整自动填写闭环仍未完成，后续主要缺真实 fill-engine 验证、填写反馈与自学习链路。
+> 结论先行：当前 MVP 自动填写链路已具备本地可用能力：用户注册/登录、上传解析、网页复制插件配置、插件扫描招聘页、后端生成方案、动态新增经历、真实 DOM 填写、受控附件上传、跳过最终提交。真实 Moka/飞书/北森生产页仍需逐站点验收，填写反馈与自学习链路后续迭代。
 
 ---
 
@@ -14,9 +14,9 @@
 | 插件连接 Web 账户 | 已跑通 | Web `/plugin` 提供 API、token、简历 ID；插件弹窗可保存配置并打开主页 |
 | 插件扫描并生成方案预览 | 已跑通 | 插件调用 `/plugin-scan` / `/plugin-match`，展示 mappings/skipped/warnings |
 | 后端生成填表方案 | 已跑通 | 当前返回 `filled[fieldId].value`、插件友好的 `mappings`，以及基础 `FillAction v2 actions` |
-| 插件根据平台结果真实填写网页 | 未完全跑通 | 队友说明中 fill-engine 尚未在 join.qq.com 完整验证 |
+| 插件根据平台结果真实填写网页 | 本地 MVP 跑通 | 已覆盖文本、下拉、日期、复选、富文本、动态经历、iframe/open Shadow DOM；生产站点需逐站点验收 |
 | 动态下拉/日期/级联选择 | 本地回归跑通 | 真实生产站点仍需逐站点验收 |
-| 文件上传简历 | 未跑通 | 插件 `upload-handler` 仍是占位，平台也缺文件下载接口 |
+| 文件上传简历 | 本地 MVP 跑通 | 后端提供当前用户原始简历下载；插件仅按 `upload_file` 动作写入 file input，不点最终提交 |
 | 填写反馈/自学习 | 未跑通 | 还没有 feedback API、observation 表、模板学习 |
 
 ---
@@ -237,7 +237,7 @@ node --test With_Le/chrome-extension/tests/*.test.js
 - [x] date-picker 可选择日期
 - [x] checkbox/radio 可点击
 - [x] repeater 可新增多段经历
-- [ ] file upload 可上传简历文件
+- [x] file upload 可上传已保存的原始简历文件
 - [x] iframe 页面可定位并执行
 - [x] open Shadow DOM 控件可扫描与回填
 - [x] 失败字段能给出具体原因

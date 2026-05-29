@@ -46,6 +46,7 @@ async def create_plugin_match(
     return PluginMatchResponse.from_fill_plan(
         plan,
         fields=payload.fields,
+        resume_id=payload.resumeId,
         section_actions=section_actions,
         section_action_details=section_action_details,
     )

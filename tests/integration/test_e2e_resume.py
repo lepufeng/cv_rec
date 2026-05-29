@@ -85,6 +85,39 @@ async def test_reparse_resume_uses_saved_file_and_increments_version(app_client,
 
 
 @pytest.mark.asyncio
+async def test_download_resume_file_requires_owner(app_client, make_user):
+    client, fake = app_client
+
+    owner = await make_user("file-owner")
+    outsider = await make_user("file-outsider")
+    owner_headers = {"Authorization": f"Bearer {owner['token']}"}
+    outsider_headers = {"Authorization": f"Bearer {outsider['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    content = _make_docx_bytes()
+    created = await client.post(
+        "/api/v1/resumes",
+        headers=owner_headers,
+        files={"file": (
+            "owner resume.docx",
+            content,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )},
+    )
+    assert created.status_code == 201, created.text
+    resume_id = created.json()["resume_id"]
+
+    downloaded = await client.get(f"/api/v1/resumes/{resume_id}/file", headers=owner_headers)
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.content == content
+    assert downloaded.headers["x-resume-filename"] == "owner%20resume.docx"
+    assert "filename*=UTF-8''owner%20resume.docx" in downloaded.headers["content-disposition"]
+
+    forbidden = await client.get(f"/api/v1/resumes/{resume_id}/file", headers=outsider_headers)
+    assert forbidden.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_upload_dedup_by_content_hash(app_client, make_user):
     client, fake = app_client
     user = await make_user("bob")

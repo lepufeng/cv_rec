@@ -50,4 +50,4 @@ If Codex cannot claim the user's Chrome tabs and reports `native pipe is closed`
 - The plugin may click `下一步`, but must not click `提交投递`.
 - If the resume has multiple project experiences, project cards should be added before filling.
 - `复制诊断报告` should include `sectionActions`, `expandedFieldCount`, `repeatIndex`-backed mappings, and `stopReason: submit_only` on the final page.
-- A local smoke run should fill normal text/date fields, the custom degree dropdown, multiple project cards, and multiple checked skills while leaving file upload skipped.
+- A local smoke run should fill normal text/date fields, the custom degree dropdown, multiple project cards, multiple checked skills, and the stored resume file, while still leaving the final submit button untouched.

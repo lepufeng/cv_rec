@@ -1,7 +1,10 @@
 """Resume routes: upload, get, patch, delete."""
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, UploadFile, status
+import mimetypes
+from urllib.parse import quote
+
+from fastapi import APIRouter, File, Form, Response, UploadFile, status
 
 from app.api.deps import CurrentUser, ResumeSvc
 from app.schemas.api import (
@@ -90,6 +93,28 @@ async def get_resume(
         parsed_data_version=resume.parsed_data_version,
         data=ResumeData.model_validate(resume.parsed_data) if resume.parsed_data else None,
         error=resume.parse_error,
+    )
+
+
+@router.get("/{resume_id}/file")
+async def download_resume_file(
+    resume_id: str,
+    user: CurrentUser,
+    svc: ResumeSvc,
+) -> Response:
+    """Download the authenticated user's original uploaded resume file."""
+    resume, content = await svc.get_original_file(user.id, resume_id)
+    filename = resume.original_filename or "resume"
+    encoded_filename = quote(filename, safe="")
+    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+            "X-Resume-Filename": encoded_filename,
+            "Access-Control-Expose-Headers": "Content-Disposition, X-Resume-Filename",
+        },
     )
 
 

@@ -262,6 +262,14 @@ class ResumeService:
     async def list_for_user(self, user_id: str):
         return await self.repo.list_for_user(user_id)
 
+    async def get_original_file(self, user_id: str, resume_id: str) -> tuple[Resume, bytes]:
+        """Return the user's stored original resume file bytes."""
+        resume = await self.get(user_id, resume_id)
+        if not resume.file_storage_key:
+            raise NotFoundError("Resume file not found", code="NOT_FOUND_FILE")
+        content = await self.storage.get(resume.file_storage_key)
+        return resume, content
+
     # ---------------- patch ----------------
     async def patch(self, user_id: str, resume_id: str, patch: dict[str, Any]) -> Resume:
         resume = await self.get(user_id, resume_id)

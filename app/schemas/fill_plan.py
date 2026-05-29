@@ -267,6 +267,7 @@ class PluginMatchResponse(FillPlanResponse):
         cls,
         plan: FillPlanResponse,
         fields: list[FormField] | None = None,
+        resume_id: str | None = None,
         section_actions: dict[str, str] | None = None,
         section_action_details: list[SectionAction] | None = None,
     ) -> "PluginMatchResponse":
@@ -290,12 +291,22 @@ class PluginMatchResponse(FillPlanResponse):
             field = fields_by_id.get(field_id)
             filled = plan.filled.get(field_id)
             needs_input = field_id in plan.needs_user_input or filled is None or filled.value is None
-            actions.append(_fill_action_for_field(field_id, field, filled, needs_input))
+            actions.append(_fill_action_for_field(field_id, field, filled, needs_input, resume_id))
+
+        action_mapped_ids = {
+            action.fieldId
+            for action in actions
+            if action.actionType != "needs_user_input" and action.value is not None
+        }
+        skipped = [field_id for field_id in skipped if field_id not in action_mapped_ids]
+        needs_user_input = [
+            field_id for field_id in plan.needs_user_input if field_id not in action_mapped_ids
+        ]
 
         return cls(
             plan_id=plan.plan_id,
             filled=plan.filled,
-            needs_user_input=plan.needs_user_input,
+            needs_user_input=needs_user_input,
             warnings=plan.warnings,
             cache_hit=plan.cache_hit,
             model_used=plan.model_used,
@@ -338,7 +349,21 @@ def _fill_action_for_field(
     field: FormField | None,
     filled: FilledField | None,
     needs_input: bool,
+    resume_id: str | None = None,
 ) -> FillAction:
+    if _is_file_field(field) and resume_id:
+        return FillAction(
+            fieldId=field_id,
+            actionType="upload_file",
+            value={"resumeId": resume_id},
+            label=field.label if field else None,
+            fieldType=field.type if field else None,
+            widget=field.widget if field else None,
+            confidence=filled.confidence if filled else 0.9,
+            source="resume.original_file",
+            reasoning="上传用户已保存的原始简历文件",
+        )
+
     if needs_input:
         return FillAction(
             fieldId=field_id,
@@ -370,10 +395,11 @@ def _infer_action_type(field: FormField | None) -> FillActionType:
     if field is None:
         return "set_text"
 
+    if _is_file_field(field):
+        return "upload_file"
+
     field_type = str(field.type or "").casefold()
     widget = str(field.widget or "").casefold()
-    if field_type == "file" or widget == "file-upload":
-        return "upload_file"
     if field_type == "date" or widget in {"date-picker", "date-range"}:
         return "set_date"
     if field_type == "checkbox":
@@ -384,3 +410,11 @@ def _infer_action_type(field: FormField | None) -> FillActionType:
     ):
         return "select_option"
     return "set_text"
+
+
+def _is_file_field(field: FormField | None) -> bool:
+    if field is None:
+        return False
+    field_type = str(field.type or "").casefold()
+    widget = str(field.widget or "").casefold()
+    return field_type == "file" or widget == "file-upload"

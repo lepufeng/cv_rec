@@ -268,6 +268,50 @@ async def test_plugin_match_returns_typed_fill_actions(app_client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_plugin_match_returns_resume_upload_action_for_file_field(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("plugin-upload-action-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    payload = {
+        "resumeId": rid,
+        "url": "https://jobs.example.com/apply/upload",
+        "fields": [
+            {"fieldId": "name", "label": "姓名", "type": "text"},
+            {"fieldId": "resume_file", "label": "附件简历", "type": "file", "widget": "file-upload"},
+        ],
+    }
+    fake.queue_response({
+        "filled": {
+            "name": {"value": "张三", "confidence": 1.0, "reasoning": "x", "source": "basic_info.name"},
+        },
+        "needs_user_input": [],
+        "warnings": [],
+    })
+
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["mappings"] == {"name": "张三"}
+    assert body["needs_user_input"] == []
+    assert body["skipped"] == []
+    assert {action["fieldId"]: action["actionType"] for action in body["actions"]} == {
+        "name": "set_text",
+        "resume_file": "upload_file",
+    }
+    upload_action = body["actions"][1]
+    assert upload_action["value"] == {"resumeId": rid}
+    assert upload_action["source"] == "resume.original_file"
+
+
+@pytest.mark.asyncio
 async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_user):
     client, fake = app_client
     user = await make_user("plugin-section-user")

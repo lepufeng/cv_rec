@@ -4,8 +4,10 @@ const MSG = {
   FILL_COMPLETE: 'FILL_COMPLETE',
   FILL_ERROR: 'FILL_ERROR',
   REQUEST_RESUME: 'REQUEST_RESUME',
+  REQUEST_RESUME_FILE: 'REQUEST_RESUME_FILE',
   REQUEST_MATCH: 'REQUEST_MATCH',
   RESUME_DATA: 'RESUME_DATA',
+  RESUME_FILE_DATA: 'RESUME_FILE_DATA',
   MATCH_RESULT: 'MATCH_RESULT',
   UPLOAD_SCAN: 'UPLOAD_SCAN',
   UPLOAD_SCAN_RESULT: 'UPLOAD_SCAN_RESULT',
@@ -15,6 +17,7 @@ const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:8000/api/v1';
 const REQUEST_TIMEOUT_MS = 120000;
 
 const resumeCache = new Map();
+const resumeFileCache = new Map();
 
 function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -53,6 +56,12 @@ async function getConfig() {
 
 function headersFor(config) {
   const headers = { 'Content-Type': 'application/json' };
+  if (config.authToken) headers.Authorization = `Bearer ${config.authToken}`;
+  return headers;
+}
+
+function authHeadersFor(config) {
+  const headers = {};
   if (config.authToken) headers.Authorization = `Bearer ${config.authToken}`;
   return headers;
 }
@@ -126,6 +135,73 @@ async function fetchResume(resumeId) {
   return data;
 }
 
+async function fetchResumeFile(resumeId) {
+  if (!resumeId) throw new Error('缺少简历 ID');
+  const config = await getConfig();
+  ensureAuth(config);
+  const cacheKey = `${config.backendBase}:${resumeId}:file`;
+  if (resumeFileCache.has(cacheKey)) return resumeFileCache.get(cacheKey);
+
+  const url = `${config.backendBase}/resumes/${encodeURIComponent(resumeId)}/file`;
+  let res;
+  try {
+    res = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: authHeadersFor(config),
+    });
+  } catch (err) {
+    const reason = err && err.message ? err.message : err;
+    throw new Error(`无法连接后端 ${config.backendBase} (${reason})。请确认平台 API 地址正确且后端已启动。`);
+  }
+  if (!res.ok) {
+    throw new Error(await parseBackendError(res));
+  }
+
+  const encodedName = res.headers.get('X-Resume-Filename') || '';
+  const payload = {
+    name: decodeHeaderFilename(encodedName) || filenameFromDisposition(res.headers.get('Content-Disposition')) || 'resume',
+    mimeType: (res.headers.get('Content-Type') || 'application/octet-stream').split(';')[0],
+    dataBase64: bytesToBase64(new Uint8Array(await res.arrayBuffer())),
+  };
+  resumeFileCache.set(cacheKey, payload);
+  return payload;
+}
+
+function decodeHeaderFilename(value) {
+  if (!value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch (_) {
+    return value;
+  }
+}
+
+function filenameFromDisposition(value) {
+  if (!value) return '';
+  const match = /filename\*=UTF-8''([^;]+)/i.exec(value);
+  if (match) return decodeHeaderFilename(match[1].trim());
+  const fallback = /filename="?([^";]+)"?/i.exec(value);
+  return fallback ? fallback[1].trim() : '';
+}
+
+function bytesToBase64(bytes) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let out = '';
+  let i = 0;
+  for (; i + 2 < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+    out += chars[(n >> 18) & 63] + chars[(n >> 12) & 63] + chars[(n >> 6) & 63] + chars[n & 63];
+  }
+  if (i < bytes.length) {
+    const a = bytes[i];
+    const b = i + 1 < bytes.length ? bytes[i + 1] : 0;
+    const n = (a << 16) | (b << 8);
+    out += chars[(n >> 18) & 63] + chars[(n >> 12) & 63];
+    out += i + 1 < bytes.length ? chars[(n >> 6) & 63] + '=' : '==';
+  }
+  return out;
+}
+
 async function matchFields(fields, resume, sections, payload, sender, forceRefresh) {
   const resumeId = resume && (resume.resume_id || resume.resumeId || resume.id);
   if (!resumeId) throw new Error('缺少简历 ID');
@@ -151,6 +227,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === MSG.REQUEST_RESUME) {
     fetchResume(message.resumeId)
       .then(data => sendResponse({ type: MSG.RESUME_DATA, data }))
+      .catch(err => sendResponse({ type: MSG.FILL_ERROR, error: err.message }));
+    return true;
+  }
+
+  if (message.type === MSG.REQUEST_RESUME_FILE) {
+    fetchResumeFile(message.resumeId)
+      .then(data => sendResponse({ type: MSG.RESUME_FILE_DATA, data }))
       .catch(err => sendResponse({ type: MSG.FILL_ERROR, error: err.message }));
     return true;
   }

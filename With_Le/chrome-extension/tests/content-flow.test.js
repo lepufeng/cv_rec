@@ -83,7 +83,8 @@ test('fill engine uses scanner metadata and keeps unsafe controls skipped', () =
   assert.match(engine, /fieldsById/);
   assert.match(engine, /this\._safeToFill\(el, field, value\)/);
   assert.match(engine, /handler\.fill\(el, value, field\)/);
-  assert.match(engine, /文件上传需人工处理/);
+  assert.match(engine, /文件上传缺少后端授权文件/);
+  assert.match(engine, /_hasUploadPayload\(value\)/);
   assert.match(engine, /字段为只读，跳过自动覆盖/);
   assert.match(engine, /字段已有值，跳过自动覆盖/);
   assert.match(engine, /字段已有相同值/);

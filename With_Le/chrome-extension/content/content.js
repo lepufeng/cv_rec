@@ -50,7 +50,7 @@ async function startFill(resumeId) {
     pages: [],
     safety: {
       noFinalSubmit: true,
-      noFileUpload: true,
+      fileUploadMode: 'stored_resume_file_only',
     },
   };
 
@@ -138,8 +138,8 @@ async function startFill(resumeId) {
       }
 
       // 4. Fill all mappings for the current visible page. We never click the
-      // final submit button or upload files; unsupported/sensitive fields stay
-      // in skipped/needs_user_input from the backend.
+      // final submit button; file inputs only receive the user's stored resume
+      // file when the backend returns an explicit upload_file action.
       sendProgress(`正在填写... (第 ${page + 1} 页)`);
       const { filled, skipped } = await FillEngine.fillAll(mappings, activeFields);
       const backendSkipped = describeSkippedFields(matchSkipped, activeFields, mappings);

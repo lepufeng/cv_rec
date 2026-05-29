@@ -103,6 +103,26 @@ async function installMockChromeRuntime(page) {
       if (field) mappings[field.fieldId] = value;
     }
 
+    function actionTypeForField(field) {
+      if (field.type === 'file' || field.widget === 'file-upload') return 'upload_file';
+      if (field.type === 'date' || field.widget === 'date-picker' || field.widget === 'date-range') return 'set_date';
+      if (field.type === 'checkbox') return 'check';
+      if (field.type === 'select' || field.type === 'radio' || field.widget === 'pseudo-radio') return 'select_option';
+      return 'set_text';
+    }
+
+    function buildActions(fields, mappings) {
+      return fields
+        .filter(field => Object.prototype.hasOwnProperty.call(mappings, field.fieldId))
+        .map(field => ({
+          fieldId: field.fieldId,
+          actionType: actionTypeForField(field),
+          value: field.type === 'file' || field.widget === 'file-upload'
+            ? { resumeId: 'resume-1' }
+            : mappings[field.fieldId],
+        }));
+    }
+
     function buildMatchResponse(message) {
       const fields = message.fields || [];
       const sections = message.sections || [];
@@ -153,12 +173,15 @@ async function installMockChromeRuntime(page) {
         }
       }
 
+      const actions = buildActions(fields, mappings);
+
       return {
         type: 'MATCH_RESULT',
         data: {
           plan_id: `mock-plan-${window.__mockMatchRequests.length}`,
           filled: {},
           mappings,
+          actions,
           skipped: [],
           warnings: [],
           sectionActions,
@@ -180,6 +203,17 @@ async function installMockChromeRuntime(page) {
             setTimeout(() => callback({
               type: 'RESUME_DATA',
               data: { resume_id: 'resume-1', id: 'resume-1' },
+            }), 0);
+            return true;
+          }
+          if (message.type === 'REQUEST_RESUME_FILE') {
+            setTimeout(() => callback({
+              type: 'RESUME_FILE_DATA',
+              data: {
+                name: 'zhangsan_resume.pdf',
+                mimeType: 'application/pdf',
+                dataBase64: 'cmVzdW1l',
+              },
             }), 0);
             return true;
           }
@@ -310,7 +344,13 @@ test('local ATS smoke fills dynamic projects and stops before final submit', asy
       for (const field of fields) {
         if (field.label === 'Python' || field.label === 'JavaScript') mappings[field.fieldId] = field.label;
         if (field.label === '自我评价') mappings[field.fieldId] = '具备完整产品化落地经验';
-        if (field.label === '附件简历') mappings[field.fieldId] = '/tmp/resume.pdf';
+        if (field.label === '附件简历') {
+          mappings[field.fieldId] = {
+            name: 'zhangsan_resume.pdf',
+            mimeType: 'application/pdf',
+            dataBase64: 'cmVzdW1l',
+          };
+        }
       }
       const page4 = await FillEngine.fillAll(mappings, fields);
 
@@ -339,6 +379,11 @@ test('local ATS smoke fills dynamic projects and stops before final submit', asy
         }),
         repeatIndexes,
         checkedSkills: [...document.querySelectorAll('input[name=skill]:checked')].map(input => input.value),
+        uploadedFiles: [...document.getElementById('resume-file').files].map(file => ({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+        })),
         isSubmitOnly: NavigationDetector.isSubmitOnly(),
         hasNextButton: !!NavigationDetector.findNextButton(),
         submitState: document.getElementById('submit-state').textContent,
@@ -366,12 +411,13 @@ test('local ATS smoke fills dynamic projects and stops before final submit', asy
     assert.deepEqual(result.repeatIndexes, [0, 1, 2]);
     assert.deepEqual(result.projectCards.map(project => project.name), ['项目一', '项目二', '项目三']);
     assert.deepEqual(result.checkedSkills, ['Python', 'JavaScript']);
-    assert.equal(result.page4.filled, 3);
-    assert.equal(result.page4.skipped.length, 1);
-    assert.equal(result.page4.skipped[0].reason, '文件上传需人工处理');
-    assert.equal(result.page4.skipped[0].label, '附件简历');
-    assert.equal(result.page4.skipped[0].type, 'file');
-    assert.equal(result.page4.skipped[0].attemptedValuePreview, '[文件路径已隐藏]');
+    assert.equal(result.page4.filled, 4);
+    assert.equal(result.page4.skipped.length, 0);
+    assert.deepEqual(result.uploadedFiles, [{
+      name: 'zhangsan_resume.pdf',
+      type: 'application/pdf',
+      size: 6,
+    }]);
     assert.equal(result.isSubmitOnly, true);
     assert.equal(result.hasNextButton, false);
     assert.equal(result.submitState, '');
@@ -2615,6 +2661,11 @@ test('content trigger runs direct autofill across pages with dynamic expansion',
         degree: document.querySelector('#degree input').value,
         checkedSkills: [...document.querySelectorAll('input[name=skill]:checked')].map(input => input.value),
         selfIntro: document.getElementById('self-intro').value,
+        uploadedFiles: [...document.getElementById('resume-file').files].map(file => ({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+        })),
         submitState: document.getElementById('submit-state').textContent,
         overlayText: document.getElementById('resume-autofill-result')?.textContent || '',
       };
@@ -2627,14 +2678,17 @@ test('content trigger runs direct autofill across pages with dynamic expansion',
     assert.deepEqual(result.projectCards.map(project => project.name), ['项目一', '项目二', '项目三']);
     assert.deepEqual(result.checkedSkills, ['Python', 'JavaScript']);
     assert.equal(result.selfIntro, '具备完整产品化落地经验');
+    assert.deepEqual(result.uploadedFiles, [{
+      name: 'zhangsan_resume.pdf',
+      type: 'application/pdf',
+      size: 6,
+    }]);
     assert.equal(result.submitState, '');
-    assert.match(result.summary, /已填: 29 个字段, 跳过: 1 个字段/);
+    assert.match(result.summary, /已填: 30 个字段, 跳过: 0 个字段/);
     assert.match(result.overlayText, /自动填写完成/);
-    assert.equal(result.report.totalFilled, 29);
-    assert.equal(result.report.totalSkipped, 1);
-    assert.equal(result.report.skipped[0].label, '附件简历');
-    assert.equal(result.report.skipped[0].type, 'file');
-    assert.equal(result.report.skipped[0].attemptedValuePreview, '[文件路径已隐藏]');
+    assert.equal(result.report.totalFilled, 30);
+    assert.equal(result.report.totalSkipped, 0);
+    assert.deepEqual(result.report.skipped, []);
     assert.equal(result.report.pages.length, 4);
     assert.equal(result.report.pages[2].sectionActions['项目经历'], 'add_2');
     assert.deepEqual(result.report.pages[2].sectionActionResults.map(item => ({

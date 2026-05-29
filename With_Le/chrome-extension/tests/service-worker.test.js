@@ -131,6 +131,38 @@ test('UPLOAD_SCAN posts raw scan payload to plugin-scan endpoint', async () => {
   assert.deepEqual(calls[0].body, scanPayload);
 });
 
+test('REQUEST_RESUME_FILE downloads original resume file as base64 payload', async () => {
+  const calls = [];
+  const listener = loadWorker({
+    storage: {
+      backendBase: 'http://api.local/api/v1',
+      authToken: 'token-file',
+    },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return new Response(new Uint8Array([114, 101, 115, 117, 109, 101]), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'X-Resume-Filename': 'resume%20cn.pdf',
+        },
+      });
+    },
+  });
+
+  const response = await sendMessage(listener, { type: 'REQUEST_RESUME_FILE', resumeId: 'resume-1' });
+
+  assert.equal(response.type, 'RESUME_FILE_DATA');
+  assert.equal(response.data.name, 'resume cn.pdf');
+  assert.equal(response.data.mimeType, 'application/pdf');
+  assert.equal(response.data.dataBase64, 'cmVzdW1l');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'http://api.local/api/v1/resumes/resume-1/file');
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer token-file');
+  assert.equal(calls[0].options.headers['Content-Type'], undefined);
+});
+
 test('worker reports a clear error when token is missing', async () => {
   const listener = loadWorker({
     storage: { backendBase: 'http://api.local/api/v1' },

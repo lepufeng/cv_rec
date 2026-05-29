@@ -391,7 +391,7 @@ function renderFillReport(report, title) {
   if (report.error) lines.push(`错误: ${report.error}`);
   lines.push(`已填: ${report.totalFilled || 0} 个`);
   lines.push(`跳过: ${report.totalSkipped || 0} 个`);
-  lines.push('安全边界: 不点击最终提交，不上传文件');
+  lines.push('安全边界: 不点击最终提交；附件仅上传已保存的原始简历');
 
   if (Array.isArray(report.pages) && report.pages.length) {
     lines.push('');
@@ -529,7 +529,7 @@ fillBtn.addEventListener('click', async () => {
     }
     debugInfoEl.textContent = [
       `已在 ${startedFrames.length} 个 frame 启动填写流程`,
-      '安全边界：不会点击最终提交按钮，不会上传文件。',
+      '安全边界：不会点击最终提交按钮；附件仅上传已保存的原始简历。',
       '',
       'Frame：',
       ...startedFrames.slice(0, 8).map(r => `  - ${r.href}`),
