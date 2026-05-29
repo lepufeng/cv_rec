@@ -62,6 +62,9 @@ test('fill engine uses scanner metadata and keeps unsafe controls skipped', () =
   assert.match(engine, /this\._safeToFill\(el, field\)/);
   assert.match(engine, /handler\.fill\(el, value, field\)/);
   assert.match(engine, /文件上传需人工处理/);
+  assert.match(engine, /字段为只读，跳过自动覆盖/);
+  assert.match(engine, /_isPlainReadonlyField\(el, field\)/);
+  assert.match(engine, /_hasReadonlyWidgetAffordance\(el, field\)/);
   assert.match(engine, /_skipRecord\(fieldId, field, el, value, reason\)/);
   assert.match(engine, /attemptedValuePreview/);
   assert.match(engine, /repeatSection/);

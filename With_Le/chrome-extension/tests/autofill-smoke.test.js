@@ -1486,6 +1486,96 @@ test('custom select chooses portal option leaves instead of dropdown containers'
   }
 });
 
+test('fill engine skips readonly plain text while filling readonly custom selects', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label for="locked-email">邮箱</label>
+      <input id="locked-email" type="email" readonly value="locked@example.com">
+
+      <label>学历</label>
+      <div id="degree" class="atsx-select ud__select" role="combobox" aria-haspopup="listbox" data-form-field-i18n-name="学历">
+        <input id="degree-input" type="text" readonly>
+      </div>
+
+      <script>
+        document.getElementById('degree').addEventListener('click', () => {
+          if (document.querySelector('.ant-select-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'ant-select-dropdown';
+          dropdown.innerHTML = '<div class="ant-select-item-list"><div class="ant-select-item-option" data-value="本科">本科</div><div class="ant-select-item-option" data-value="硕士">硕士</div></div>';
+          dropdown.querySelectorAll('[data-value]').forEach(option => {
+            option.addEventListener('click', event => {
+              option.setAttribute('data-selected', 'true');
+              document.getElementById('degree-input').value = option.getAttribute('data-value');
+              event.stopPropagation();
+            });
+          });
+          document.body.appendChild(dropdown);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const email = fields.find(field => field.label === '邮箱');
+      const degree = fields.find(field => field.label === '学历');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        [email.fieldId]: 'resume@example.com',
+        [degree.fieldId]: '硕士',
+      }, fields);
+
+      return {
+        fill,
+        emailValue: document.getElementById('locked-email').value,
+        degreeValue: document.getElementById('degree-input').value,
+        emailField: {
+          type: email.type,
+          widget: email.widget,
+        },
+        degreeField: {
+          type: degree.type,
+          widget: degree.widget,
+        },
+      };
+    });
+
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.emailValue, 'locked@example.com');
+    assert.equal(result.degreeValue, '硕士');
+    assert.equal(result.fill.skipped.length, 1);
+    assert.equal(result.fill.skipped[0].label, '邮箱');
+    assert.match(result.fill.skipped[0].reason, /只读/);
+    assert.deepEqual(result.emailField, {
+      type: 'select',
+      widget: 'custom-dropdown',
+    });
+    assert.deepEqual(result.degreeField, {
+      type: 'select',
+      widget: 'aria-combobox',
+    });
+  } finally {
+    await browser.close();
+  }
+});
+
 test('select handler fills multi-value custom and native selects', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

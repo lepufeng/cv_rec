@@ -138,7 +138,84 @@ var FillEngine = {
     if (!DOMUtils.isVisible(el)) {
       return { ok: false, reason: '字段当前不可见' };
     }
+    if (this._isPlainReadonlyField(el, field)) {
+      return { ok: false, reason: '字段为只读，跳过自动覆盖' };
+    }
     return { ok: true };
+  },
+
+  _isPlainReadonlyField(el, field) {
+    if (!this._isReadonly(el, field)) return false;
+    if (!this._isTextLikeControl(el, field)) return false;
+    return !this._hasReadonlyWidgetAffordance(el, field);
+  },
+
+  _isReadonly(el, field) {
+    if (field && field.readonly === true) return true;
+    if (el.readOnly === true) return true;
+    if (el.getAttribute && el.getAttribute('readonly') !== null) return true;
+    return el.getAttribute && el.getAttribute('aria-readonly') === 'true';
+  },
+
+  _isTextLikeControl(el, field) {
+    const tag = (el.tagName || '').toLowerCase();
+    const htmlType = (el.type || '').toLowerCase();
+    const fieldType = field && field.type;
+    const widget = field && field.widget;
+
+    if (widget === 'textarea' || widget === 'contenteditable' || widget === 'text-input') return true;
+    if (tag === 'textarea') return true;
+    if (el.hasAttribute && el.hasAttribute('contenteditable')) return true;
+    if (tag !== 'input') return false;
+    if (fieldType === 'textarea' || fieldType === 'text') return true;
+    return !htmlType || ['text', 'email', 'tel', 'number', 'url', 'search', 'password'].includes(htmlType);
+  },
+
+  _hasReadonlyWidgetAffordance(el, field) {
+    const fieldType = field && field.type;
+    const widget = field && field.widget;
+    const widgetAllowsReadonly = [
+      'native-select',
+      'aria-combobox',
+      'search-select',
+      'cascader',
+      'pseudo-radio',
+      'date-picker',
+      'date-range',
+    ];
+
+    if (widgetAllowsReadonly.includes(widget)) return true;
+    if (fieldType === 'date' || fieldType === 'radio' || fieldType === 'checkbox') return true;
+    if (widget !== 'custom-dropdown' && fieldType !== 'select') return false;
+    if (this._hasPopupRole(el)) return true;
+    if (this._hasWidgetClassHint(el)) return true;
+    if (typeof FieldScanner !== 'undefined') {
+      if (FieldScanner._hasSelectWrapper && FieldScanner._hasSelectWrapper(el)) return true;
+      if (FieldScanner._hasNearbyIcon && FieldScanner._DROPDOWN_ARROW_SELECTOR &&
+          FieldScanner._hasNearbyIcon(el, FieldScanner._DROPDOWN_ARROW_SELECTOR)) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _hasPopupRole(el) {
+    const role = (el.getAttribute && el.getAttribute('role') || '').toLowerCase();
+    const popup = (el.getAttribute && el.getAttribute('aria-haspopup') || '').toLowerCase();
+    return ['combobox', 'listbox'].includes(role) || ['listbox', 'list', 'tree'].includes(popup);
+  },
+
+  _hasWidgetClassHint(el) {
+    let node = el;
+    for (let depth = 0; node && depth < 6; depth++) {
+      const className = typeof node.className === 'string' ? node.className : '';
+      const tokens = className.split(/\s+/).filter(Boolean);
+      if (tokens.some(token => /(^|[-_])(select|dropdown|picker|cascader|combobox|autocomplete)([-_]|$)/i.test(token))) {
+        return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
   },
 
   _skipRecord(fieldId, field, el, value, reason) {
