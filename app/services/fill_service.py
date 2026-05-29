@@ -481,7 +481,9 @@ def _match_field_from_resume(
     text = _field_search_text(field)
     label = str(field.get("label") or "").strip()
 
-    if field.get("disabled") or field.get("readonly"):
+    if _truthy_meta(field.get("disabled")):
+        return None
+    if _is_plain_readonly_field(field):
         return None
     if field_type == "file" or _contains_any(text, ("附件", "上传", "简历文件", "resume file", "upload")):
         return None
@@ -552,6 +554,74 @@ def _match_field_from_resume(
             return _filled(_coerce_option_value(field, value_text), source, confidence)
 
     return None
+
+
+def _is_plain_readonly_field(field: dict[str, Any]) -> bool:
+    if not _truthy_meta(field.get("readonly") or field.get("readOnly")):
+        return False
+
+    field_type = str(field.get("type") or "").casefold()
+    widget = str(field.get("widget") or "").casefold()
+    html_type = str(field.get("htmlType") or field.get("html_type") or "").casefold()
+
+    interactive_widgets = {
+        "native-select",
+        "aria-combobox",
+        "custom-dropdown",
+        "search-select",
+        "cascader",
+        "pseudo-radio",
+        "date-picker",
+        "date-range",
+        "radio-group",
+        "checkbox-group",
+        "file-upload",
+    }
+    if widget == "custom-dropdown" and _readonly_metadata_suggests_plain_text(field):
+        return True
+    if widget in interactive_widgets:
+        return False
+    if field_type in {"select", "date", "radio", "checkbox", "file"}:
+        return False
+
+    plain_types = {"text", "tel", "email", "number", "url", "textarea"}
+    plain_widgets = {"text-input", "textarea", "contenteditable"}
+    plain_html_types = {"text", "email", "tel", "number", "url", "search", "password", "textarea"}
+
+    if widget in plain_widgets:
+        return True
+    if field_type in plain_types:
+        return True
+    if html_type in plain_html_types:
+        return True
+    return True
+
+
+def _readonly_metadata_suggests_plain_text(field: dict[str, Any]) -> bool:
+    html_type = str(field.get("htmlType") or field.get("html_type") or "").casefold()
+    if html_type in {"email", "tel", "number", "url", "password"}:
+        return True
+
+    text = " ".join(
+        str(field.get(key) or "")
+        for key in ("label", "placeholder", "name", "ariaLabel", "aria_label", "autocomplete")
+    ).casefold()
+    return _contains_any(
+        text,
+        (
+            "姓名", "名字", "邮箱", "邮件", "手机号", "手机号码", "电话", "联系方式",
+            "号码", "证件号", "身份证", "护照号", "账号", "账户",
+            "name", "email", "e-mail", "phone", "mobile", "tel", "number", "account",
+        ),
+    )
+
+
+def _truthy_meta(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().casefold() in {"1", "true", "yes", "on", "readonly", "disabled"}
+    return bool(value)
 
 
 def _match_repeated_item_field(

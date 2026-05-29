@@ -274,3 +274,60 @@ def test_location_preference_list_maps_to_multi_select_text():
         {"label": "期望工作城市（至多三个）", "type": "select"},
         resume,
     ) == ("上海、深圳", "job_intent.work_location_preference", 0.74)
+
+
+def test_rules_skip_plain_readonly_but_keep_interactive_readonly_fields():
+    resume = {
+        "basic_info": {
+            "email": "resume@example.com",
+            "birth_date": "1998-05-01",
+        },
+        "education": [
+            {"degree": "硕士"},
+        ],
+    }
+
+    assert _match_field_from_resume(
+        {
+            "fieldId": "locked_email",
+            "label": "邮箱",
+            "type": "text",
+            "widget": "text-input",
+            "htmlType": "email",
+            "readonly": True,
+        },
+        resume,
+    ) is None
+    assert _match_field_from_resume(
+        {
+            "fieldId": "locked_email_selectish",
+            "label": "邮箱",
+            "type": "select",
+            "widget": "custom-dropdown",
+            "htmlType": "text",
+            "readonly": True,
+        },
+        resume,
+    ) is None
+    assert _match_field_from_resume(
+        {
+            "fieldId": "degree",
+            "label": "学历",
+            "type": "select",
+            "widget": "custom-dropdown",
+            "htmlType": "text",
+            "readonly": True,
+        },
+        resume,
+    ) == ("硕士", "education[0].degree", 0.82)
+    assert _match_field_from_resume(
+        {
+            "fieldId": "birth",
+            "label": "出生日期",
+            "type": "date",
+            "widget": "date-picker",
+            "htmlType": "text",
+            "readonly": True,
+        },
+        resume,
+    ) == ("1998-05-01", "basic_info.birth_date", 0.86)

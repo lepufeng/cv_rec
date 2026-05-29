@@ -151,6 +151,12 @@ var FieldScanner = {
     '[aria-label*="选择日期"]', '[aria-label*="日历"]', '[aria-label*="calendar" i]',
   ].join(','),
 
+  _READONLY_SELECT_LABEL_REGEX:
+    /学历|学位|性别|民族|政治|婚姻|国家|地区|城市|地点|户口|证件类型|证件类别|身份类型|类型|类别|状态|来源|渠道|意向|是否|可否|最高|最低|degree|gender|country|region|city|location|type|category|status|source|channel|yes|no/i,
+
+  _READONLY_TEXT_LABEL_NEGATIVE:
+    /姓名|名字|邮箱|邮件|手机号|手机号码|电话|联系方式|号码|证件号|身份证|护照号|账号|账户|name|email|e-mail|phone|mobile|tel|number|account/i,
+
   _DATE_HINT_CLASS: /(date-?picker|date-?range|calendar|time-?picker|year-?picker|month-?picker)/i,
 
   // Last-resort date detection: when no structural signal (HTML5 type / icon
@@ -239,6 +245,7 @@ var FieldScanner = {
         required: this._isRequired(ctrl),
         section: this._detectSection(ctrl),
       };
+      Object.assign(field, this._extractFieldMetadata(ctrl, widget));
 
       // Optional input constraints — only emit when present so that simple
       // text fields stay slim.
@@ -504,12 +511,15 @@ var FieldScanner = {
     const isReadonly = el.readOnly || (el.getAttribute && el.getAttribute('readonly') !== null);
     const isSearchHinted = this._matchesAny(neighborhood, this._SEARCH_HINT_CLASS);
 
+    const hasSelectWrapper = this._hasSelectWrapper(el);
+
     if (hasArrow && (isReadonly || !isSearchHinted)) return 'custom-dropdown';
     if (hasArrow && isSearchHinted) return 'search-select';
     if (isReadonly && isSearchHinted) return 'search-select';
     if (isReadonly && !hasArrow) {
-      // Read-only without an arrow is uncommon for text inputs; treat as a
-      // dropdown-like widget unless other signals say otherwise.
+      if (!hasSelectWrapper && !this._looksLikeReadonlySelectLabel(label)) {
+        return 'text-input';
+      }
       return 'custom-dropdown';
     }
 
@@ -520,7 +530,7 @@ var FieldScanner = {
     // readonly, no visible arrow icon. The wrapper class is the only signal
     // that this is a dropdown, not a plain text field. We walk up to 8
     // levels and match BEM block names ending in "select".
-    if (this._hasSelectWrapper(el)) {
+    if (hasSelectWrapper) {
       // Editable input with a select wrapper = user types to filter options
       // (search-select). A readonly one would already have been caught above.
       return 'search-select';
@@ -536,6 +546,13 @@ var FieldScanner = {
     }
 
     return 'text-input';
+  },
+
+  _looksLikeReadonlySelectLabel(label) {
+    const text = String(label || '').replace(/\s+/g, ' ').trim();
+    if (!text) return false;
+    if (this._READONLY_TEXT_LABEL_NEGATIVE.test(text)) return false;
+    return this._READONLY_SELECT_LABEL_REGEX.test(text);
   },
 
   // Walk up to 8 ancestor levels searching for a class token that looks
@@ -613,6 +630,70 @@ var FieldScanner = {
 
   // Optional input constraints. Returns an object with whichever attributes
   // are present so callers can spread it into the field record.
+  _extractFieldMetadata(el, widget) {
+    const out = {};
+    if (!el || !el.getAttribute) return out;
+
+    const htmlType = this._htmlType(el);
+    if (htmlType) out.htmlType = htmlType;
+    this._assignAttr(out, 'name', el, 'name');
+    this._assignAttr(out, 'ariaLabel', el, 'aria-label');
+    const autocomplete = el.getAttribute('autocomplete') || el.getAttribute('aria-autocomplete');
+    if (autocomplete && String(autocomplete).trim()) out.autocomplete = String(autocomplete).trim();
+
+    const currentValue = this._currentValue(el);
+    if (currentValue) out.currentValue = currentValue;
+    if (this._isDisabledControl(el)) out.disabled = true;
+    if (this._isReadonlyControl(el)) out.readonly = true;
+    if (this._isMultiselectControl(el)) out.isMultiselect = true;
+    if (widget === 'search-select') out.isSearchableSelect = true;
+    return out;
+  },
+
+  _assignAttr(out, key, el, attr) {
+    const value = el.getAttribute(attr);
+    if (value != null && String(value).trim()) out[key] = String(value).trim();
+  },
+
+  _htmlType(el) {
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'input') return (el.getAttribute('type') || el.type || 'text').toLowerCase();
+    if (tag === 'textarea' || tag === 'select') return tag;
+    return '';
+  },
+
+  _currentValue(el) {
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'select') {
+      return Array.from(el.selectedOptions || [])
+        .map(opt => (opt.textContent || opt.value || '').trim())
+        .filter(Boolean)
+        .join('、');
+    }
+    const type = (el.type || '').toLowerCase();
+    if (type === 'checkbox' || type === 'radio') return el.checked ? (el.value || 'on') : '';
+    if (typeof el.value === 'string') return el.value.trim();
+    if (el.hasAttribute && el.hasAttribute('contenteditable')) {
+      return (el.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+    return '';
+  },
+
+  _isDisabledControl(el) {
+    return el.disabled === true || (el.getAttribute && el.getAttribute('aria-disabled') === 'true');
+  },
+
+  _isReadonlyControl(el) {
+    if (el.readOnly === true) return true;
+    if (el.getAttribute && el.getAttribute('readonly') !== null) return true;
+    return el.getAttribute && el.getAttribute('aria-readonly') === 'true';
+  },
+
+  _isMultiselectControl(el) {
+    if (el.multiple === true) return true;
+    return el.getAttribute && el.getAttribute('aria-multiselectable') === 'true';
+  },
+
   _extractConstraints(el) {
     const out = {};
     if (!el || !el.getAttribute) return out;

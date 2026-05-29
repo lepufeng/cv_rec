@@ -913,6 +913,91 @@ test('scanner handles Tencent-style Element UI resume form labels and add button
   }
 });
 
+test('scanner emits backend matching metadata without losing widget semantics', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label for="legal-name">姓名</label>
+      <input id="legal-name" name="profile.name" type="text" autocomplete="name" aria-label="真实姓名" value="张三" maxlength="20" readonly>
+
+      <label for="locked-phone">手机号</label>
+      <input id="locked-phone" name="mobile" type="tel" value="13800138000" disabled>
+
+      <label for="preferred-city">期望城市</label>
+      <select id="preferred-city" name="cities" multiple>
+        <option selected>上海</option>
+        <option selected>深圳</option>
+        <option>北京</option>
+      </select>
+
+      <label for="degree">学历</label>
+      <input id="degree" type="text" readonly>
+
+      <div id="school" class="atsx-select ud__select" role="combobox" aria-haspopup="listbox" aria-autocomplete="list" aria-label="学校名称" data-form-field-i18n-name="学校名称">
+        <input type="text">
+      </div>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(() => {
+      const fields = FieldScanner.scan();
+      const byLabel = label => fields.find(field => field.label === label);
+      return {
+        name: byLabel('姓名'),
+        phone: byLabel('手机号'),
+        city: byLabel('期望城市'),
+        degree: byLabel('学历'),
+        school: byLabel('学校名称'),
+      };
+    });
+
+    assert.equal(result.name.type, 'text');
+    assert.equal(result.name.widget, 'text-input');
+    assert.equal(result.name.name, 'profile.name');
+    assert.equal(result.name.htmlType, 'text');
+    assert.equal(result.name.autocomplete, 'name');
+    assert.equal(result.name.ariaLabel, '真实姓名');
+    assert.equal(result.name.currentValue, '张三');
+    assert.equal(result.name.readonly, true);
+    assert.equal(result.name.maxLength, 20);
+
+    assert.equal(result.phone.htmlType, 'tel');
+    assert.equal(result.phone.disabled, true);
+    assert.equal(result.phone.currentValue, '13800138000');
+
+    assert.equal(result.city.widget, 'native-select');
+    assert.equal(result.city.isMultiselect, true);
+    assert.equal(result.city.currentValue, '上海、深圳');
+
+    assert.equal(result.degree.widget, 'custom-dropdown');
+    assert.equal(result.degree.type, 'select');
+    assert.equal(result.degree.readonly, true);
+
+    assert.equal(result.school.widget, 'search-select');
+    assert.equal(result.school.type, 'select');
+    assert.equal(result.school.ariaLabel, '学校名称');
+    assert.equal(result.school.autocomplete, 'list');
+    assert.equal(result.school.isSearchableSelect, true);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('section manager handles live Tencent-style send_title resume modules', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
@@ -1564,8 +1649,8 @@ test('fill engine skips readonly plain text while filling readonly custom select
     assert.equal(result.fill.skipped[0].label, '邮箱');
     assert.match(result.fill.skipped[0].reason, /只读/);
     assert.deepEqual(result.emailField, {
-      type: 'select',
-      widget: 'custom-dropdown',
+      type: 'text',
+      widget: 'text-input',
     });
     assert.deepEqual(result.degreeField, {
       type: 'select',
