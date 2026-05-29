@@ -30,8 +30,12 @@ var FillEngine = {
       }
 
       const field = knownField || { fieldId, type: this._detectType(el) };
-      const safety = this._safeToFill(el, field);
+      const safety = this._safeToFill(el, field, value);
       if (!safety.ok) {
+        if (safety.alreadyFilled) {
+          filled++;
+          continue;
+        }
         this.skipped.push(this._skipRecord(fieldId, field, el, value, safety.reason));
         continue;
       }
@@ -127,7 +131,7 @@ var FillEngine = {
     return el.name || el.id || '';
   },
 
-  _safeToFill(el, field) {
+  _safeToFill(el, field, value) {
     const htmlType = (el.type || '').toLowerCase();
     if (field.type === 'file' || htmlType === 'file') {
       return { ok: false, reason: '文件上传需人工处理' };
@@ -141,7 +145,81 @@ var FillEngine = {
     if (this._isPlainReadonlyField(el, field)) {
       return { ok: false, reason: '字段为只读，跳过自动覆盖' };
     }
+    const existing = this._currentFillValue(el, field);
+    if (existing && !this._isPlaceholderLikeValue(existing)) {
+      if (this._valuesEquivalent(existing, value, field)) {
+        return { ok: false, reason: '字段已有相同值', alreadyFilled: true };
+      }
+      return { ok: false, reason: '字段已有值，跳过自动覆盖' };
+    }
     return { ok: true };
+  },
+
+  _currentFillValue(el, field) {
+    if (field && field.currentValue) return String(field.currentValue).trim();
+
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'select') {
+      return Array.from(el.selectedOptions || [])
+        .map(opt => (opt.textContent || opt.value || '').trim())
+        .filter(Boolean)
+        .join('、');
+    }
+
+    const type = (el.type || '').toLowerCase();
+    if (type === 'checkbox' || type === 'radio') {
+      return el.checked ? (this._getLabel(el) || el.value || 'on').trim() : '';
+    }
+    if (el.hasAttribute && el.hasAttribute('contenteditable')) {
+      return (el.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+    return typeof el.value === 'string' ? el.value.trim() : '';
+  },
+
+  _isPlaceholderLikeValue(value) {
+    const normalized = this._normalizeComparableValue(value);
+    if (!normalized) return true;
+    return [
+      '请选择', '请选择一项', '请选择一个选项', '选择', '未选择', '暂无',
+      '请输入', '请填写', 'select', 'please select', 'choose', 'please choose',
+      '-', '--',
+    ].includes(normalized);
+  },
+
+  _valuesEquivalent(existing, target, field) {
+    const existingNorm = this._normalizeComparableValue(existing);
+    const targetNorm = this._normalizeComparableValue(target);
+    if (!existingNorm || !targetNorm) return false;
+    if (existingNorm === targetNorm) return true;
+    return this._optionValueMatchesExistingLabel(existingNorm, targetNorm, field);
+  },
+
+  _normalizeComparableValue(value) {
+    if (value === undefined || value === null) return '';
+    const raw = Array.isArray(value) ? value.join('、') : String(value);
+    return raw
+      .replace(/\s+/g, ' ')
+      .replace(/[，,；;|/]+/g, '、')
+      .trim()
+      .toLowerCase();
+  },
+
+  _optionValueMatchesExistingLabel(existingNorm, targetNorm, field) {
+    const options = [];
+    if (field && Array.isArray(field.optionObjects)) options.push(...field.optionObjects);
+    if (field && Array.isArray(field.options)) options.push(...field.options);
+
+    return options.some(option => {
+      const label = typeof option === 'object' && option !== null
+        ? option.label
+        : option;
+      const optionValue = typeof option === 'object' && option !== null
+        ? (option.value || option.label)
+        : option;
+      const labelNorm = this._normalizeComparableValue(label);
+      const valueNorm = this._normalizeComparableValue(optionValue);
+      return existingNorm === labelNorm && targetNorm === valueNorm;
+    });
   },
 
   _isPlainReadonlyField(el, field) {

@@ -287,8 +287,8 @@ POST /api/v1/fill-plans/{plan_id}/feedback
 | `fieldFingerprint` | 稳定缓存与模板学习 |
 | `order` | 字段顺序辅助模型理解 repeater |
 | `sectionPath` | 区分教育/实习/项目/奖项等模块 |
-| `currentValue` | 避免覆盖用户已有输入 |
-| `disabled/readonly/visible` | 避免填写不可操作字段 |
+| `currentValue` | 已用于执行器跳过已有非占位值，避免覆盖用户已有输入 |
+| `disabled/readonly/visible` | `disabled/readonly` 已用于跳过不可操作字段；`visible` 当前由扫描/执行阶段可见性判断处理 |
 | `ariaLabel/name/htmlType/autocomplete` | 增强字段语义判断 |
 | `optionObjects` | 对 select 返回 `{label,value}`，插件执行时需要 value |
 | `frameIndex` | 多 iframe 回填定位 |

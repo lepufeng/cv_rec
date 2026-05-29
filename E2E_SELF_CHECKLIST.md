@@ -173,7 +173,8 @@ schema_version=1.4（升级至 1.6 后需重新解析以生成 internship_experi
 - [x] 结构 hash 忽略临时 `auto_xxx` / `fieldId`，使用字段结构与 `fieldFingerprint` 参与缓存
 - [ ] 插件提供稳定 `fieldFingerprint`
 - [ ] 插件提供 `sectionPath`
-- [ ] 插件提供 `currentValue/visible/disabled/readonly`
+- [x] 插件提供 `currentValue/disabled/readonly`，执行器会跳过已有非占位值避免覆盖
+- [ ] 插件显式提供 `visible`
 - [ ] 插件提供 select 的 `{label,value}` 形式选项
 
 已验证样例：
@@ -239,6 +240,7 @@ node --test With_Le/chrome-extension/tests/*.test.js
 - [x] iframe 页面可定位并执行
 - [ ] Shadow DOM 场景有处理方案
 - [x] 失败字段能给出具体原因
+- [x] 已有非占位值字段不会被自动覆盖；同值字段计为已完成
 
 当前根据队友说明：
 

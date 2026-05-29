@@ -1663,6 +1663,79 @@ test('fill engine skips readonly plain text while filling readonly custom select
   }
 });
 
+test('fill engine preserves existing user values but fills placeholder fields', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>姓名<input id="name" type="text" value="用户手动姓名"></label>
+      <label>手机号<input id="phone" type="tel" value="13800138000"></label>
+      <label>学历
+        <select id="degree">
+          <option selected>请选择</option>
+          <option>本科</option>
+          <option>硕士</option>
+        </select>
+      </label>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      FillEngine.reset();
+      const fields = FieldScanner.scan();
+      const byLabel = label => fields.find(field => field.label === label || (field.label || '').includes(label));
+      const name = byLabel('姓名');
+      const phone = byLabel('手机号');
+      const degree = byLabel('学历') || fields.find(field => field.fieldId === 'degree');
+      const fill = await FillEngine.fillAll({
+        [name.fieldId]: '张三',
+        [phone.fieldId]: '13800138000',
+        [degree.fieldId]: '硕士',
+      }, fields);
+      return {
+        fill,
+        nameValue: document.getElementById('name').value,
+        phoneValue: document.getElementById('phone').value,
+        degreeValue: document.getElementById('degree').value,
+        currentValues: {
+          name: name.currentValue,
+          phone: phone.currentValue,
+          degree: degree.currentValue,
+        },
+      };
+    });
+
+    assert.equal(result.nameValue, '用户手动姓名');
+    assert.equal(result.phoneValue, '13800138000');
+    assert.equal(result.degreeValue, '硕士');
+    assert.equal(result.fill.filled, 2);
+    assert.equal(result.fill.skipped.length, 1);
+    assert.equal(result.fill.skipped[0].label, '姓名');
+    assert.match(result.fill.skipped[0].reason, /已有值/);
+    assert.deepEqual(result.currentValues, {
+      name: '用户手动姓名',
+      phone: '13800138000',
+      degree: '请选择',
+    });
+  } finally {
+    await browser.close();
+  }
+});
+
 test('select handler fills multi-value custom and native selects', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
