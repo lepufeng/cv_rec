@@ -494,6 +494,71 @@ test('section manager expands generic plus buttons from data-named containers', 
   }
 });
 
+test('custom select chooses portal option leaves instead of dropdown containers', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>学历</label>
+      <div id="degree" class="atsx-select ud__select" role="combobox" aria-haspopup="listbox" data-form-field-i18n-name="学历">
+        <input id="degree-input" type="text" readonly>
+      </div>
+      <script>
+        document.getElementById('degree').addEventListener('click', () => {
+          if (document.querySelector('.ant-select-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'ant-select-dropdown';
+          dropdown.innerHTML = '<div class="ant-select-item-list"><div class="ant-select-item-option" data-value="本科"><span>本科</span></div><div class="ant-select-item-option" data-value="硕士"><span>硕士</span></div><div class="ant-select-item-option" data-value="博士"><span>博士</span></div></div>';
+          dropdown.querySelectorAll('[data-value]').forEach(option => {
+            option.addEventListener('click', event => {
+              document.querySelectorAll('[data-value]').forEach(item => item.removeAttribute('data-selected'));
+              option.setAttribute('data-selected', 'true');
+              document.getElementById('degree-input').value = option.getAttribute('data-value');
+              event.stopPropagation();
+            });
+          });
+          document.body.appendChild(dropdown);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const degree = fields.find(field => field.label === '学历');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [degree.fieldId]: '硕士' }, fields);
+      return {
+        fill,
+        value: document.getElementById('degree-input').value,
+        selected: document.querySelector('[data-selected="true"]')?.getAttribute('data-value'),
+        dropdownText: document.querySelector('.ant-select-dropdown')?.textContent.replace(/\s+/g, ''),
+      };
+    });
+
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.value, '硕士');
+    assert.equal(result.selected, '硕士');
+    assert.equal(result.dropdownText, '本科硕士博士');
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

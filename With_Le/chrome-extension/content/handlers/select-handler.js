@@ -50,14 +50,10 @@ var SelectHandler = {
 
     const dropdowns = this._visibleDropdowns();
     for (const dropdown of dropdowns) {
-      const items = dropdown.querySelectorAll('[role="option"], li, div');
-      for (const item of items) {
-        const itemText = item.textContent.trim();
-        if (!itemText) continue;
-        if (itemText === str || itemText.includes(str) || str.includes(itemText)) {
-          item.click();
-          return true;
-        }
+      const match = this._bestDropdownOption(dropdown, str);
+      if (match) {
+        match.click();
+        return true;
       }
     }
 
@@ -116,6 +112,41 @@ var SelectHandler = {
       .filter(el => !/display:\s*none|visibility:\s*hidden/i.test(el.getAttribute('style') || ''));
   },
 
+  _bestDropdownOption(dropdown, value) {
+    const candidates = this._dropdownOptions(dropdown)
+      .map(item => ({ item, text: this._optionText(item) }))
+      .filter(entry => entry.text)
+      .filter(entry => this._matchesOptionText(entry.text, value));
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => {
+      const aExact = this._normalize(a.text) === this._normalize(value) ? 0 : 1;
+      const bExact = this._normalize(b.text) === this._normalize(value) ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+      return a.text.length - b.text.length;
+    });
+    return candidates[0].item;
+  },
+
+  _dropdownOptions(dropdown) {
+    const selector = [
+      '[role="option"]',
+      '[data-value]',
+      '[data-label]',
+      '[class*="option"]', '[class*="Option"]',
+      '[class*="select-item"]', '[class*="SelectItem"]',
+      '[class*="select-option"]', '[class*="SelectOption"]',
+      '[class*="menu-item"]', '[class*="MenuItem"]',
+      'li',
+      'div',
+    ].join(',');
+    const raw = Array.from(dropdown.querySelectorAll(selector))
+      .filter(item => DOMUtils.isVisible(item))
+      .filter(item => this._optionText(item));
+
+    return raw.filter(item => !raw.some(other => other !== item && item.contains(other)));
+  },
+
   _pseudoOptions(el) {
     const selector = [
       '[role="radio"]',
@@ -139,7 +170,15 @@ var SelectHandler = {
   },
 
   _optionText(item) {
-    return (item.textContent || item.getAttribute('aria-label') || item.getAttribute('title') || '')
+    return (
+      item.textContent ||
+      item.getAttribute('aria-label') ||
+      item.getAttribute('title') ||
+      item.getAttribute('data-label') ||
+      item.getAttribute('data-value') ||
+      item.getAttribute('value') ||
+      ''
+    )
       .replace(/\s+/g, ' ')
       .trim();
   },
