@@ -57,6 +57,7 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /_extractFieldMetadata\(ctrl, widget\)/);
   assert.match(scanner, /out\.frameUrl = location\.href/);
   assert.match(scanner, /isSearchableSelect/);
+  assert.match(scanner, /_DATE_RANGE_HINT_CLASS/);
   assert.match(scanner, /_looksLikeReadonlySelectLabel\(label\)/);
   assert.match(scanner, /if \(!this\._isVisible\(t\)\) continue/);
 });
@@ -129,6 +130,9 @@ test('date handler normalizes resume dates for native date widgets', () => {
 
   assert.match(handler, /_candidateValues\(value, el, field\)/);
   assert.match(handler, /_fillViaPicker\(el, target, values\)/);
+  assert.match(handler, /_fillRangeViaPicker\(el, target, rangeValues\)/);
+  assert.match(handler, /_rangeValues\(value\)/);
+  assert.match(handler, /_matchesRangeValue\(target, rangeValues\)/);
   assert.match(handler, /_visibleDateDropdowns\(\)/);
   assert.match(handler, /_optionCandidates\(value\)/);
   assert.match(handler, /inputType === 'month'/);

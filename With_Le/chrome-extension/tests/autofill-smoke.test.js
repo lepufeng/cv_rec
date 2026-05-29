@@ -2156,6 +2156,86 @@ test('date handler selects custom picker options for readonly date widgets', asy
   }
 });
 
+test('date handler fills single custom date-range widgets by selecting both ends', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label for="project-range">项目时间</label>
+      <div class="ant-picker ant-picker-range date-range-picker">
+        <input id="project-range" class="ant-picker-input" type="text" readonly placeholder="请选择起止时间">
+      </div>
+      <script>
+        window.clickedRangeOptions = [];
+        const input = document.getElementById('project-range');
+        input.addEventListener('click', () => {
+          if (document.querySelector('.ant-picker-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'ant-picker-dropdown';
+          dropdown.innerHTML = '<div class="ant-picker-panel"><div class="ant-picker-cell" data-value="2024-01" title="2024-01">2024年1月</div><div class="ant-picker-cell" data-value="2024-06" title="2024-06">2024年6月</div></div>';
+          dropdown.querySelectorAll('[data-value]').forEach(option => {
+            option.addEventListener('click', event => {
+              const value = option.getAttribute('data-value');
+              window.clickedRangeOptions.push(value);
+              option.setAttribute('aria-selected', 'true');
+              if (window.clickedRangeOptions.length >= 2) {
+                input.value = window.clickedRangeOptions.slice(0, 2).join(' - ');
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              event.stopPropagation();
+            });
+          });
+          document.body.appendChild(dropdown);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const range = fields.find(field => field.label === '项目时间');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [range.fieldId]: '2024-01 - 2024-06' }, fields);
+      return {
+        fill,
+        value: document.getElementById('project-range').value,
+        clickedRangeOptions: window.clickedRangeOptions,
+        field: {
+          type: range.type,
+          widget: range.widget,
+          readonly: range.readonly,
+        },
+      };
+    });
+
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.value, '2024-01 - 2024-06');
+    assert.deepEqual(result.clickedRangeOptions, ['2024-01', '2024-06']);
+    assert.deepEqual(result.field, {
+      type: 'date',
+      widget: 'date-range',
+      readonly: true,
+    });
+  } finally {
+    await browser.close();
+  }
+});
+
 test('text handler fills plaintext-only rich text editors with commit events', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

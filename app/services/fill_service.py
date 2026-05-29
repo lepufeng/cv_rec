@@ -790,6 +790,8 @@ def _present_flag_field(text: str, field: dict[str, Any]) -> bool:
 def _date_range_key(field: dict[str, Any], text: str) -> str | None:
     if not _contains_any(text, ("起止", "时间", "日期", "年月", "period", "date", "time")):
         return None
+    widget = str(field.get("widget") or "").casefold()
+    field_type = str(field.get("type") or "").casefold()
     group_index = field.get("groupIndex")
     if group_index is None:
         group_index = field.get("group_index")
@@ -801,6 +803,8 @@ def _date_range_key(field: dict[str, Any], text: str) -> str | None:
         return "start_date"
     if parsed == 1:
         return "end_date"
+    if widget == "date-range" or (field_type == "date" and _contains_any(text, ("起止", "range", "period"))):
+        return "date_range"
     return None
 
 
@@ -841,7 +845,21 @@ def _value_from_repeated_item(item: dict[str, Any], key: str) -> Any:
         return _as_text(item.get("achievements"))
     if key == "achievements":
         return item.get("description") or item.get("achievements")
+    if key == "date_range":
+        return _date_range_value(item)
     return None
+
+
+def _date_range_value(item: dict[str, Any]) -> str | None:
+    start = _as_text(item.get("start_date"))
+    end = _as_text(item.get("end_date"))
+    if not start and not end:
+        return None
+    if not end:
+        end = "至今"
+    if not start:
+        return end
+    return f"{start} - {end}"
 
 
 def _filled(value: Any, source: str, confidence: float) -> tuple[Any, str, float] | None:

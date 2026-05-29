@@ -263,6 +263,46 @@ def test_repeated_current_flag_maps_when_end_date_is_open():
     ) is None
 
 
+def test_single_date_range_field_maps_start_and_end_together():
+    resume = {
+        "project_experience": [
+            {
+                "name": "智能投递助手",
+                "start_date": "2024-01",
+                "end_date": "2024-06",
+            },
+        ],
+        "work_experience": [
+            {
+                "company": "当前公司",
+                "start_date": "2025-01",
+                "end_date": None,
+            },
+        ],
+    }
+
+    assert _match_field_from_resume(
+        {
+            "label": "起止时间",
+            "type": "date",
+            "widget": "date-range",
+            "repeatSection": "项目经历",
+            "repeatIndex": 0,
+        },
+        resume,
+    ) == ("2024-01 - 2024-06", "project_experience[0].date_range", 0.82)
+    assert _match_field_from_resume(
+        {
+            "label": "任职日期",
+            "type": "date",
+            "widget": "date-range",
+            "repeatSection": "工作经历",
+            "repeatIndex": 0,
+        },
+        resume,
+    ) == ("2025-01 - 至今", "work_experience[0].date_range", 0.82)
+
+
 def test_location_preference_list_maps_to_multi_select_text():
     resume = {
         "job_intent": {

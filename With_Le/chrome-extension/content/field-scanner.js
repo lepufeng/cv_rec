@@ -158,6 +158,7 @@ var FieldScanner = {
     /姓名|名字|邮箱|邮件|手机号|手机号码|电话|联系方式|号码|证件号|身份证|护照号|账号|账户|name|email|e-mail|phone|mobile|tel|number|account/i,
 
   _DATE_HINT_CLASS: /(date-?picker|date-?range|calendar|time-?picker|year-?picker|month-?picker)/i,
+  _DATE_RANGE_HINT_CLASS: /(date-?range|range-?picker|rangepicker)/i,
 
   // Last-resort date detection: when no structural signal (HTML5 type / icon
   // / class hint) fires, check the resolved label for date keywords. Labels
@@ -504,6 +505,7 @@ var FieldScanner = {
     }
 
     const hasDateIcon = this._hasNearbyIcon(el, this._DATE_ICON_SELECTOR);
+    if (this._matchesAny(neighborhood, this._DATE_RANGE_HINT_CLASS)) return 'date-range';
     if (hasDateIcon) return 'date-picker';
     if (this._matchesAny(neighborhood, this._DATE_HINT_CLASS)) return 'date-picker';
 

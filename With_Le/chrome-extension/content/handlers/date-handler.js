@@ -7,8 +7,12 @@ var DateHandler = {
     if (value == null) return false;
     const target = this._editableTarget(el);
     const values = this._candidateValues(value, target, field);
+    const rangeValues = this._rangeValues(value);
     const preferPicker = this._preferPicker(target, field);
 
+    if (preferPicker && rangeValues.length >= 2 && await this._fillRangeViaPicker(el, target, rangeValues)) {
+      return true;
+    }
     if (preferPicker && await this._fillViaPicker(el, target, values)) return true;
 
     for (const str of values) {
@@ -74,6 +78,34 @@ var DateHandler = {
     return false;
   },
 
+  async _fillRangeViaPicker(el, target, rangeValues) {
+    try { el.click(); } catch (_) {}
+    if (target !== el) {
+      try { target.click(); } catch (_) {}
+    }
+    try { target.focus(); } catch (_) {}
+    await new Promise(r => setTimeout(r, 250));
+
+    let clicked = 0;
+    const clickedOptions = new Set();
+    for (const value of rangeValues.slice(0, 2)) {
+      const candidates = this._optionCandidates(value);
+      const dropdowns = this._visibleDateDropdowns();
+      let option = null;
+      for (const dropdown of dropdowns) {
+        option = this._bestDateOption(dropdown, candidates, clickedOptions);
+        if (option) break;
+      }
+      if (!option) return false;
+      clickedOptions.add(option);
+      try { option.click(); } catch (_) {}
+      clicked++;
+      await new Promise(r => setTimeout(r, 180));
+    }
+    DOMUtils.fireInputEvents(target);
+    return clicked >= 2 && (this._matchesRangeValue(target, rangeValues) || clickedOptions.size >= 2);
+  },
+
   _visibleDateDropdowns() {
     const selector = [
       '[class*="picker-panel"]',
@@ -94,8 +126,9 @@ var DateHandler = {
       .filter(item => !/display:\s*none|visibility:\s*hidden/i.test(item.getAttribute('style') || ''));
   },
 
-  _bestDateOption(dropdown, candidates) {
+  _bestDateOption(dropdown, candidates, excluded) {
     const options = this._dateOptions(dropdown)
+      .filter(item => !excluded || !excluded.has(item))
       .map(item => ({ item, text: this._optionText(item) }))
       .filter(entry => entry.text)
       .map(entry => ({
@@ -205,7 +238,7 @@ var DateHandler = {
   },
 
   _candidateValues(value, el, field) {
-    const raw = String(value == null ? '' : value).trim();
+    const raw = this._dateValueText(value);
     if (!raw) return [];
 
     const parts = this._dateParts(raw);
@@ -222,6 +255,35 @@ var DateHandler = {
     if (inputType === 'month') return this._uniq([monthOnly, raw, yearOnly]);
     if (inputType === 'date') return this._uniq([dayOnly, raw, monthOnly]);
     return this._uniq([raw, dayOnly, monthOnly, yearOnly]);
+  },
+
+  _dateValueText(value) {
+    if (Array.isArray(value)) {
+      return value.map(item => this._dateValueText(item)).filter(Boolean).join(' - ');
+    }
+    if (value && typeof value === 'object') {
+      const start = this._dateValueText(value.start_date || value.startDate || value.start);
+      const end = this._dateValueText(value.end_date || value.endDate || value.end);
+      if (start || end) return [start, end].filter(Boolean).join(' - ');
+      return Object.values(value).map(item => this._dateValueText(item)).filter(Boolean).join(' - ');
+    }
+    return String(value == null ? '' : value).trim();
+  },
+
+  _rangeValues(value) {
+    if (Array.isArray(value)) {
+      return value.map(item => this._dateValueText(item)).filter(Boolean).slice(0, 2);
+    }
+    if (value && typeof value === 'object') {
+      return [
+        this._dateValueText(value.start_date || value.startDate || value.start),
+        this._dateValueText(value.end_date || value.endDate || value.end),
+      ].filter(Boolean).slice(0, 2);
+    }
+
+    const text = this._dateValueText(value);
+    const matches = text.match(/\d{4}(?:[-/.年]\d{1,2})?(?:[-/.月]\d{1,2})?/g) || [];
+    return matches.slice(0, 2);
   },
 
   _dateParts(value) {
@@ -255,6 +317,14 @@ var DateHandler = {
 
   _matchesAnyValue(el, values) {
     return values.some(value => this._matchesValue(el, value));
+  },
+
+  _matchesRangeValue(el, rangeValues) {
+    const text = this._normalizeOption(typeof el.value !== 'undefined' ? el.value : el.textContent);
+    return rangeValues.slice(0, 2).every(value => {
+      const candidates = this._optionCandidates(value).map(item => this._normalizeOption(item));
+      return candidates.some(candidate => candidate && text.includes(candidate));
+    });
   },
 
   _uniq(values) {
