@@ -86,6 +86,9 @@ test('select handler supports custom pseudo-radio and dropdown controls', () => 
   assert.match(handler, /_visibleDropdowns\(\)/);
   assert.match(handler, /_bestDropdownOption\(dropdown, str\)/);
   assert.match(handler, /_dropdownOptions\(dropdown\)/);
+  assert.match(handler, /_fillCascaderValue\(el, str\)/);
+  assert.match(handler, /_commitByKeyboard\(target, el, str\)/);
+  assert.match(handler, /_valueAccepted\(el, target, str, match, false\)/);
   assert.match(handler, /_values\(value, field\)/);
   assert.match(handler, /_looksLikeMultiValueField\(field\)/);
   assert.match(handler, /\[role="treeitem"\]/);
@@ -102,6 +105,7 @@ test('date handler normalizes resume dates for native date widgets', () => {
   assert.match(handler, /inputType === 'date'/);
   assert.match(handler, /_wantsYearOnly\(el, field\)/);
   assert.match(handler, /YYYY/);
+  assert.match(handler, /for \(const key of \['Enter', 'Tab'\]\)/);
 });
 
 test('choice handler can fill standalone wrapped checkboxes', () => {

@@ -1026,6 +1026,148 @@ test('select handler fills multi-value custom and native selects', async t => {
   }
 });
 
+test('select handler commits searchable dropdowns with keyboard fallback', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>学校名称</label>
+      <div id="school" class="atsx-select ud__select" role="combobox" aria-haspopup="listbox" aria-autocomplete="list" data-form-field-i18n-name="学校名称">
+        <span id="school-selected"></span>
+        <input id="school-input" type="text">
+      </div>
+      <script>
+        const input = document.getElementById('school-input');
+        document.getElementById('school').addEventListener('click', () => {
+          if (document.querySelector('.school-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'school-dropdown ant-select-dropdown';
+          dropdown.innerHTML = '<div role="listbox"><div role="option" data-value="上海交通大学">上海交通大学</div></div>';
+          dropdown.querySelector('[role="option"]').addEventListener('click', event => {
+            // Some real search selects ignore direct option clicks unless the
+            // keyboard-active option is committed.
+            event.stopPropagation();
+          });
+          document.body.appendChild(dropdown);
+        });
+        input.addEventListener('keydown', event => {
+          if (event.key !== 'Enter') return;
+          const option = document.querySelector('[role="option"]');
+          if (!option || !input.value.includes(option.getAttribute('data-value'))) return;
+          option.setAttribute('aria-selected', 'true');
+          document.getElementById('school-selected').textContent = option.getAttribute('data-value');
+          input.value = '';
+          document.querySelector('.school-dropdown')?.remove();
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const school = fields.find(field => field.label === '学校名称');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [school.fieldId]: '上海交通大学' }, fields);
+      return {
+        fill,
+        widget: school.widget,
+        selected: document.getElementById('school-selected').textContent,
+        inputValue: document.getElementById('school-input').value,
+      };
+    });
+
+    assert.equal(result.widget, 'search-select');
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.selected, '上海交通大学');
+    assert.equal(result.inputValue, '');
+  } finally {
+    await browser.close();
+  }
+});
+
+test('select handler fills cascader controls by path', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>当前所处地</label>
+      <div id="region" class="atsx-cascader ant-cascader" data-form-field-i18n-name="当前所处地">
+        <input id="region-input" class="ant-cascader-input" type="text" readonly>
+      </div>
+      <script>
+        document.getElementById('region').addEventListener('click', () => {
+          if (document.querySelector('.ant-cascader-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'ant-cascader-dropdown';
+          dropdown.innerHTML = '<div class="ant-cascader-menu"><div class="ant-cascader-menu-item" data-value="广东省">广东省</div><div class="ant-cascader-menu-item" data-value="上海市">上海市</div></div>';
+          dropdown.querySelector('[data-value="广东省"]').addEventListener('click', event => {
+            event.stopPropagation();
+            const second = document.createElement('div');
+            second.className = 'ant-cascader-menu';
+            second.innerHTML = '<div class="ant-cascader-menu-item" data-value="广州市">广州市</div><div class="ant-cascader-menu-item" data-value="深圳市">深圳市</div>';
+            second.querySelector('[data-value="深圳市"]').addEventListener('click', leafEvent => {
+              leafEvent.stopPropagation();
+              leafEvent.currentTarget.setAttribute('data-selected', 'true');
+              document.getElementById('region-input').value = '广东省 / 深圳市';
+            });
+            dropdown.appendChild(second);
+          });
+          document.body.appendChild(dropdown);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const region = fields.find(field => field.label === '当前所处地');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [region.fieldId]: '广东省 / 深圳市' }, fields);
+      return {
+        fill,
+        widget: region.widget,
+        value: document.getElementById('region-input').value,
+        leafSelected: document.querySelector('[data-value="深圳市"]')?.getAttribute('data-selected'),
+      };
+    });
+
+    assert.equal(result.widget, 'cascader');
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.value, '广东省 / 深圳市');
+    assert.equal(result.leafSelected, 'true');
+  } finally {
+    await browser.close();
+  }
+});
+
 test('fill engine checks current experience checkbox from mapped present value', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
@@ -1111,6 +1253,12 @@ test('date handler normalizes month and year resume dates for native inputs', as
 
       <label for="award-year">获奖时间</label>
       <input id="award-year" type="text" placeholder="YYYY" maxlength="4">
+      <script>
+        window.dateCommitted = [];
+        document.getElementById('award-year').addEventListener('keydown', event => {
+          if (event.key === 'Enter') window.dateCommitted.push(event.target.value);
+        });
+      </script>
     `);
     await injectExtensionScripts(page);
 
@@ -1128,6 +1276,7 @@ test('date handler normalizes month and year resume dates for native inputs', as
         start: document.getElementById('start-date').value,
         end: document.getElementById('end-month').value,
         award: document.getElementById('award-year').value,
+        dateCommitted: window.dateCommitted,
       };
     });
 
@@ -1135,6 +1284,7 @@ test('date handler normalizes month and year resume dates for native inputs', as
     assert.equal(result.start, '2024-01-01');
     assert.equal(result.end, '2024-06');
     assert.equal(result.award, '2023');
+    assert.deepEqual(result.dateCommitted, ['2023']);
   } finally {
     await browser.close();
   }

@@ -12,8 +12,10 @@ var DateHandler = {
       DOMUtils.setNativeValue(el, str);
       DOMUtils.fireInputEvents(el);
       try {
-        el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-        el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+        for (const key of ['Enter', 'Tab']) {
+          el.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true }));
+          el.dispatchEvent(new KeyboardEvent('keyup', { key, code: key, bubbles: true }));
+        }
       } catch (_) {}
       try { el.blur(); } catch (_) {}
 

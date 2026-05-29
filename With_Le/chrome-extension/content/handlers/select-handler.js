@@ -59,7 +59,9 @@ var SelectHandler = {
     let filled = 0;
 
     for (const str of values) {
-      const ok = await this._fillOneCustomValue(el, str);
+      const ok = field && field.widget === 'cascader'
+        ? await this._fillCascaderValue(el, str)
+        : await this._fillOneCustomValue(el, str);
       if (ok) filled++;
       await new Promise(r => setTimeout(r, 100));
     }
@@ -87,12 +89,40 @@ var SelectHandler = {
       const match = this._bestDropdownOption(dropdown, str);
       if (match) {
         match.click();
-        return true;
+        await new Promise(r => setTimeout(r, 160));
+        if (this._valueAccepted(el, target, str, match, false)) return true;
       }
     }
 
+    if (await this._commitByKeyboard(target, el, str)) return true;
+
     DOMUtils.fireInputEvents(target);
-    return target.value === str || target.textContent === str;
+    return this._valueAccepted(el, target, str, null, true);
+  },
+
+  async _fillCascaderValue(el, str) {
+    const parts = this._pathParts(str);
+    if (parts.length < 2) return this._fillOneCustomValue(el, str);
+
+    const target = this._editableTarget(el);
+    try { el.click(); } catch (_) {}
+    try { target.focus(); } catch (_) {}
+    await new Promise(r => setTimeout(r, 200));
+
+    for (const part of parts) {
+      const dropdowns = this._visibleDropdowns();
+      let match = null;
+      for (const dropdown of dropdowns) {
+        match = this._bestDropdownOption(dropdown, part);
+        if (match) break;
+      }
+      if (!match) return false;
+      match.click();
+      await new Promise(r => setTimeout(r, 220));
+    }
+
+    return this._valueAccepted(el, target, parts[parts.length - 1], null, true) ||
+      this._valueAccepted(el, target, str, null, true);
   },
 
   _fillPseudoGroup(el, value) {
@@ -149,6 +179,34 @@ var SelectHandler = {
     return Array.from(document.querySelectorAll(selector))
       .filter(el => DOMUtils.isVisibleStrict(el))
       .filter(el => !/display:\s*none|visibility:\s*hidden/i.test(el.getAttribute('style') || ''));
+  },
+
+  async _commitByKeyboard(target, el, value) {
+    const keys = ['Enter', 'Tab'];
+    for (const key of keys) {
+      try {
+        target.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true }));
+        target.dispatchEvent(new KeyboardEvent('keyup', { key, code: key, bubbles: true }));
+      } catch (_) {}
+      DOMUtils.fireInputEvents(target);
+      await new Promise(r => setTimeout(r, 160));
+      if (this._valueAccepted(el, target, value, null, true)) return true;
+    }
+    return false;
+  },
+
+  _valueAccepted(el, target, value, option, allowTypedValue) {
+    const wanted = this._normalize(value);
+    if (!wanted) return false;
+    if (option && this._isSelected(option)) return true;
+
+    const controlText = this._normalize(el && el.textContent);
+    if (controlText && controlText.includes(wanted)) return true;
+
+    if (!allowTypedValue) return false;
+    const targetValue = this._normalize(target && target.value);
+    const targetText = this._normalize(target && target.textContent);
+    return targetValue === wanted || targetText === wanted;
   },
 
   _bestDropdownOption(dropdown, value) {
@@ -239,10 +297,18 @@ var SelectHandler = {
   _isSelected(item) {
     if (item.getAttribute && item.getAttribute('aria-checked') === 'true') return true;
     if (item.getAttribute && item.getAttribute('aria-selected') === 'true') return true;
+    if (item.getAttribute && item.getAttribute('data-selected') === 'true') return true;
     const input = item.matches && item.matches('input') ? item : item.querySelector && item.querySelector('input');
     if (input && input.checked) return true;
     const cls = item.className && typeof item.className === 'string' ? item.className : '';
     return /checked|selected|active/i.test(cls);
+  },
+
+  _pathParts(value) {
+    return String(value || '')
+      .split(/\s*(?:>|\/|／|\\)\s*/g)
+      .map(part => part.trim())
+      .filter(Boolean);
   },
 
   _values(value, field) {
