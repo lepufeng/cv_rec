@@ -112,9 +112,11 @@ var FillEngine = {
     }
     const byId = document.getElementById(fieldId);
     if (byId) return byId;
-    const byName = document.querySelector(`[name="${CSS.escape(fieldId)}"]`);
+    const byDeepId = DOMUtils.querySelectorDeep(`#${CSS.escape(fieldId)}`);
+    if (byDeepId) return byDeepId;
+    const byName = DOMUtils.querySelectorDeep(`[name="${CSS.escape(fieldId)}"]`);
     if (byName) return byName;
-    const byData = document.querySelector(`[data-field="${CSS.escape(fieldId)}"]`);
+    const byData = DOMUtils.querySelectorDeep(`[data-field="${CSS.escape(fieldId)}"]`);
     return byData;
   },
 

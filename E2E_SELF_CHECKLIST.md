@@ -238,7 +238,7 @@ node --test With_Le/chrome-extension/tests/*.test.js
 - [x] repeater 可新增多段经历
 - [ ] file upload 可上传简历文件
 - [x] iframe 页面可定位并执行
-- [ ] Shadow DOM 场景有处理方案
+- [x] open Shadow DOM 控件可扫描与回填
 - [x] 失败字段能给出具体原因
 - [x] 已有非占位值字段不会被自动覆盖；同值字段计为已完成
 

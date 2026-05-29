@@ -1006,6 +1006,62 @@ test('scanner emits backend matching metadata without losing widget semantics', 
   }
 });
 
+test('scanner and fill engine handle open shadow DOM controls', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>姓名</label>
+      <shadow-text-field id="name-host"></shadow-text-field>
+      <script>
+        customElements.define('shadow-text-field', class extends HTMLElement {
+          connectedCallback() {
+            const root = this.attachShadow({ mode: 'open' });
+            root.innerHTML = '<input id="shadow-name" data-field="shadow-name" type="text">';
+          }
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const field = fields.find(item => item.fieldId === 'shadow-name');
+      FieldScanner._elementMap.clear();
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [field.fieldId]: '张三' }, fields);
+      return {
+        field,
+        fill,
+        value: document.getElementById('name-host').shadowRoot.querySelector('input').value,
+      };
+    });
+
+    assert.equal(result.field.label, '姓名');
+    assert.equal(result.field.type, 'text');
+    assert.equal(result.field.widget, 'text-input');
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.equal(result.value, '张三');
+  } finally {
+    await browser.close();
+  }
+});
+
 test('section manager handles live Tencent-style send_title resume modules', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

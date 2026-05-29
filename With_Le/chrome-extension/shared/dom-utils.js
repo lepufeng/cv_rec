@@ -1,4 +1,24 @@
 var DOMUtils = {
+  querySelectorAllDeep(selector, root) {
+    const start = root || document;
+    const out = [];
+    const visitRoot = currentRoot => {
+      if (!currentRoot || !currentRoot.querySelectorAll) return;
+      const matches = Array.from(currentRoot.querySelectorAll(selector));
+      out.push(...matches);
+      const all = Array.from(currentRoot.querySelectorAll('*'));
+      for (const el of all) {
+        if (el.shadowRoot) visitRoot(el.shadowRoot);
+      }
+    };
+    visitRoot(start);
+    return out;
+  },
+
+  querySelectorDeep(selector, root) {
+    return this.querySelectorAllDeep(selector, root)[0] || null;
+  },
+
   isVisible(el) {
     if (!el || !el.getBoundingClientRect) return false;
     let cur = el;
@@ -8,7 +28,7 @@ var DOMUtils = {
       if (cur !== el && (curStyle.visibility === 'hidden' || curStyle.visibility === 'collapse')) {
         return false;
       }
-      cur = cur.parentElement;
+      cur = cur.parentElement || (cur.getRootNode && cur.getRootNode().host) || null;
     }
 
     const style = window.getComputedStyle(el);

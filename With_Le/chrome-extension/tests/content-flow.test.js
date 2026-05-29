@@ -38,6 +38,9 @@ test('content records a fill report for real-page diagnostics', () => {
 test('scanner emits repeat metadata for expanded experience cards', () => {
   const scanner = read('content/field-scanner.js');
 
+  assert.match(scanner, /querySelectorAllDeep\(this\._CONTROL_SELECTOR\)/);
+  assert.match(scanner, /node\.shadowRoot/);
+  assert.match(scanner, /_containsDeep\(container, node\)/);
   assert.match(scanner, /\[contenteditable\]:not\(\[contenteditable="false"\]\)/);
   assert.match(scanner, /_annotateRepeatInstances\(fields\)/);
   assert.match(scanner, /repeatGroupId/);
@@ -206,6 +209,10 @@ test('navigation detector skips final submit style buttons', () => {
 test('dom utils ignores controls hidden by ancestor pages', () => {
   const domUtils = read('shared/dom-utils.js');
 
+  assert.match(domUtils, /querySelectorAllDeep\(selector, root\)/);
+  assert.match(domUtils, /querySelectorDeep\(selector, root\)/);
+  assert.match(domUtils, /el\.shadowRoot/);
+  assert.match(domUtils, /cur\.getRootNode/);
   assert.match(domUtils, /cur\.parentElement/);
   assert.match(domUtils, /curStyle\.display === 'none'/);
   assert.match(domUtils, /cur !== el && \(curStyle\.visibility === 'hidden'/);

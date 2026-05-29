@@ -307,13 +307,13 @@ POST /api/v1/fill-plans/{plan_id}/feedback
 ```
 
 历史风险是：动态下拉、重复经历、日期、复合字段会有较多低置信或填写失败。
-当前已补强动态经历新增、日期/日期范围、富文本、自定义/异步下拉、只读字段、iframe 上下文、复合手机号字段以及缓存命中后的随机 `fieldId` 重映射；真实生产页仍需逐站点验收。
+当前已补强动态经历新增、日期/日期范围、富文本、自定义/异步下拉、只读字段、iframe 上下文、open Shadow DOM 控件、复合手机号字段以及缓存命中后的随机 `fieldId` 重映射；真实生产页仍需逐站点验收。
 
 ### “真实自动填写”需求
 
 部分满足。
 
-插件侧已经考虑了 React/Vue value tracker、iframe、伪 radio、自定义控件，这是正确方向。平台侧还需要返回更明确的 action，不应只返回 value。
+插件侧已经考虑了 React/Vue value tracker、iframe、open Shadow DOM、伪 radio、自定义控件，这是正确方向。平台侧还需要返回更明确的 action，不应只返回 value。
 
 ### “越用越强/模板学习”需求
 

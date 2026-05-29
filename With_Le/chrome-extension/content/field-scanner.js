@@ -275,7 +275,7 @@ var FieldScanner = {
 
   // ---------------------------------------------------------------- collect
   _collectAllControls() {
-    const real = Array.from(document.querySelectorAll(this._CONTROL_SELECTOR))
+    const real = DOMUtils.querySelectorAllDeep(this._CONTROL_SELECTOR)
       .filter(el => this._isVisible(el));
 
     // ARIA wrappers are kept even when they contain a real <input>/<select>
@@ -284,7 +284,7 @@ var FieldScanner = {
     // semantic ARIA props, plus an internal hidden search <input> that only
     // shows up while the user types. We want the outer wrapper as the
     // canonical control; the dedup step below drops the nested input.
-    const aria = Array.from(document.querySelectorAll(this._ARIA_SELECTOR))
+    const aria = DOMUtils.querySelectorAllDeep(this._ARIA_SELECTOR)
       .filter(el => this._isVisible(el));
 
     const pseudo = this._collectPseudoGroups([...real, ...aria]);
@@ -303,7 +303,7 @@ var FieldScanner = {
     // Also drops duplicates because Node.contains(self) === true.
     const filtered = [];
     for (const c of all) {
-      const enclosing = filtered.find(x => x.contains(c) && x !== c);
+      const enclosing = filtered.find(x => this._containsDeep(x, c) && x !== c);
       const isDuplicate = filtered.includes(c);
       if (!enclosing && !isDuplicate) filtered.push(c);
     }
@@ -311,7 +311,7 @@ var FieldScanner = {
   },
 
   _collectPseudoGroups(realAndAriaCtrls) {
-    const itemNodes = Array.from(document.querySelectorAll(this._PSEUDO_ITEM_SELECTOR))
+    const itemNodes = DOMUtils.querySelectorAllDeep(this._PSEUDO_ITEM_SELECTOR)
       .filter(el => this._isVisible(el));
     if (itemNodes.length === 0) return [];
 
@@ -363,20 +363,15 @@ var FieldScanner = {
   // -------------------------------------------------------------- sequence
   _buildItemSequence(controlSet) {
     const items = [];
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT
-    );
     // Track the deepest control whose subtree we are currently inside, so we
     // can skip text nodes that live inside a control (they'd otherwise leak
     // out and pollute the next segment).
     const ctrlStack = [];
 
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
+    const visit = node => {
       if (node.nodeType === Node.ELEMENT_NODE) {
         // Pop ctrlStack entries that no longer contain this node.
-        while (ctrlStack.length && !ctrlStack[ctrlStack.length - 1].contains(node)) {
+        while (ctrlStack.length && !this._containsDeep(ctrlStack[ctrlStack.length - 1], node)) {
           ctrlStack.pop();
         }
         if (controlSet.has(node)) {
@@ -384,13 +379,37 @@ var FieldScanner = {
           ctrlStack.push(node);
         }
       } else if (node.nodeType === Node.TEXT_NODE) {
-        if (ctrlStack.length) continue; // inside a control's subtree
+        if (ctrlStack.length) return; // inside a control's subtree
         const txt = (node.nodeValue || '').replace(/\s+/g, ' ').trim();
-        if (!txt) continue;
+        if (!txt) return;
         items.push({ type: 'text', node, text: txt });
       }
-    }
+
+      if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
+      for (const child of Array.from(node.childNodes || [])) {
+        visit(child);
+      }
+      if (node.nodeType === Node.ELEMENT_NODE && node.shadowRoot) {
+        for (const child of Array.from(node.shadowRoot.childNodes || [])) {
+          visit(child);
+        }
+      }
+    };
+
+    visit(document.body);
     return items;
+  },
+
+  _containsDeep(container, node) {
+    if (!container || !node) return false;
+    if (container.contains && container.contains(node)) return true;
+    let root = node.getRootNode && node.getRootNode();
+    while (root && root.host) {
+      if (root.host === container) return true;
+      if (container.contains && container.contains(root.host)) return true;
+      root = root.host.getRootNode && root.host.getRootNode();
+    }
+    return false;
   },
 
   // Look at items[prevCtrlIdx+1 .. curCtrlIdx-1] from the back, return the
@@ -862,7 +881,7 @@ var FieldScanner = {
     if (el.type === 'radio' || el.type === 'checkbox') {
       const name = el.name;
       if (name) {
-        return Array.from(document.querySelectorAll(`input[name="${CSS.escape(name)}"]`))
+        return DOMUtils.querySelectorAllDeep(`input[name="${CSS.escape(name)}"]`)
           .map(r => {
             const lbl = r.closest('label');
             return lbl ? (lbl.textContent || '').trim() : r.value;
@@ -907,7 +926,7 @@ var FieldScanner = {
 
     if (el.type === 'radio' || el.type === 'checkbox') {
       const inputs = el.name
-        ? Array.from(document.querySelectorAll(`input[name="${CSS.escape(el.name)}"]`))
+        ? DOMUtils.querySelectorAllDeep(`input[name="${CSS.escape(el.name)}"]`)
         : [el];
       return this._dedupeOptionObjects(inputs.map(input => {
         const lbl = input.closest('label');
@@ -960,7 +979,7 @@ var FieldScanner = {
   },
 
   _detectSection(el) {
-    const allTitles = document.querySelectorAll(this._TITLE_SELECTOR);
+    const allTitles = DOMUtils.querySelectorAllDeep(this._TITLE_SELECTOR);
     let best = null;
     let bestText = '';
 
