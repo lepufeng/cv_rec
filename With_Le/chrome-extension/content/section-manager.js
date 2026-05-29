@@ -284,7 +284,7 @@ var SectionManager = {
   _controlCount(container) {
     if (!container || !container.querySelectorAll) return 0;
     return container.querySelectorAll(
-      'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]), textarea, select, [contenteditable="true"], [role="combobox"], [role="listbox"], [role="textbox"], [aria-haspopup="listbox"], [aria-haspopup="list"], [aria-haspopup="tree"]'
+      'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"], [role="listbox"], [role="textbox"], [aria-haspopup="listbox"], [aria-haspopup="list"], [aria-haspopup="tree"]'
     ).length;
   },
 

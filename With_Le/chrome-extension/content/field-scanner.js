@@ -2,7 +2,7 @@ var FieldScanner = {
   _elementMap: new Map(),
 
   _CONTROL_SELECTOR:
-    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]), textarea, select, [contenteditable="true"]',
+    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])',
 
   // ARIA wrappers worth treating as controls. Includes:
   //   - explicit selectable widgets: combobox / listbox / textbox / searchbox / spinbutton

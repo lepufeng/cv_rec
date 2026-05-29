@@ -2156,6 +2156,76 @@ test('date handler selects custom picker options for readonly date widgets', asy
   }
 });
 
+test('text handler fills plaintext-only rich text editors with commit events', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <section>
+        <h2>项目经历</h2>
+        <div class="atsx-form-item">
+          <label>项目描述</label>
+          <div id="project-editor" class="ProseMirror ql-editor" role="textbox" contenteditable="plaintext-only"><p><br></p></div>
+        </div>
+      </section>
+      <script>
+        window.editorEvents = [];
+        const editor = document.getElementById('project-editor');
+        ['beforeinput', 'input', 'change', 'keyup'].forEach(type => {
+          editor.addEventListener(type, () => window.editorEvents.push(type));
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const description = fields.find(field => field.label === '项目描述');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [description.fieldId]: '负责自动填写核心链路开发' }, fields);
+      const editor = document.getElementById('project-editor');
+      return {
+        fill,
+        field: {
+          type: description.type,
+          widget: description.widget,
+          section: description.section,
+        },
+        editorText: editor.textContent.replace(/\\s+/g, ' ').trim(),
+        editorHtml: editor.innerHTML,
+        events: window.editorEvents,
+      };
+    });
+
+    assert.equal(result.fill.filled, 1);
+    assert.deepEqual(result.field, {
+      type: 'text',
+      widget: 'contenteditable',
+      section: '项目经历',
+    });
+    assert.equal(result.editorText, '负责自动填写核心链路开发');
+    assert.match(result.editorHtml, /负责自动填写核心链路开发/);
+    assert.equal(result.events.includes('input'), true);
+    assert.equal(result.events.includes('change'), true);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

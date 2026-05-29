@@ -94,4 +94,20 @@ var DOMUtils = {
       el.dispatchEvent(new Event('change', { bubbles: true }));
     } catch (_) {}
   },
+
+  fireTextCommitEvents(el, value) {
+    try {
+      el.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: value,
+      }));
+    } catch (_) {}
+    this.fireInputEvents(el);
+    try {
+      el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+      el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+    } catch (_) {}
+  },
 };

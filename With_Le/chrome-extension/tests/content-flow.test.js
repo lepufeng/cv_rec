@@ -38,6 +38,7 @@ test('content records a fill report for real-page diagnostics', () => {
 test('scanner emits repeat metadata for expanded experience cards', () => {
   const scanner = read('content/field-scanner.js');
 
+  assert.match(scanner, /\[contenteditable\]:not\(\[contenteditable="false"\]\)/);
   assert.match(scanner, /_annotateRepeatInstances\(fields\)/);
   assert.match(scanner, /repeatGroupId/);
   assert.match(scanner, /repeatIndex/);
@@ -89,6 +90,18 @@ test('diagnostic report preserves field context for skipped fields', () => {
   assert.match(popup, /skipContextText\(item\)/);
   assert.match(popup, /attemptedValuePreview/);
   assert.match(annotator, /_contextText\(item\)/);
+});
+
+test('text handler supports framework-backed rich text editors', () => {
+  const handler = read('content/handlers/text-handler.js');
+  const dom = read('shared/dom-utils.js');
+
+  assert.match(handler, /_fillContentEditable\(el, str\)/);
+  assert.match(handler, /document\.execCommand\('insertText', false, str\)/);
+  assert.match(handler, /_looksLikeParagraphEditor\(el\)/);
+  assert.match(handler, /ProseMirror\|ql-editor\|rich\|editor/);
+  assert.match(dom, /fireTextCommitEvents\(el, value\)/);
+  assert.match(dom, /new InputEvent\('beforeinput'/);
 });
 
 test('select handler supports custom pseudo-radio and dropdown controls', () => {
