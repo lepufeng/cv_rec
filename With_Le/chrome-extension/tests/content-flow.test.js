@@ -131,6 +131,7 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /_findAddTarget\(sectionName\)/);
   assert.match(manager, /_waitForCountIncrease\(container, beforeCount, this\.EXPAND_TIMEOUT\)/);
   assert.match(manager, /_clearEmptySectionToggle\(sectionName\)/);
+  assert.match(manager, /_hasClearableEmptyToggle\(sectionName\)/);
   assert.match(manager, /clearedEmptyToggle/);
   assert.match(manager, /status: 'skipped'/);
   assert.match(manager, /_deriveSectionNameFromAddText/);

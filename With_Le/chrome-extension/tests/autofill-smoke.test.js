@@ -1111,7 +1111,7 @@ test('section manager clears checked empty-section toggles before adding experie
     assert.deepEqual(result.before.find(section => section.name === '项目经历'), {
       name: '项目经历',
       currentCount: 1,
-      addButton: false,
+      addButton: true,
     });
     assert.deepEqual(result.after.find(section => section.name === '项目经历'), {
       name: '项目经历',

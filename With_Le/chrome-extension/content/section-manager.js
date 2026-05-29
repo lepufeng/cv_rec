@@ -130,7 +130,8 @@ var SectionManager = {
       seen.add(text);
 
       const container = this._sectionContainerForHeading(h);
-      const addButton = !!this._findAddButtonNear(text, container);
+      const addButton = !!this._findAddButtonNear(text, container) ||
+        this._hasClearableEmptyToggle(text);
       let currentCount = 1;
 
       if (container) {
@@ -216,10 +217,11 @@ var SectionManager = {
       if (!sectionName || seen.has(sectionName) || !this.REPEAT_SECTION_REGEX.test(sectionName)) continue;
 
       const addButton = !!this._findAddButtonNear(sectionName, container);
+      const expandable = addButton || this._hasClearableEmptyToggle(sectionName);
       const currentCount = this._countRepeatItems(container);
-      if (!addButton && currentCount <= 1) continue;
+      if (!expandable && currentCount <= 1) continue;
 
-      sections.push({ name: sectionName, currentCount, addButton });
+      sections.push({ name: sectionName, currentCount, addButton: expandable });
       seen.add(sectionName);
     }
   },
@@ -344,6 +346,20 @@ var SectionManager = {
   },
 
   async _clearEmptySectionToggle(sectionName) {
+    const toggle = this._findClearableEmptyToggle(sectionName);
+    if (!toggle) return false;
+
+    const clickable = this._toggleClickable(toggle);
+    if (!clickable || !this._isVisible(clickable)) return false;
+    clickable.click();
+    return true;
+  },
+
+  _hasClearableEmptyToggle(sectionName) {
+    return !!this._findClearableEmptyToggle(sectionName);
+  },
+
+  _findClearableEmptyToggle(sectionName) {
     const toggles = document.querySelectorAll(
       'label, input[type="checkbox"], input[type="radio"], [role="checkbox"], [role="switch"]'
     );
@@ -351,13 +367,9 @@ var SectionManager = {
       if (!this._isVisible(toggle)) continue;
       if (!this._emptyToggleMatchesSection(toggle, sectionName)) continue;
       if (!this._isToggleChecked(toggle)) continue;
-
-      const clickable = this._toggleClickable(toggle);
-      if (!clickable || !this._isVisible(clickable)) continue;
-      clickable.click();
-      return true;
+      return toggle;
     }
-    return false;
+    return null;
   },
 
   _emptyToggleMatchesSection(toggle, sectionName) {
