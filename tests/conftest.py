@@ -20,6 +20,7 @@ def _setup_test_env(tmp_path_factory):
     os.environ["SECRET_KEY"] = "test-secret"
     os.environ["LOG_LEVEL"] = "WARNING"
     os.environ["LOG_TO_FILE"] = "false"
+    os.environ["DEBUG_CAPTURE_INVALID_MODEL_OUTPUTS"] = "false"
 
     from app.core.config import get_settings
     get_settings.cache_clear()

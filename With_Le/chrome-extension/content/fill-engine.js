@@ -13,14 +13,29 @@ var FillEngine = {
   async fillAll(mappings, fields) {
     const entries = this._orderedEntries(mappings, fields);
     const fieldsById = new Map((fields || []).map(field => [field.fieldId, field]));
+    const valueById = new Map(entries);
+    const handledFieldIds = new Set();
     let filled = 0;
 
     for (let i = 0; i < entries.length; i++) {
       const [fieldId, value] = entries[i];
       const knownField = fieldsById.get(fieldId);
+      if (handledFieldIds.has(fieldId)) continue;
 
       if (i > 0) {
         await new Promise(r => setTimeout(r, this.INTERVAL_MS));
+      }
+
+      const dateGroupResult = await this._tryFillDateGroup(
+        fieldId,
+        knownField,
+        fields || [],
+        valueById,
+        handledFieldIds
+      );
+      if (dateGroupResult) {
+        filled += dateGroupResult.filled;
+        continue;
       }
 
       const el = this._findElement(fieldId);
@@ -82,6 +97,95 @@ var FillEngine = {
     }
 
     return { filled, skipped: this.skipped };
+  },
+
+  async _tryFillDateGroup(fieldId, knownField, fields, valueById, handledFieldIds) {
+    const groupFields = this._dateGroupFields(fieldId, knownField, fields, valueById, handledFieldIds);
+    if (!groupFields || typeof DateHandler === 'undefined' || typeof DateHandler.fillGroup !== 'function') {
+      return null;
+    }
+
+    const items = [];
+    for (const field of groupFields) {
+      const value = valueById.get(field.fieldId);
+      const el = this._findElement(field.fieldId);
+      if (!el) return null;
+      const safety = this._safeToFill(el, field, value);
+      if (!safety.ok) return null;
+      items.push({ fieldId: field.fieldId, field, el, value });
+    }
+
+    const success = await DateHandler.fillGroup(items);
+    groupFields.forEach(field => handledFieldIds.add(field.fieldId));
+    if (success) return { filled: groupFields.length };
+
+    for (const item of items) {
+      this.skipped.push(this._skipRecord(item.fieldId, item.field, item.el, item.value, '设置值失败'));
+    }
+    return { filled: 0 };
+  },
+
+  _dateGroupFields(fieldId, field, fields, valueById, handledFieldIds) {
+    if (!field || !Array.isArray(fields) || !this._isDateGroupField(field)) return null;
+    const groupIndex = this._intFieldProp(field, 'groupIndex');
+    const groupSize = this._intFieldProp(field, 'groupSize');
+    if (groupIndex !== 0 || groupSize !== 2) return null;
+
+    let candidates = [];
+    if (field.groupId) {
+      candidates = fields.filter(item => item && item.groupId === field.groupId);
+    }
+
+    if (candidates.length < 2) {
+      const start = fields.findIndex(item => item && item.fieldId === fieldId);
+      if (start < 0) return null;
+      candidates = fields.slice(start, start + groupSize);
+    }
+
+    const label = this._normalizeGroupLabel(field.label || field.placeholder || field.subLabel);
+    const grouped = candidates
+      .filter(item => item && item.fieldId)
+      .filter(item => valueById.has(item.fieldId))
+      .filter(item => !handledFieldIds.has(item.fieldId))
+      .filter(item => this._isDateGroupField(item))
+      .filter(item => {
+        if (item.groupId && field.groupId) return item.groupId === field.groupId;
+        if (this._intFieldProp(item, 'groupSize') !== groupSize) return false;
+        const itemLabel = this._normalizeGroupLabel(item.label || item.placeholder || item.subLabel);
+        return !label || !itemLabel || itemLabel === label;
+      })
+      .map((item, domIndex) => ({
+        item,
+        domIndex,
+        groupIndex: this._intFieldProp(item, 'groupIndex'),
+      }))
+      .filter(entry => entry.groupIndex >= 0)
+      .sort((a, b) => a.groupIndex - b.groupIndex || a.domIndex - b.domIndex);
+
+    if (grouped.length < 2) return null;
+    if (!grouped.some(entry => entry.item.fieldId === fieldId)) return null;
+    if (!grouped.some(entry => entry.groupIndex === 1)) return null;
+
+    return grouped.slice(0, groupSize).map(entry => entry.item);
+  },
+
+  _isDateGroupField(field) {
+    if (!field) return false;
+    return field.type === 'date' || field.widget === 'date-picker' || field.widget === 'date-range';
+  },
+
+  _intFieldProp(field, key) {
+    const value = field && field[key];
+    if (Number.isInteger(value)) return value;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : -1;
+  },
+
+  _normalizeGroupLabel(value) {
+    return String(value || '')
+      .replace(/[：:*＊\s]/g, '')
+      .trim()
+      .toLowerCase();
   },
 
   _orderedEntries(mappings, fields) {

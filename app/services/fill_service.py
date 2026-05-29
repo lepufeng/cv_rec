@@ -41,6 +41,7 @@ from app.schemas.fill_plan import (
     FillPlanRequest,
     FillPlanResponse,
 )
+from app.services.model_debug import capture_invalid_model_output
 
 
 log = get_logger("fill_service")
@@ -188,7 +189,12 @@ class FillService:
             response_format="json",
             temperature=0.0,
         )
-        plan = self._try_parse(response.content)
+        plan = self._try_parse(
+            response.content,
+            model=response.model_id,
+            attempt=1,
+            context={"field_count": len(form_fields)},
+        )
         if plan is not None:
             return plan, response
 
@@ -199,7 +205,12 @@ class FillService:
             response_format="json",
             temperature=0.0,
         )
-        plan2 = self._try_parse(response2.content)
+        plan2 = self._try_parse(
+            response2.content,
+            model=response2.model_id,
+            attempt=2,
+            context={"field_count": len(form_fields)},
+        )
         if plan2 is None:
             log.warning(
                 "fill_model_invalid_using_rules_fallback",
@@ -227,7 +238,13 @@ class FillService:
         return plan2, merged
 
     @staticmethod
-    def _try_parse(raw: str) -> FillPlanLLMOutput | None:
+    def _try_parse(
+        raw: str,
+        *,
+        model: str | None = None,
+        attempt: int | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> FillPlanLLMOutput | None:
         text = raw.strip()
         if text.startswith("```"):
             # strip code fences
@@ -239,11 +256,42 @@ class FillService:
             text = text.strip()
         try:
             obj = json.loads(text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            debug_path = capture_invalid_model_output(
+                stage="fill_plan",
+                raw=raw,
+                reason="json_invalid",
+                model=model,
+                attempt=attempt,
+                errors=[{"type": "json_decode", "message": exc.msg, "line": exc.lineno, "column": exc.colno}],
+                context=context,
+            )
+            log.warning(
+                "fill_model_json_invalid",
+                error=f"{exc.msg} at line {exc.lineno} column {exc.colno}",
+                debug_path=debug_path,
+            )
             return None
         try:
             return FillPlanLLMOutput.model_validate(obj)
-        except PydanticValidationError:
+        except PydanticValidationError as exc:
+            errors = [
+                {
+                    "loc": ".".join(str(part) for part in error.get("loc", ())),
+                    "type": error.get("type"),
+                }
+                for error in exc.errors()[:5]
+            ]
+            debug_path = capture_invalid_model_output(
+                stage="fill_plan",
+                raw=raw,
+                reason="schema_invalid",
+                model=model,
+                attempt=attempt,
+                errors=errors,
+                context=context,
+            )
+            log.warning("fill_model_schema_invalid", errors=errors, debug_path=debug_path)
             return None
 
     @staticmethod
@@ -430,12 +478,17 @@ def _apply_deterministic_field_repairs(
     resume_data: dict,
     form_fields: list[dict],
 ) -> FillPlanLLMOutput:
-    """Correct high-confidence structured fields even when the model response is valid."""
+    """Correct high-confidence structured fields even when model/cache misses them."""
     repaired = plan.model_copy(deep=True)
     for field in _iter_fields(_augment_fields_with_repeat_context(form_fields)):
         field_id = str(field.get("fieldId") or field.get("id") or "").strip()
-        if not field_id or not _should_repair_phone_field(field):
+        if not field_id:
             continue
+        phone_repair = _should_repair_phone_field(field)
+        needs_repair = field_id in repaired.needs_user_input
+        if not phone_repair and not needs_repair:
+            continue
+
         match = _match_field_from_resume(field, resume_data)
         if match is None:
             continue
@@ -443,7 +496,11 @@ def _apply_deterministic_field_repairs(
         repaired.filled[field_id] = FilledField(
             value=value,
             confidence=confidence,
-            reasoning="后端规则校正复合手机号字段",
+            reasoning=(
+                "后端规则校正复合手机号字段"
+                if phone_repair else
+                "后端规则补全高置信字段"
+            ),
             source=source,
         )
         repaired.needs_user_input = [
@@ -473,6 +530,7 @@ def _augment_fields_with_repeat_context(form_fields: list[dict]) -> list[dict]:
     """
     fields = [_copy_field_tree(field) for field in form_fields]
     _infer_contiguous_repeat_runs(fields)
+    _infer_single_item_section_runs(fields)
     return fields
 
 
@@ -524,6 +582,72 @@ def _infer_contiguous_repeat_runs(fields: list[dict]) -> None:
 
         if not matched:
             i += 1
+
+
+def _infer_single_item_section_runs(fields: list[dict]) -> None:
+    """Infer section context for one visible resume item.
+
+    Some ATS pages initially render exactly one education card. With no repeated
+    sibling card, the contiguous-repeat inference above has nothing to compare
+    against, but fields like "起止时间" still need the local education context
+    to map to education[0].start_date/end_date during rules fallback.
+    """
+    i = 0
+    while i < len(fields):
+        if _has_repeat_context(fields[i]) or not _looks_like_education_anchor(fields[i]):
+            i += 1
+            continue
+
+        end = i
+        while end < len(fields):
+            field = fields[end]
+            if _has_repeat_context(field) or not _looks_like_education_item_field(field):
+                break
+            end += 1
+
+        run = fields[i:end]
+        if _is_single_education_run(run):
+            _apply_inferred_repeat(fields, i, len(run), 1, "教育经历")
+            i = end
+            continue
+        i += 1
+
+
+def _has_repeat_context(field: dict[str, Any]) -> bool:
+    return (
+        field.get("repeatGroupId") is not None or
+        field.get("repeat_group_id") is not None or
+        field.get("repeatIndex") is not None or
+        field.get("repeat_index") is not None or
+        field.get("repeatSection") is not None or
+        field.get("repeat_section") is not None
+    )
+
+
+def _looks_like_education_anchor(field: dict[str, Any]) -> bool:
+    text = _field_search_text(field)
+    return _contains_any(text, ("学校", "院校", "school", "university"))
+
+
+def _looks_like_education_item_field(field: dict[str, Any]) -> bool:
+    text = _field_search_text(field)
+    return _contains_any(
+        text,
+        (
+            "学校", "院校", "学历", "学位", "专业", "院系", "起止", "入学", "毕业",
+            "education", "school", "university", "degree", "major", "date", "time",
+        ),
+    )
+
+
+def _is_single_education_run(fields: list[dict]) -> bool:
+    if len(fields) < 3:
+        return False
+    joined = " ".join(_field_search_text(field) for field in fields)
+    has_school = _contains_any(joined, ("学校", "院校", "school", "university"))
+    has_degree_or_major = _contains_any(joined, ("学历", "学位", "专业", "degree", "major"))
+    has_date = any(_date_range_key(field, _field_search_text(field)) for field in fields)
+    return has_school and has_degree_or_major and has_date
 
 
 def _repeat_signature_part(field: dict[str, Any]) -> str:

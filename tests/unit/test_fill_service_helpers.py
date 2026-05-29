@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from app.services.fill_service import (
     FillService,
+    _apply_deterministic_field_repairs,
     _augment_fields_with_repeat_context,
     _build_rules_fallback_plan,
     _extract_domain,
     _match_field_from_resume,
 )
+from app.schemas.fill_plan import FillPlanLLMOutput
 
 
 def test_structure_hash_stable_under_reorder():
@@ -292,6 +294,108 @@ def test_rules_fallback_maps_flat_repeated_fields_by_inferred_index():
     assert plan.filled["edu2_degree"].source == "education[1].degree"
     assert plan.filled["edu2_start"].value == "2022-09"
     assert plan.filled["edu2_end"].value == "2025-06"
+
+
+def test_rules_fallback_maps_single_education_date_group():
+    resume = {
+        "education": [
+            {
+                "school": "香港城市大学（东莞）",
+                "degree": "硕士",
+                "major": "数据科学",
+                "start_date": "2025-09",
+                "end_date": "2027-06",
+            },
+        ],
+    }
+    fields = [
+        {"fieldId": "referral", "label": "推荐方式", "type": "select"},
+        {"fieldId": "name", "label": "姓名", "type": "text"},
+        {"fieldId": "email", "label": "邮箱", "type": "text"},
+        {"fieldId": "school", "label": "学校名称", "type": "text"},
+        {"fieldId": "degree", "label": "学历", "type": "select"},
+        {"fieldId": "major", "label": "专业", "type": "text"},
+        {
+            "fieldId": "edu_start",
+            "label": "起止时间",
+            "type": "date",
+            "widget": "date-picker",
+            "groupIndex": 0,
+            "groupSize": 2,
+        },
+        {
+            "fieldId": "edu_end",
+            "label": "起止时间",
+            "type": "date",
+            "widget": "date-picker",
+            "groupIndex": 1,
+            "groupSize": 2,
+        },
+        {"fieldId": "no_work", "label": "没有工作经历", "type": "checkbox"},
+    ]
+
+    augmented = _augment_fields_with_repeat_context(fields)
+    education_fields = augmented[3:8]
+    assert {field["repeatSection"] for field in education_fields} == {"教育经历"}
+    assert {field["repeatIndex"] for field in education_fields} == {0}
+
+    plan = _build_rules_fallback_plan(resume, fields)
+    assert plan.filled["edu_start"].value == "2025-09"
+    assert plan.filled["edu_start"].source == "education[0].start_date"
+    assert plan.filled["edu_end"].value == "2027-06"
+    assert plan.filled["edu_end"].source == "education[0].end_date"
+
+
+def test_deterministic_repairs_fill_cached_single_education_date_needs():
+    resume = {
+        "education": [
+            {
+                "school": "香港城市大学（东莞）",
+                "degree": "硕士",
+                "major": "数据科学",
+                "start_date": "2025-09",
+                "end_date": "2027-06",
+            },
+        ],
+    }
+    fields = [
+        {"fieldId": "referral", "label": "推荐方式", "type": "select"},
+        {"fieldId": "school", "label": "学校名称", "type": "text"},
+        {"fieldId": "degree", "label": "学历", "type": "select"},
+        {"fieldId": "major", "label": "专业", "type": "text"},
+        {
+            "fieldId": "edu_start",
+            "label": "起止时间",
+            "type": "date",
+            "widget": "date-picker",
+            "groupIndex": 0,
+            "groupSize": 2,
+        },
+        {
+            "fieldId": "edu_end",
+            "label": "起止时间",
+            "type": "date",
+            "widget": "date-picker",
+            "groupIndex": 1,
+            "groupSize": 2,
+        },
+        {"fieldId": "no_work", "label": "没有工作经历", "type": "checkbox"},
+    ]
+    cached_plan = FillPlanLLMOutput(
+        filled={},
+        needs_user_input=["referral", "edu_start", "edu_end", "no_work"],
+        warnings=["模型输出校验失败，已使用规则匹配兜底"],
+    )
+
+    repaired = _apply_deterministic_field_repairs(cached_plan, resume, fields)
+    assert repaired.filled["edu_start"].value == "2025-09"
+    assert repaired.filled["edu_start"].source == "education[0].start_date"
+    assert repaired.filled["edu_end"].value == "2027-06"
+    assert repaired.filled["edu_end"].source == "education[0].end_date"
+    assert "edu_start" not in repaired.needs_user_input
+    assert "edu_end" not in repaired.needs_user_input
+    assert "referral" in repaired.needs_user_input
+    assert "no_work" in repaired.needs_user_input
 
 
 def test_repeated_current_flag_maps_when_end_date_is_open():

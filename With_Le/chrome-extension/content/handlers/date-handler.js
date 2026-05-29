@@ -22,6 +22,45 @@ var DateHandler = {
     return !preferPicker && await this._fillViaPicker(el, target, values);
   },
 
+  async fillGroup(items) {
+    const ordered = (items || [])
+      .filter(item => item && item.el && item.field)
+      .map((item, index) => ({
+        ...item,
+        index,
+        groupIndex: this._groupIndex(item.field),
+        target: this._editableTarget(item.el),
+      }))
+      .sort((a, b) => a.groupIndex - b.groupIndex || a.index - b.index);
+    if (ordered.length < 2) return false;
+
+    const rangeValues = ordered
+      .map(item => this._dateValueText(item.value))
+      .filter(Boolean)
+      .slice(0, 2);
+    if (rangeValues.length < 2) return false;
+
+    const pickerItem = ordered.find(item => this._preferPicker(item.target, item.field));
+    if (pickerItem && await this._fillRangeViaPicker(pickerItem.el, pickerItem.target, rangeValues)) {
+      ordered.forEach(item => DOMUtils.fireInputEvents(item.target));
+      return true;
+    }
+
+    let filledAll = true;
+    for (const item of ordered.slice(0, 2)) {
+      const values = this._candidateValues(item.value, item.target, item.field);
+      let filled = false;
+      for (const str of values) {
+        if (this._fillDirect(item.target, str)) {
+          filled = true;
+          break;
+        }
+      }
+      if (!filled) filledAll = false;
+    }
+    return filledAll;
+  },
+
   _editableTarget(el) {
     if (typeof el.value !== 'undefined' || (el.hasAttribute && el.hasAttribute('contenteditable'))) {
       return el;
@@ -36,6 +75,13 @@ var DateHandler = {
     if (['date', 'month', 'week', 'datetime-local', 'time'].includes(inputType)) return false;
     if (field && ['date-picker', 'date-range'].includes(field.widget)) return true;
     return target.readOnly === true || (target.getAttribute && target.getAttribute('readonly') !== null);
+  },
+
+  _groupIndex(field) {
+    if (!field) return 0;
+    if (Number.isInteger(field.groupIndex)) return field.groupIndex;
+    const parsed = Number.parseInt(field.groupIndex, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
   },
 
   _fillDirect(target, str) {

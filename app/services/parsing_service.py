@@ -16,6 +16,7 @@ from app.prompts.parse_resume import (
     build_user_prompt,
 )
 from app.schemas.resume import ResumeData
+from app.services.model_debug import capture_invalid_model_output
 
 
 log = get_logger("parsing")
@@ -95,7 +96,12 @@ class ParsingService:
             latency_ms=response.latency_ms,
             response_chars=len(response.content),
         )
-        parsed = self._try_parse(response.content)
+        parsed = self._try_parse(
+            response.content,
+            model=response.model_id,
+            attempt=1,
+            context={"route": "vision", "image_count": len(doc.images), "has_text": bool(doc.text)},
+        )
         if parsed is not None:
             log.info(
                 "parse_schema_validated",
@@ -130,7 +136,12 @@ class ParsingService:
             latency_ms=response2.latency_ms,
             response_chars=len(response2.content),
         )
-        parsed2 = self._try_parse(response2.content)
+        parsed2 = self._try_parse(
+            response2.content,
+            model=response2.model_id,
+            attempt=2,
+            context={"route": "vision", "image_count": len(doc.images), "has_text": bool(doc.text)},
+        )
         if parsed2 is None:
             log.warning(
                 "parse_schema_invalid_after_retry",
@@ -193,7 +204,12 @@ class ParsingService:
             latency_ms=response.latency_ms,
             response_chars=len(response.content),
         )
-        parsed = self._try_parse(response.content)
+        parsed = self._try_parse(
+            response.content,
+            model=response.model_id,
+            attempt=1,
+            context={"route": "text", "source": source},
+        )
         if parsed is not None:
             log.info(
                 "parse_schema_validated",
@@ -229,7 +245,12 @@ class ParsingService:
             latency_ms=response2.latency_ms,
             response_chars=len(response2.content),
         )
-        parsed2 = self._try_parse(response2.content)
+        parsed2 = self._try_parse(
+            response2.content,
+            model=response2.model_id,
+            attempt=2,
+            context={"route": "text", "source": source},
+        )
         if parsed2 is None:
             log.warning(
                 "parse_schema_invalid_after_retry",
@@ -256,15 +277,52 @@ class ParsingService:
         return ParseOutcome(data=parsed2, response=merged, responses=[merged])
 
     @staticmethod
-    def _try_parse(raw: str) -> ResumeData | None:
+    def _try_parse(
+        raw: str,
+        *,
+        model: str | None = None,
+        attempt: int | None = None,
+        context: dict | None = None,
+    ) -> ResumeData | None:
         text = _strip_codeblock(raw).strip()
         try:
             obj = json.loads(text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            debug_path = capture_invalid_model_output(
+                stage="resume_parse",
+                raw=raw,
+                reason="json_invalid",
+                model=model,
+                attempt=attempt,
+                errors=[{"type": "json_decode", "message": exc.msg, "line": exc.lineno, "column": exc.colno}],
+                context=context,
+            )
+            log.warning(
+                "parse_model_json_invalid",
+                error=f"{exc.msg} at line {exc.lineno} column {exc.colno}",
+                debug_path=debug_path,
+            )
             return None
         try:
             return ResumeData.model_validate(obj)
-        except PydanticValidationError:
+        except PydanticValidationError as exc:
+            errors = [
+                {
+                    "loc": ".".join(str(part) for part in error.get("loc", ())),
+                    "type": error.get("type"),
+                }
+                for error in exc.errors()[:5]
+            ]
+            debug_path = capture_invalid_model_output(
+                stage="resume_parse",
+                raw=raw,
+                reason="schema_invalid",
+                model=model,
+                attempt=attempt,
+                errors=errors,
+                context=context,
+            )
+            log.warning("parse_model_schema_invalid", errors=errors, debug_path=debug_path)
             return None
 
 

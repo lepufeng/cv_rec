@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     log_file_max_mb: int = 10
     log_file_backup_count: int = 5
     log_request_enabled: bool = True
+    debug_capture_invalid_model_outputs: bool = True
+    debug_invalid_model_output_dir: str = "./data/debug/model_outputs"
+    debug_invalid_model_output_max_chars: int = 20000
 
     # ---- Database ----
     database_url: str = "sqlite+aiosqlite:///./data/app.db"

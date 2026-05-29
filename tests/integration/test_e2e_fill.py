@@ -685,6 +685,60 @@ async def test_rules_fallback_infers_flat_repeated_education_fields(app_client, 
 
 
 @pytest.mark.asyncio
+async def test_rules_fallback_maps_single_visible_education_date_group(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("single-education-fallback-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    parsed = {
+        **SAMPLE_PARSED_RESUME,
+        "education": [
+            {
+                "school": "香港城市大学（东莞）",
+                "degree": "硕士",
+                "major": "数据科学",
+                "start_date": "2025-09",
+                "end_date": "2027-06",
+            },
+        ],
+    }
+    fake.queue_response(parsed)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    fake.queue_response({"filled": {"bad": {"value": "x", "confidence": 2}}})
+    fake.queue_response({"filled": {"bad": {"value": "x", "confidence": 2}}})
+    payload = _form_payload(rid)
+    payload["fields"] = [
+        {"fieldId": "referral", "label": "推荐方式", "type": "select", "widget": "pseudo-radio"},
+        {"fieldId": "name", "label": "姓名", "type": "text"},
+        {"fieldId": "email", "label": "邮箱", "type": "email"},
+        {"fieldId": "school", "label": "学校名称", "type": "text"},
+        {"fieldId": "degree", "label": "学历", "type": "select"},
+        {"fieldId": "major", "label": "专业", "type": "text"},
+        {"fieldId": "edu_start", "label": "起止时间", "type": "date", "widget": "date-picker", "groupIndex": 0, "groupSize": 2},
+        {"fieldId": "edu_end", "label": "起止时间", "type": "date", "widget": "date-picker", "groupIndex": 1, "groupSize": 2},
+        {"fieldId": "no_work", "label": "没有工作经历", "type": "checkbox", "widget": "checkbox-group"},
+    ]
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["model_used"] == "fake-chat+rules-fallback"
+    assert body["mappings"]["school"] == "香港城市大学（东莞）"
+    assert body["mappings"]["degree"] == "硕士"
+    assert body["mappings"]["major"] == "数据科学"
+    assert body["mappings"]["edu_start"] == "2025-09"
+    assert body["mappings"]["edu_end"] == "2027-06"
+    assert body["filled"]["edu_start"]["source"] == "education[0].start_date"
+    assert body["filled"]["edu_end"]["source"] == "education[0].end_date"
+    assert "referral" in body["skipped"]
+    assert "no_work" in body["skipped"]
+
+
+@pytest.mark.asyncio
 async def test_plugin_scan_endpoint_validates_real_scan_payload(app_client, make_user):
     client, _ = app_client
     user = await make_user("plugin-scan-user")

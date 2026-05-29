@@ -2626,6 +2626,110 @@ test('date handler fills single custom date-range widgets by selecting both ends
   }
 });
 
+test('fill engine fills grouped date range inputs in one picker interaction', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <div class="info_box">
+        <div class="subtitle must">起止时间*</div>
+        <div class="input_box">
+          <div class="ant-picker ant-picker-range date-range-picker">
+            <input id="range-start" class="ant-picker-input" type="text" readonly placeholder="开始时间">
+            <span class="ant-picker-separator">~</span>
+            <input id="range-end" class="ant-picker-input" type="text" readonly placeholder="结束时间">
+          </div>
+        </div>
+      </div>
+      <script>
+        window.clickedRangeOptions = [];
+        function openPicker() {
+          if (document.querySelector('.ant-picker-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'ant-picker-dropdown';
+          dropdown.innerHTML = '<div class="ant-picker-panel"><div class="ant-picker-cell" data-value="2025-09" title="2025-09">2025年9月</div><div class="ant-picker-cell" data-value="2027-06" title="2027-06">2027年6月</div></div>';
+          dropdown.querySelectorAll('[data-value]').forEach(option => {
+            option.addEventListener('click', event => {
+              const value = option.getAttribute('data-value');
+              window.clickedRangeOptions.push(value);
+              option.setAttribute('aria-selected', 'true');
+              if (window.clickedRangeOptions.length >= 2) {
+                const values = window.clickedRangeOptions.slice(0, 2);
+                const start = document.getElementById('range-start');
+                const end = document.getElementById('range-end');
+                start.value = values[0];
+                end.value = values[1];
+                [start, end].forEach(input => {
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+              }
+              event.stopPropagation();
+            });
+          });
+          document.body.appendChild(dropdown);
+        }
+        document.getElementById('range-start').addEventListener('click', openPicker);
+        document.getElementById('range-end').addEventListener('click', openPicker);
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const rangeFields = fields
+        .filter(field => field.label === '起止时间' && field.type === 'date')
+        .sort((a, b) => a.groupIndex - b.groupIndex);
+      const mappings = {
+        [rangeFields[0].fieldId]: '2025-09',
+        [rangeFields[1].fieldId]: '2027-06',
+      };
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll(mappings, fields);
+      return {
+        fill,
+        startValue: document.getElementById('range-start').value,
+        endValue: document.getElementById('range-end').value,
+        clickedRangeOptions: window.clickedRangeOptions,
+        fields: rangeFields.map(field => ({
+          type: field.type,
+          widget: field.widget,
+          groupIndex: field.groupIndex,
+          groupSize: field.groupSize,
+          readonly: field.readonly,
+        })),
+      };
+    });
+
+    assert.equal(result.fields.length, 2);
+    assert.equal(result.fill.filled, 2);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.equal(result.startValue, '2025-09');
+    assert.equal(result.endValue, '2027-06');
+    assert.deepEqual(result.clickedRangeOptions, ['2025-09', '2027-06']);
+    assert.deepEqual(result.fields, [
+      { type: 'date', widget: 'date-range', groupIndex: 0, groupSize: 2, readonly: true },
+      { type: 'date', widget: 'date-range', groupIndex: 1, groupSize: 2, readonly: true },
+    ]);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('text handler fills plaintext-only rich text editors with commit events', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
