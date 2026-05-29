@@ -917,6 +917,62 @@ test('fill engine checks current experience checkbox from mapped present value',
   }
 });
 
+test('date handler normalizes month and year resume dates for native inputs', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label for="start-date">项目开始日期</label>
+      <input id="start-date" type="date">
+
+      <label for="end-month">项目结束时间</label>
+      <input id="end-month" type="month">
+
+      <label for="award-year">获奖时间</label>
+      <input id="award-year" type="text" placeholder="YYYY" maxlength="4">
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const byLabel = label => fields.find(field => field.label === label);
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        [byLabel('项目开始日期').fieldId]: '2024-01',
+        [byLabel('项目结束时间').fieldId]: '2024-06-15',
+        [byLabel('获奖时间').fieldId]: '2023-09',
+      }, fields);
+      return {
+        fill,
+        start: document.getElementById('start-date').value,
+        end: document.getElementById('end-month').value,
+        award: document.getElementById('award-year').value,
+      };
+    });
+
+    assert.equal(result.fill.filled, 3);
+    assert.equal(result.start, '2024-01-01');
+    assert.equal(result.end, '2024-06');
+    assert.equal(result.award, '2023');
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

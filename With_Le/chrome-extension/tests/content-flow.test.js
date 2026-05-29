@@ -77,6 +77,16 @@ test('select handler supports custom pseudo-radio and dropdown controls', () => 
   assert.match(handler, /aria-selected/);
 });
 
+test('date handler normalizes resume dates for native date widgets', () => {
+  const handler = read('content/handlers/date-handler.js');
+
+  assert.match(handler, /_candidateValues\(value, el, field\)/);
+  assert.match(handler, /inputType === 'month'/);
+  assert.match(handler, /inputType === 'date'/);
+  assert.match(handler, /_wantsYearOnly\(el, field\)/);
+  assert.match(handler, /YYYY/);
+});
+
 test('choice handler can fill standalone wrapped checkboxes', () => {
   const handler = read('content/handlers/choice-handler.js');
 
