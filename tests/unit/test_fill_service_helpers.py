@@ -140,3 +140,29 @@ def test_repeated_education_and_internship_fields_match_by_index():
         {"label": "实习岗位", "repeatSection": "实习经历", "repeatIndex": 1},
         resume,
     ) == ("后端开发实习生", "internship_experience[1].title", 0.82)
+
+
+def test_repeated_fields_can_infer_section_from_label_and_repeat_index():
+    resume = {
+        "education": [
+            {"school": "本科大学", "degree": "本科", "major": "软件工程"},
+            {"school": "研究生大学", "degree": "硕士", "major": "计算机科学"},
+        ],
+        "work_experience": [
+            {"company": "旧公司", "title": "开发"},
+            {"company": "未来科技", "title": "后端工程师"},
+        ],
+    }
+
+    assert _match_field_from_resume(
+        {"label": "学校名称", "repeatIndex": 1},
+        resume,
+    ) == ("研究生大学", "education[1].school", 0.82)
+    assert _match_field_from_resume(
+        {"label": "专业", "repeatIndex": 1},
+        resume,
+    ) == ("计算机科学", "education[1].major", 0.82)
+    assert _match_field_from_resume(
+        {"label": "公司", "repeatIndex": 1},
+        resume,
+    ) == ("未来科技", "work_experience[1].company", 0.82)

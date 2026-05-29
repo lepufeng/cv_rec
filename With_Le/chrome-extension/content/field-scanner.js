@@ -853,6 +853,8 @@ var FieldScanner = {
 
   _REPEAT_ITEM_HINT_REGEX:
     /card|entry|record|block|module|panel|resume|experience|project|education|intern|campus|work|moka|beisen|atsx|feishu|经历|项目|教育|实习|校园/i,
+  _REPEAT_FIELD_LABEL_HINT_REGEX:
+    /项目|学校|院校|学历|学位|专业|院系|公司|职位|岗位|角色|起止|开始|结束|描述|成果|职责|实习|工作经历|工作经验|校园|社团|project|school|university|degree|major|company|position|role|start|end|description|achievement|intern|work experience|campus/i,
 
   _findItemContainer(el) {
     for (const sel of this._ITEM_GROUP_SELECTORS) {
@@ -966,6 +968,12 @@ var FieldScanner = {
   _annotateRepeatInstances(fields) {
     if (fields.length === 0) return;
 
+    this._repeatFieldLookup = new Map();
+    fields.forEach(field => {
+      const el = this._elementMap.get(field.fieldId);
+      if (el) this._repeatFieldLookup.set(el, field);
+    });
+
     const parentBuckets = new Map();
     fields.forEach((field, idx) => {
       const el = this._elementMap.get(field.fieldId);
@@ -979,7 +987,11 @@ var FieldScanner = {
         parentBuckets.set(item.parentElement, bySection);
       }
 
-      const section = field.section || this._detectSection(item) || '';
+      const section =
+        field.section ||
+        this._detectSection(item) ||
+        this._inferRepeatSectionFromItem(item) ||
+        '';
       const sectionKey = this._cleanLabel(section || 'repeat');
       let entries = bySection.get(sectionKey);
       if (!entries) {
@@ -1025,7 +1037,10 @@ var FieldScanner = {
     while (cur && cur !== document.body && depth < 12) {
       const controlCount = this._countControlsIn(cur);
       if (controlCount >= 2 && controlCount <= this.MAX_REPEAT_ITEM_CONTROLS) {
-        const repeatishSection = this._isRepeatSection(section) || this._looksLikeRepeatItem(cur);
+        const repeatishSection =
+          this._isRepeatSection(section) ||
+          this._looksLikeRepeatItem(cur) ||
+          this._hasRepeatFieldSignature(cur);
         if (repeatishSection && this._hasRepeatSiblings(cur)) return cur;
       }
       cur = cur.parentElement;
@@ -1052,16 +1067,16 @@ var FieldScanner = {
 
   _repeatContainersLookAlike(a, b) {
     if (!a || !b || a.tagName !== b.tagName) return false;
-    if (!this._looksLikeRepeatItem(a) && !this._looksLikeRepeatItem(b)) {
-      return false;
-    }
+    const hinted = this._looksLikeRepeatItem(a) || this._looksLikeRepeatItem(b);
 
     const aTokens = this._classTokens(a);
     const bTokens = this._classTokens(b);
     if (aTokens.length === 0 || bTokens.length === 0) {
-      return this._looksLikeRepeatItem(a) && this._looksLikeRepeatItem(b);
+      if (this._looksLikeRepeatItem(a) && this._looksLikeRepeatItem(b)) return true;
+      return this._repeatFieldSignaturesMatch(a, b);
     }
-    return aTokens.some(token => bTokens.includes(token));
+    if (hinted && aTokens.some(token => bTokens.includes(token))) return true;
+    return this._repeatFieldSignaturesMatch(a, b);
   },
 
   _looksLikeRepeatItem(el) {
@@ -1105,5 +1120,78 @@ var FieldScanner = {
 
   _hasAnyAttr(el, names) {
     return !!(el && el.hasAttribute && names.some(name => el.hasAttribute(name)));
+  },
+
+  _hasRepeatFieldSignature(container) {
+    const signature = this._containerFieldSignature(container);
+    return this._signatureSuggestsRepeat(signature);
+  },
+
+  _repeatFieldSignaturesMatch(a, b) {
+    const sigA = this._containerFieldSignature(a);
+    const sigB = this._containerFieldSignature(b);
+    if (!this._signatureSuggestsRepeat(sigA) || !this._signatureSuggestsRepeat(sigB)) {
+      return false;
+    }
+    if (sigA.length !== sigB.length) return false;
+    return sigA.every((part, index) => part === sigB[index]);
+  },
+
+  _containerFieldSignature(container) {
+    if (!container || !this._repeatFieldLookup) return [];
+
+    const entries = [];
+    for (const [el, field] of this._repeatFieldLookup.entries()) {
+      if (!container.contains(el)) continue;
+      const label = this._cleanLabel(field.label || field.placeholder || field.type || '');
+      if (!label) continue;
+      const subLabel = this._cleanLabel(field.subLabel || '');
+      const groupIndex = Number.isInteger(field.groupIndex) ? `#${field.groupIndex}` : '';
+      entries.push({
+        el,
+        key: `${label}${subLabel ? ':' + subLabel : ''}${groupIndex}`,
+      });
+    }
+    entries.sort((a, b) => {
+      const cmp = a.el.compareDocumentPosition(b.el);
+      if (cmp & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+      if (cmp & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+      return 0;
+    });
+    return entries.map(entry => entry.key);
+  },
+
+  _signatureSuggestsRepeat(signature) {
+    if (!Array.isArray(signature) || signature.length < 2) return false;
+    return signature.some(part => this._REPEAT_FIELD_LABEL_HINT_REGEX.test(part));
+  },
+
+  _inferRepeatSectionFromItem(item) {
+    const text = [
+      this._containerFieldSignature(item).join(' '),
+      this._attrText(item, 'class'),
+      this._attrText(item, 'data-testid'),
+      this._attrText(item, 'data-test-id'),
+      this._attrText(item, 'data-name'),
+      this._attrText(item, 'data-field'),
+      this._attrText(item, 'data-form-field-i18n-name'),
+      this._attrText(item, 'data-section'),
+      this._attrText(item, 'data-module'),
+    ].join(' ');
+    return this._inferRepeatSectionFromText(text);
+  },
+
+  _inferRepeatSectionFromText(text) {
+    const normalized = String(text || '').toLowerCase();
+    if (/项目|project/.test(normalized)) return '项目经历';
+    if (/实习|intern/.test(normalized)) return '实习经历';
+    if (/教育|学历|学位|学校|院校|专业|院系|education|school|university|degree|major/.test(normalized)) {
+      return '教育经历';
+    }
+    if (/校园|社团|学生干部|campus/.test(normalized)) return '校园经历';
+    if (/工作经历|工作经验|公司|职位|岗位|work experience|company|position/.test(normalized)) {
+      return '工作经历';
+    }
+    return '';
   },
 };

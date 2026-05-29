@@ -435,6 +435,108 @@ test('scanner annotates Formily-style repeated list items without card classes',
   }
 });
 
+test('scanner infers repeat metadata from repeated field signatures', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <main>
+        <div id="education-list">
+          <div class="plain-item">
+            <label>学校名称<input type="text"></label>
+            <label>学历<input type="text"></label>
+            <label>专业<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+          </div>
+          <div class="plain-item">
+            <label>学校名称<input type="text"></label>
+            <label>学历<input type="text"></label>
+            <label>专业<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+          </div>
+        </div>
+        <div id="project-list">
+          <div class="plain-item">
+            <label>项目名称<input type="text"></label>
+            <label>项目角色<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+            <label>描述<textarea></textarea></label>
+          </div>
+          <div class="plain-item">
+            <label>项目名称<input type="text"></label>
+            <label>项目角色<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+            <label>起止时间<input type="text"></label>
+            <label>描述<textarea></textarea></label>
+          </div>
+        </div>
+        <div id="mixed-list">
+          <div class="plain-item">
+            <label>候选学校<input type="text"></label>
+            <label>候选专业<input type="text"></label>
+          </div>
+          <div class="plain-item">
+            <label>候选公司<input type="text"></label>
+            <label>候选职位<input type="text"></label>
+          </div>
+        </div>
+      </main>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(() => {
+      const fields = FieldScanner.scan();
+      const compact = fields.map(field => ({
+        label: field.label,
+        repeatIndex: field.repeatIndex,
+        repeatSize: field.repeatSize,
+        repeatSection: field.repeatSection,
+      }));
+      return {
+        fields: compact,
+        education: compact.filter(field => field.repeatSection === '教育经历'),
+        projects: compact.filter(field => field.repeatSection === '项目经历'),
+        mixedTagged: compact.filter(field => field.label && field.label.startsWith('候选') && Number.isInteger(field.repeatIndex)),
+        untaggedRepeats: compact.filter(field => Number.isInteger(field.repeatIndex) && !field.repeatSection),
+      };
+    });
+
+    assert.equal(result.education.length, 10);
+    assert.equal(result.projects.length, 10);
+    assert.equal(result.untaggedRepeats.length, 0);
+    assert.deepEqual(
+      [...new Set(result.education.map(field => field.repeatIndex))].sort((a, b) => a - b),
+      [0, 1],
+    );
+    assert.deepEqual(
+      [...new Set(result.projects.map(field => field.repeatIndex))].sort((a, b) => a - b),
+      [0, 1],
+    );
+    assert.equal(result.education.every(field => field.repeatSize === 2), true);
+    assert.equal(result.projects.every(field => field.repeatSize === 2), true);
+    assert.deepEqual(result.mixedTagged, []);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('navigation detector treats confirm and save continue buttons as safe next steps', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
