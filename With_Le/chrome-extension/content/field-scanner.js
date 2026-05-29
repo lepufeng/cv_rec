@@ -233,7 +233,10 @@ var FieldScanner = {
       const segLabel = this._labelFromSegment(items, prevCtrlIndex, i);
       const label = this._resolveLabel(ctrl, segLabel, lastLabel);
       const widget = this._detectWidget(ctrl, label);
-      const options = this._extractOptions(ctrl);
+      const optionObjects = this._extractOptionObjects(ctrl);
+      const options = optionObjects.length > 0
+        ? optionObjects.map(opt => opt.label).filter(Boolean)
+        : this._extractOptions(ctrl);
 
       const field = {
         fieldId,
@@ -246,6 +249,7 @@ var FieldScanner = {
         required: this._isRequired(ctrl),
         section: this._detectSection(ctrl),
       };
+      if (optionObjects.length > 0) field.optionObjects = optionObjects;
       Object.assign(field, this._extractFieldMetadata(ctrl, widget));
 
       // Optional input constraints — only emit when present so that simple
@@ -883,6 +887,76 @@ var FieldScanner = {
       }
     }
     return [];
+  },
+
+  _extractOptionObjects(el) {
+    if (this._isPseudoGroup(el)) {
+      const items = el.querySelectorAll(this._PSEUDO_ITEM_SELECTOR);
+      return this._dedupeOptionObjects(Array.from(items).map(it => ({
+        label: (it.textContent || '').replace(/\s+/g, ' ').trim(),
+        value: this._optionElementValue(it),
+      })));
+    }
+
+    if (el.tagName && el.tagName.toLowerCase() === 'select') {
+      return this._dedupeOptionObjects(Array.from(el.options).map(opt => ({
+        label: (opt.textContent || opt.label || opt.value || '').replace(/\s+/g, ' ').trim(),
+        value: opt.value,
+      })));
+    }
+
+    if (el.type === 'radio' || el.type === 'checkbox') {
+      const inputs = el.name
+        ? Array.from(document.querySelectorAll(`input[name="${CSS.escape(el.name)}"]`))
+        : [el];
+      return this._dedupeOptionObjects(inputs.map(input => {
+        const lbl = input.closest('label');
+        return {
+          label: lbl ? (lbl.textContent || '').replace(/\s+/g, ' ').trim() : (input.value || '').trim(),
+          value: input.value || '',
+        };
+      }));
+    }
+
+    const role = el.getAttribute && el.getAttribute('role');
+    if (role === 'listbox' || role === 'combobox') {
+      const opts = el.querySelectorAll('[role="option"]');
+      if (opts.length > 0) {
+        return this._dedupeOptionObjects(Array.from(opts).map(opt => ({
+          label: (opt.textContent || '').replace(/\s+/g, ' ').trim(),
+          value: this._optionElementValue(opt),
+        })));
+      }
+    }
+
+    return [];
+  },
+
+  _optionElementValue(el) {
+    if (!el || !el.getAttribute) return '';
+    return (
+      el.getAttribute('data-value') ||
+      el.getAttribute('value') ||
+      el.getAttribute('aria-value') ||
+      el.getAttribute('data-key') ||
+      el.getAttribute('data-id') ||
+      ''
+    ).trim();
+  },
+
+  _dedupeOptionObjects(options) {
+    const out = [];
+    const seen = new Set();
+    for (const option of options) {
+      const label = (option.label || '').trim();
+      if (!label || label.length > this.MAX_OPTION_LEN) continue;
+      const value = option.value == null ? '' : String(option.value).trim();
+      const key = `${label}\u0000${value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(value ? { label, value } : { label });
+    }
+    return out;
   },
 
   _detectSection(el) {

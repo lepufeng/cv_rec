@@ -290,7 +290,7 @@ POST /api/v1/fill-plans/{plan_id}/feedback
 | `currentValue` | 已用于执行器跳过已有非占位值，避免覆盖用户已有输入 |
 | `disabled/readonly/visible` | `disabled/readonly` 已用于跳过不可操作字段；`visible` 当前由扫描/执行阶段可见性判断处理 |
 | `ariaLabel/name/htmlType/autocomplete` | 增强字段语义判断 |
-| `optionObjects` | 对 select 返回 `{label,value}`，插件执行时需要 value |
+| `optionObjects` | 已对 select/radio/checkbox 返回 `{label,value}`，同时保留 `options` 文本兼容旧链路 |
 | `frameIndex` | 多 iframe 回填定位 |
 | `groupRoleHint` | 可选，插件若能判断“教育/项目/工作”则回传 |
 

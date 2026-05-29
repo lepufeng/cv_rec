@@ -941,9 +941,9 @@ test('scanner emits backend matching metadata without losing widget semantics', 
 
       <label for="preferred-city">期望城市</label>
       <select id="preferred-city" name="cities" multiple>
-        <option selected>上海</option>
-        <option selected>深圳</option>
-        <option>北京</option>
+        <option value="sh" selected>上海</option>
+        <option value="sz" selected>深圳</option>
+        <option value="bj">北京</option>
       </select>
 
       <label for="degree">学历</label>
@@ -985,6 +985,12 @@ test('scanner emits backend matching metadata without losing widget semantics', 
     assert.equal(result.city.widget, 'native-select');
     assert.equal(result.city.isMultiselect, true);
     assert.equal(result.city.currentValue, '上海、深圳');
+    assert.deepEqual(result.city.options, ['上海', '深圳', '北京']);
+    assert.deepEqual(result.city.optionObjects, [
+      { label: '上海', value: 'sh' },
+      { label: '深圳', value: 'sz' },
+      { label: '北京', value: 'bj' },
+    ]);
 
     assert.equal(result.degree.widget, 'custom-dropdown');
     assert.equal(result.degree.type, 'select');

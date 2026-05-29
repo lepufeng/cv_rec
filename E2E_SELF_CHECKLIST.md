@@ -175,7 +175,7 @@ schema_version=1.4（升级至 1.6 后需重新解析以生成 internship_experi
 - [ ] 插件提供 `sectionPath`
 - [x] 插件提供 `currentValue/disabled/readonly`，执行器会跳过已有非占位值避免覆盖
 - [ ] 插件显式提供 `visible`
-- [ ] 插件提供 select 的 `{label,value}` 形式选项
+- [x] 插件提供 select/radio/checkbox 的 `{label,value}` 形式选项（`optionObjects`），并保留 `options` 文本兼容旧链路
 
 已验证样例：
 

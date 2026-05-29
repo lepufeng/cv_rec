@@ -50,6 +50,9 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /\.send_title/);
   assert.match(scanner, /\.info_box/);
   assert.match(scanner, /data-field-list-item/);
+  assert.match(scanner, /optionObjects/);
+  assert.match(scanner, /_extractOptionObjects\(ctrl\)/);
+  assert.match(scanner, /_dedupeOptionObjects\(options\)/);
   assert.match(scanner, /_REPEAT_FIELD_LABEL_HINT_REGEX/);
   assert.match(scanner, /_repeatFieldSignaturesMatch\(a, b\)/);
   assert.match(scanner, /_inferRepeatSectionFromItem\(item\)/);
