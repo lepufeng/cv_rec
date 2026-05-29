@@ -80,7 +80,9 @@ class FillService:
         # 2. Cache lookup
         site_domain = _extract_domain(request.url)
         form_field_ids = [field.fieldId for field in request.fields]
-        form_fields_dump = [f.model_dump(mode="json", exclude_none=True) for f in request.fields]
+        form_fields_dump = _augment_fields_with_repeat_context(
+            [f.model_dump(mode="json", exclude_none=True) for f in request.fields]
+        )
         structure_hash = self._structure_hash(
             form_fields_dump,
             request.user_overrides,
@@ -297,7 +299,7 @@ def _build_rules_fallback_plan(resume_data: dict, form_fields: list[dict]) -> Fi
     filled: dict[str, FilledField] = {}
     needs_user_input: list[str] = []
 
-    for field in _iter_fields(form_fields):
+    for field in _iter_fields(_augment_fields_with_repeat_context(form_fields)):
         field_id = str(field.get("fieldId") or field.get("id") or "").strip()
         if not field_id:
             continue
@@ -318,6 +320,147 @@ def _build_rules_fallback_plan(resume_data: dict, form_fields: list[dict]) -> Fi
         needs_user_input=list(dict.fromkeys(needs_user_input)),
         warnings=["模型输出校验失败，已使用规则匹配兜底"],
     )
+
+
+def _augment_fields_with_repeat_context(form_fields: list[dict]) -> list[dict]:
+    """Infer repeat metadata from flat, repeated field signatures.
+
+    The extension normally emits repeatIndex/repeatSection after dynamic cards
+    are expanded. This backend pass is a conservative safety net for older or
+    partially-scanned ATS pages where the DOM has repeated cards but no explicit
+    repeat metadata.
+    """
+    fields = [_copy_field_tree(field) for field in form_fields]
+    _infer_contiguous_repeat_runs(fields)
+    return fields
+
+
+def _copy_field_tree(field: dict) -> dict:
+    copied = dict(field)
+    children = copied.get("subFields") or copied.get("sub_fields")
+    if isinstance(children, list):
+        copied["subFields"] = [
+            _copy_field_tree(child)
+            for child in children
+            if isinstance(child, dict)
+        ]
+        _infer_contiguous_repeat_runs(copied["subFields"])
+        copied.pop("sub_fields", None)
+    return copied
+
+
+def _infer_contiguous_repeat_runs(fields: list[dict]) -> None:
+    max_width = 12
+    i = 0
+    while i < len(fields):
+        matched = False
+        remaining = len(fields) - i
+        for width in range(2, min(max_width, remaining // 2) + 1):
+            signature = [_repeat_signature_part(fields[i + offset]) for offset in range(width)]
+            if not all(signature):
+                continue
+            section_name = _infer_repeat_section_from_signature(signature)
+            if not section_name:
+                continue
+
+            count = 1
+            while i + (count + 1) * width <= len(fields):
+                next_sig = [
+                    _repeat_signature_part(fields[i + count * width + offset])
+                    for offset in range(width)
+                ]
+                if next_sig != signature:
+                    break
+                count += 1
+
+            if count < 2:
+                continue
+
+            _apply_inferred_repeat(fields, i, width, count, section_name)
+            i += width * count
+            matched = True
+            break
+
+        if not matched:
+            i += 1
+
+
+def _repeat_signature_part(field: dict[str, Any]) -> str:
+    label = _as_text(field.get("label"))
+    sub_label = _as_text(field.get("subLabel") or field.get("sub_label"))
+    placeholder = _as_text(field.get("placeholder"))
+    text = label or sub_label or placeholder
+    if not text:
+        return ""
+    group_index = field.get("groupIndex")
+    if group_index is None:
+        group_index = field.get("group_index")
+    group_part = f"#{group_index}" if group_index is not None else ""
+    return f"{text.casefold().strip()}{group_part}"
+
+
+def _infer_repeat_section_from_signature(signature: list[str]) -> str | None:
+    if len(set(signature)) < 2:
+        return None
+    return _repeat_section_name_from_text(" ".join(signature))
+
+
+def _repeat_section_name_from_text(text: str) -> str | None:
+    normalized = text.casefold()
+    if "项目" in normalized or "project" in normalized:
+        return "项目经历"
+    if "实习" in normalized or "intern" in normalized:
+        return "实习经历"
+    if (
+        "教育" in normalized or "学历" in normalized or "学位" in normalized or
+        "学校" in normalized or "院校" in normalized or "专业" in normalized or
+        "院系" in normalized or "求学" in normalized or
+        "education" in normalized or "school" in normalized or
+        "university" in normalized or "degree" in normalized or "major" in normalized
+    ):
+        return "教育经历"
+    if "校园" in normalized or "社团" in normalized or "学生干部" in normalized or "社会实践" in normalized or "实践经历" in normalized or "campus" in normalized:
+        return "校园经历"
+    if (
+        "工作经历" in normalized or "工作经验" in normalized or "工作履历" in normalized or
+        "任职经历" in normalized or "职业经历" in normalized or "就业经历" in normalized or
+        "公司" in normalized or "职位" in normalized or "岗位" in normalized or
+        "work experience" in normalized or "work history" in normalized or
+        "employment history" in normalized or "professional experience" in normalized or
+        "career history" in normalized or "company" in normalized or "position" in normalized
+    ):
+        return "工作经历"
+    return None
+
+
+def _apply_inferred_repeat(
+    fields: list[dict],
+    start: int,
+    width: int,
+    count: int,
+    section_name: str,
+) -> None:
+    repeat_group_id = f"seq_{start}_{width}_{count}"
+    for repeat_index in range(count):
+        offset = start + repeat_index * width
+        for pos in range(width):
+            field = fields[offset + pos]
+            changed = False
+            if field.get("repeatGroupId") is None and field.get("repeat_group_id") is None:
+                field["repeatGroupId"] = repeat_group_id
+                changed = True
+            if field.get("repeatIndex") is None and field.get("repeat_index") is None:
+                field["repeatIndex"] = repeat_index
+                changed = True
+            if field.get("repeatSize") is None and field.get("repeat_size") is None:
+                field["repeatSize"] = count
+                changed = True
+            if field.get("repeatSection") is None and field.get("repeat_section") is None:
+                field["repeatSection"] = section_name
+                changed = True
+            if changed:
+                field.pop("fieldFingerprint", None)
+                field.pop("field_fingerprint", None)
 
 
 def _iter_fields(fields: list[dict]) -> list[dict]:

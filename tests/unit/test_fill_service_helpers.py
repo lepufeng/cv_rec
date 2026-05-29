@@ -1,7 +1,13 @@
 """Pure-function tests for FillService internals."""
 from __future__ import annotations
 
-from app.services.fill_service import FillService, _extract_domain, _match_field_from_resume
+from app.services.fill_service import (
+    FillService,
+    _augment_fields_with_repeat_context,
+    _build_rules_fallback_plan,
+    _extract_domain,
+    _match_field_from_resume,
+)
 
 
 def test_structure_hash_stable_under_reorder():
@@ -166,6 +172,69 @@ def test_repeated_fields_can_infer_section_from_label_and_repeat_index():
         {"label": "公司", "repeatIndex": 1},
         resume,
     ) == ("未来科技", "work_experience[1].company", 0.82)
+
+
+def test_flat_repeated_field_runs_gain_repeat_context():
+    fields = [
+        {"fieldId": "edu1_school", "label": "学校名称", "type": "text"},
+        {"fieldId": "edu1_degree", "label": "学历", "type": "select"},
+        {"fieldId": "edu1_major", "label": "专业", "type": "text"},
+        {"fieldId": "edu1_start", "label": "起止时间", "type": "date", "groupIndex": 0},
+        {"fieldId": "edu1_end", "label": "起止时间", "type": "date", "groupIndex": 1},
+        {"fieldId": "edu2_school", "label": "学校名称", "type": "text"},
+        {"fieldId": "edu2_degree", "label": "学历", "type": "select"},
+        {"fieldId": "edu2_major", "label": "专业", "type": "text"},
+        {"fieldId": "edu2_start", "label": "起止时间", "type": "date", "groupIndex": 0},
+        {"fieldId": "edu2_end", "label": "起止时间", "type": "date", "groupIndex": 1},
+        {"fieldId": "summary", "label": "自我评价", "type": "textarea"},
+    ]
+
+    augmented = _augment_fields_with_repeat_context(fields)
+    assert "repeatIndex" not in fields[0]
+    assert [field["repeatIndex"] for field in augmented[:10]] == [0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
+    assert {field["repeatSize"] for field in augmented[:10]} == {2}
+    assert {field["repeatSection"] for field in augmented[:10]} == {"教育经历"}
+    assert "repeatIndex" not in augmented[10]
+
+
+def test_rules_fallback_maps_flat_repeated_fields_by_inferred_index():
+    resume = {
+        "education": [
+            {
+                "school": "本科大学",
+                "degree": "本科",
+                "major": "软件工程",
+                "start_date": "2018-09",
+                "end_date": "2022-06",
+            },
+            {
+                "school": "研究生大学",
+                "degree": "硕士",
+                "major": "计算机科学",
+                "start_date": "2022-09",
+                "end_date": "2025-06",
+            },
+        ],
+    }
+    fields = [
+        {"fieldId": "edu1_school", "label": "学校名称", "type": "text"},
+        {"fieldId": "edu1_degree", "label": "学历", "type": "select"},
+        {"fieldId": "edu1_major", "label": "专业", "type": "text"},
+        {"fieldId": "edu1_start", "label": "起止时间", "type": "date", "groupIndex": 0},
+        {"fieldId": "edu1_end", "label": "起止时间", "type": "date", "groupIndex": 1},
+        {"fieldId": "edu2_school", "label": "学校名称", "type": "text"},
+        {"fieldId": "edu2_degree", "label": "学历", "type": "select"},
+        {"fieldId": "edu2_major", "label": "专业", "type": "text"},
+        {"fieldId": "edu2_start", "label": "起止时间", "type": "date", "groupIndex": 0},
+        {"fieldId": "edu2_end", "label": "起止时间", "type": "date", "groupIndex": 1},
+    ]
+
+    plan = _build_rules_fallback_plan(resume, fields)
+    assert plan.filled["edu1_school"].value == "本科大学"
+    assert plan.filled["edu2_school"].value == "研究生大学"
+    assert plan.filled["edu2_degree"].source == "education[1].degree"
+    assert plan.filled["edu2_start"].value == "2022-09"
+    assert plan.filled["edu2_end"].value == "2025-06"
 
 
 def test_repeated_current_flag_maps_when_end_date_is_open():
