@@ -161,7 +161,10 @@ var SectionManager = {
         this._textMatchesSection(text, sectionName) &&
         this._isVisible(btn);
     });
-    if (direct) return { button: direct, container: this._buttonSectionContainer(direct) };
+    if (direct) return {
+      button: direct,
+      container: this._containerForDirectAddButton(direct, sectionName),
+    };
 
     const headings = document.querySelectorAll(this.HEADING_SELECTOR);
     for (const h of headings) {
@@ -350,6 +353,39 @@ var SectionManager = {
     const parent = btn && btn.parentElement;
     return parent && parent.closest('.send_box, .send_content, .experience_box, [class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
       btn.parentElement;
+  },
+
+  _containerForDirectAddButton(btn, sectionName) {
+    const fallback = this._buttonSectionContainer(btn);
+    if (fallback && this._countRepeatItems(fallback) > 0) return fallback;
+
+    let cur = fallback;
+    let depth = 0;
+    while (cur && cur !== document.body && depth < 8) {
+      const sectionText =
+        this._sectionNameFromContainer(cur) ||
+        this._matchingHeadingText(cur, sectionName);
+      const matchesSection = this._textMatchesSection(sectionText, sectionName);
+      if (matchesSection && (this._countRepeatItems(cur) > 0 || cur.contains(btn))) {
+        return cur;
+      }
+      cur = cur.parentElement;
+      depth++;
+    }
+
+    return fallback;
+  },
+
+  _matchingHeadingText(container, sectionName) {
+    if (!container || !container.querySelectorAll) return '';
+    const headings = Array.from(container.querySelectorAll(this.HEADING_SELECTOR));
+    const matched = headings.find(heading => {
+      if (!this._isVisible(heading)) return false;
+      if (heading.closest && heading.closest(this.BUTTON_SELECTOR)) return false;
+      const text = (heading.textContent || '').replace(/\s+/g, ' ').trim();
+      return this._textMatchesSection(text, sectionName);
+    });
+    return matched ? (matched.textContent || '').replace(/\s+/g, ' ').trim() : '';
   },
 
   _sectionContainersByName(sectionName) {

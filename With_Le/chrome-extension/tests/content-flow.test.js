@@ -129,6 +129,8 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /_collectSectionsFromDataContainers/);
   assert.match(manager, /SECTION_ATTRS/);
   assert.match(manager, /_findAddTarget\(sectionName\)/);
+  assert.match(manager, /_containerForDirectAddButton\(direct, sectionName\)/);
+  assert.match(manager, /_matchingHeadingText\(cur, sectionName\)/);
   assert.match(manager, /_waitForCountIncrease\(container, beforeCount, this\.EXPAND_TIMEOUT\)/);
   assert.match(manager, /_repeatItemCandidates\(container, \{ visibleOnly: true \}\)/);
   assert.match(manager, /_leafRepeatCandidates\(hiddenCandidates\)/);
