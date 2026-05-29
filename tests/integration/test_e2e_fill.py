@@ -215,6 +215,68 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
 
 
 @pytest.mark.asyncio
+async def test_plugin_match_repairs_composite_phone_fields_from_valid_model(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("plugin-phone-repair-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    payload = _form_payload(rid)
+    payload["fields"] = [
+        {
+            "fieldId": "phone_country",
+            "label": "手机号码",
+            "subLabel": "国家/地区",
+            "type": "select",
+            "widget": "custom-dropdown",
+            "options": ["中国 +86", "中国香港 +852"],
+            "groupIndex": 0,
+            "groupSize": 2,
+        },
+        {
+            "fieldId": "phone_number",
+            "label": "手机号码",
+            "subLabel": "手机号码",
+            "type": "tel",
+            "groupIndex": 1,
+            "groupSize": 2,
+        },
+    ]
+    fake.queue_response({
+        "filled": {
+            "phone_country": {
+                "value": "13800138000",
+                "confidence": 0.9,
+                "reasoning": "模型误把完整手机号给了区号",
+                "source": "basic_info.phone",
+            },
+            "phone_number": {
+                "value": "待覆盖",
+                "confidence": 0.5,
+                "reasoning": "模型误填",
+                "source": "basic_info.phone",
+            },
+        },
+        "needs_user_input": [],
+        "warnings": [],
+    })
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["mappings"] == {
+        "phone_country": "中国 +86",
+        "phone_number": "13800138000",
+    }
+    assert body["filled"]["phone_country"]["reasoning"] == "后端规则校正复合手机号字段"
+
+
+@pytest.mark.asyncio
 async def test_force_refresh_bypasses_fill_plan_cache(app_client, make_user):
     client, fake = app_client
     user = await make_user("force-refresh-user")

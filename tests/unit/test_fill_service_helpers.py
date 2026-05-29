@@ -118,6 +118,63 @@ def test_repeated_project_fields_match_by_repeat_index():
     )
 
 
+def test_grouped_phone_fields_split_country_code_and_number():
+    resume = {
+        "basic_info": {
+            "phone": "13800138000",
+        },
+    }
+
+    assert _match_field_from_resume(
+        {
+            "fieldId": "phone_country",
+            "label": "手机号码",
+            "subLabel": "国家/地区",
+            "type": "select",
+            "widget": "custom-dropdown",
+            "options": ["中国 +86", "中国香港 +852"],
+            "groupIndex": 0,
+            "groupSize": 2,
+        },
+        resume,
+    ) == ("中国 +86", "basic_info.phone", 0.86)
+    assert _match_field_from_resume(
+        {
+            "fieldId": "phone_number",
+            "label": "手机号码",
+            "subLabel": "手机号码",
+            "type": "tel",
+            "groupIndex": 1,
+            "groupSize": 2,
+        },
+        resume,
+    ) == ("13800138000", "basic_info.phone", 0.9)
+
+
+def test_grouped_phone_country_code_can_use_option_value():
+    resume = {
+        "basic_info": {
+            "phone": "13800138000",
+        },
+    }
+
+    assert _match_field_from_resume(
+        {
+            "fieldId": "phone_country",
+            "label": "手机号",
+            "subLabel": "区号",
+            "type": "select",
+            "optionObjects": [
+                {"label": "中国大陆 +86", "value": "CN"},
+                {"label": "中国香港 +852", "value": "HK"},
+            ],
+            "groupIndex": 0,
+            "groupSize": 2,
+        },
+        resume,
+    ) == ("CN", "basic_info.phone", 0.86)
+
+
 def test_repeated_education_and_internship_fields_match_by_index():
     resume = {
         "education": [

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -104,10 +105,12 @@ class FillService:
                 resume_id=resume.id,
                 thinking_mode=effective_thinking_mode,
             )
-            cached_plan = self._ensure_field_coverage(
+            cached_plan = _apply_deterministic_field_repairs(
                 FillPlanLLMOutput.model_validate(cached.plan_data),
-                form_field_ids,
+                resume.parsed_data,
+                form_fields_dump,
             )
+            cached_plan = self._ensure_field_coverage(cached_plan, form_field_ids)
             return FillPlanResponse(
                 plan_id=cached.id,
                 cache_hit=True,
@@ -122,6 +125,7 @@ class FillService:
             form_fields=form_fields_dump,
             user_overrides=request.user_overrides,
         )
+        plan = _apply_deterministic_field_repairs(plan, resume.parsed_data, form_fields_dump)
         plan = self._ensure_field_coverage(plan, form_field_ids)
 
         # 4. Persist cache row
@@ -320,6 +324,44 @@ def _build_rules_fallback_plan(resume_data: dict, form_fields: list[dict]) -> Fi
         needs_user_input=list(dict.fromkeys(needs_user_input)),
         warnings=["模型输出校验失败，已使用规则匹配兜底"],
     )
+
+
+def _apply_deterministic_field_repairs(
+    plan: FillPlanLLMOutput,
+    resume_data: dict,
+    form_fields: list[dict],
+) -> FillPlanLLMOutput:
+    """Correct high-confidence structured fields even when the model response is valid."""
+    repaired = plan.model_copy(deep=True)
+    for field in _iter_fields(_augment_fields_with_repeat_context(form_fields)):
+        field_id = str(field.get("fieldId") or field.get("id") or "").strip()
+        if not field_id or not _should_repair_phone_field(field):
+            continue
+        match = _match_field_from_resume(field, resume_data)
+        if match is None:
+            continue
+        value, source, confidence = match
+        repaired.filled[field_id] = FilledField(
+            value=value,
+            confidence=confidence,
+            reasoning="后端规则校正复合手机号字段",
+            source=source,
+        )
+        repaired.needs_user_input = [
+            existing for existing in repaired.needs_user_input if existing != field_id
+        ]
+    return repaired
+
+
+def _should_repair_phone_field(field: dict[str, Any]) -> bool:
+    text = _field_search_text(field)
+    if not _contains_any(text, ("手机号", "手机号码", "手机", "电话", "联系方式", "phone", "mobile", "tel")):
+        return False
+    group_value = field.get("groupSize")
+    if group_value is None:
+        group_value = field.get("group_size")
+    group_size = _safe_int(group_value)
+    return (group_size is not None and group_size > 1) or _phone_country_code_field(field, text)
 
 
 def _augment_fields_with_repeat_context(form_fields: list[dict]) -> list[dict]:
@@ -523,6 +565,10 @@ def _match_field_from_resume(
         if skill_values:
             return _filled("、".join(skill_values), "skills", 0.74)
 
+    phone_match = _match_phone_field(field, basic, text)
+    if phone_match is not None:
+        return phone_match
+
     rules: list[tuple[tuple[str, ...], Any, str, float]] = [
         (("姓名", "真实姓名", "full name", "name"), basic.get("name"), "basic_info.name", 0.9),
         (("邮箱", "电子邮箱", "email", "e-mail"), basic.get("email"), "basic_info.email", 0.9),
@@ -554,6 +600,89 @@ def _match_field_from_resume(
             return _filled(_coerce_option_value(field, value_text), source, confidence)
 
     return None
+
+
+def _match_phone_field(
+    field: dict[str, Any],
+    basic: dict[str, Any],
+    text: str,
+) -> tuple[Any, str, float] | None:
+    if not _contains_any(text, ("手机号", "手机号码", "手机", "电话", "联系方式", "phone", "mobile", "tel")):
+        return None
+
+    phone = _as_text(basic.get("phone"))
+    if not phone:
+        return None
+
+    if _phone_country_code_field(field, text):
+        code, source = _phone_country_code_value(basic, phone)
+        if not code:
+            return None
+        return _filled(_coerce_option_value(field, code), source, 0.86)
+
+    return _filled(_coerce_option_value(field, phone), "basic_info.phone", 0.9)
+
+
+def _phone_country_code_field(field: dict[str, Any], text: str) -> bool:
+    if _contains_any(
+        text,
+        (
+            "区号", "国家码", "国家代码", "国家/地区", "国家及地区",
+            "country code", "area code", "dial code", "country/region",
+            "country region", "calling code",
+        ),
+    ):
+        return True
+
+    group_value = field.get("groupIndex")
+    if group_value is None:
+        group_value = field.get("group_index")
+    group_index = _safe_int(group_value)
+    if group_index == 0 and _options_look_like_phone_country_codes(field):
+        return True
+
+    field_type = str(field.get("type") or "").casefold()
+    widget = str(field.get("widget") or "").casefold()
+    return (
+        field_type in {"select", "radio"}
+        or "select" in widget
+        or "dropdown" in widget
+        or "combobox" in widget
+    ) and _options_look_like_phone_country_codes(field)
+
+
+def _phone_country_code_value(basic: dict[str, Any], phone: str) -> tuple[str, str]:
+    for key in (
+        "phone_country_code",
+        "country_code",
+        "area_code",
+        "dial_code",
+        "phone_country",
+        "phone_region",
+    ):
+        value = _as_text(basic.get(key))
+        if value:
+            return value, f"basic_info.{key}"
+
+    compact = phone.strip()
+    digits = re.sub(r"\D+", "", compact)
+    if compact.startswith("+") and len(digits) > 11:
+        return f"+{digits[:-11]}", "basic_info.phone"
+    if compact.startswith("00") and len(digits) > 13:
+        return f"+{digits[2:-11]}", "basic_info.phone"
+    if (len(digits) == 13 and digits.startswith("86")) or (len(digits) == 11 and digits.startswith("1")):
+        return "+86", "basic_info.phone"
+    return "", "basic_info.phone"
+
+
+def _options_look_like_phone_country_codes(field: dict[str, Any]) -> bool:
+    for option_text in _option_texts(field):
+        normalized = option_text.casefold()
+        if re.search(r"(?<!\d)(?:\+|00)\d{1,4}(?!\d)", option_text):
+            return True
+        if _contains_any(normalized, ("中国", "china", "mainland", "香港", "澳门", "台湾")):
+            return True
+    return False
 
 
 def _is_plain_readonly_field(field: dict[str, Any]) -> bool:
@@ -714,6 +843,13 @@ def _safe_repeat_index(field: dict[str, Any]) -> int:
         return max(int(value), 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _repeated_item_key_for_field(
@@ -956,15 +1092,7 @@ def _coerce_option_value(field: dict[str, Any], value: Any) -> Any:
     value_text = _as_text(value)
     if not value_text:
         return value
-    option_sources = []
-    options = field.get("optionObjects") or field.get("option_objects") or []
-    if isinstance(options, list):
-        option_sources.extend(options)
-    raw_options = field.get("options") or []
-    if isinstance(raw_options, list):
-        option_sources.extend(raw_options)
-
-    for option in option_sources:
+    for option in _option_sources(field):
         if isinstance(option, dict):
             label = _as_text(option.get("label"))
             option_value = _as_text(option.get("value")) or label
@@ -974,11 +1102,55 @@ def _coerce_option_value(field: dict[str, Any], value: Any) -> Any:
         haystacks = {label.casefold(), option_value.casefold()}
         if value_text.casefold() in haystacks:
             return option_value
+        if _option_contains_phone_country_code(label, option_value, value_text):
+            return option_value
         if value_text == "男" and ({"男", "male"} & haystacks):
             return option_value
         if value_text == "女" and ({"女", "female"} & haystacks):
             return option_value
     return value
+
+
+def _option_sources(field: dict[str, Any]) -> list[Any]:
+    option_sources: list[Any] = []
+    options = field.get("optionObjects") or field.get("option_objects") or []
+    if isinstance(options, list):
+        option_sources.extend(options)
+    raw_options = field.get("options") or []
+    if isinstance(raw_options, list):
+        option_sources.extend(raw_options)
+    return option_sources
+
+
+def _option_texts(field: dict[str, Any]) -> list[str]:
+    texts: list[str] = []
+    for option in _option_sources(field):
+        if isinstance(option, dict):
+            texts.append(
+                " ".join(
+                    part
+                    for part in (_as_text(option.get("label")), _as_text(option.get("value")))
+                    if part
+                )
+            )
+        else:
+            texts.append(_as_text(option))
+    return [text for text in texts if text]
+
+
+def _option_contains_phone_country_code(label: str, option_value: str, value_text: str) -> bool:
+    normalized_value = value_text.casefold().strip()
+    candidates = [label.casefold(), option_value.casefold()]
+    if normalized_value in {"中国", "中国大陆", "china", "mainland china"}:
+        return any(normalized_value in candidate for candidate in candidates)
+
+    digits = re.sub(r"\D+", "", value_text)
+    if not digits or len(digits) > 4:
+        return False
+    for candidate in candidates:
+        if re.search(rf"(?<!\d)(?:\+|00)?{re.escape(digits)}(?!\d)", candidate):
+            return True
+    return False
 
 
 def _fact_value(resume_data: dict[str, Any], key: str) -> str:
