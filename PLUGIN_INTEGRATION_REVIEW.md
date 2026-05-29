@@ -264,7 +264,7 @@ POST /api/v1/fill-plans/{plan_id}/feedback
 | 插件兼容响应 | 已完成：`POST /api/v1/fill-plans/plugin-match` 额外返回 `mappings/skipped/sectionActions` |
 | 插件扫描校验入口 | 已完成：`POST /api/v1/fill-plans/plugin-scan` 校验扫描 JSON，不调用模型 |
 | 返回动作类型 | 待完成：`set_text/select_option/set_date/check/fill_repeater/upload_file/needs_user_input` |
-| 缓存 hash 改用稳定 fingerprint | 避免随机 `fieldId` 破坏缓存 |
+| 缓存 hash 改用稳定 fingerprint | 已完成：结构 hash 忽略随机 `fieldId`，缓存命中后按 `fieldFingerprint` 重映射到本次扫描的 `fieldId` |
 
 ### P1：满足自动填写和学习闭环
 
@@ -306,7 +306,8 @@ POST /api/v1/fill-plans/{plan_id}/feedback
 插件扫描 JSON -> 平台 FillPlanRequest -> 模型返回 filled value -> 插件按 fieldId 填写
 ```
 
-风险是：动态下拉、重复经历、日期、复合字段会有较多低置信或填写失败。
+历史风险是：动态下拉、重复经历、日期、复合字段会有较多低置信或填写失败。
+当前已补强动态经历新增、日期/日期范围、富文本、自定义/异步下拉、只读字段、iframe 上下文、复合手机号字段以及缓存命中后的随机 `fieldId` 重映射；真实生产页仍需逐站点验收。
 
 ### “真实自动填写”需求
 

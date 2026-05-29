@@ -69,6 +69,59 @@ async def test_fill_plan_cache_miss_then_hit(app_client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_plugin_match_cache_hit_remaps_refreshed_field_ids(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("cache-remap-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    def payload(prefix: str) -> dict:
+        return {
+            "resumeId": rid,
+            "url": "https://jobs.example.com/apply/123",
+            "fields": [
+                {"fieldId": f"{prefix}_name", "label": "姓名", "type": "text"},
+                {"fieldId": f"{prefix}_phone", "label": "手机", "type": "tel"},
+                {"fieldId": f"{prefix}_email", "label": "邮箱", "type": "email"},
+                {"fieldId": f"{prefix}_height", "label": "身高(cm)", "type": "number"},
+            ],
+        }
+
+    fake.queue_response({
+        "filled": {
+            "old_name": {"value": "张三", "confidence": 1.0, "reasoning": "x", "source": "basic_info.name"},
+            "old_phone": {"value": "13800138000", "confidence": 1.0, "reasoning": "x", "source": "basic_info.phone"},
+            "old_email": {"value": "zhangsan@example.com", "confidence": 1.0, "reasoning": "x", "source": "basic_info.email"},
+        },
+        "needs_user_input": ["old_height"],
+        "warnings": [],
+    })
+    first = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload("old"))
+    assert first.status_code == 200, first.text
+    assert first.json()["cache_hit"] is False
+    calls_after_first = len(fake.calls)
+
+    second = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload("new"))
+    assert second.status_code == 200, second.text
+    body = second.json()
+
+    assert body["cache_hit"] is True
+    assert len(fake.calls) == calls_after_first
+    assert body["mappings"] == {
+        "new_name": "张三",
+        "new_phone": "13800138000",
+        "new_email": "zhangsan@example.com",
+    }
+    assert body["skipped"] == ["new_height"]
+    assert not any(field_id.startswith("old_") for field_id in body["filled"])
+
+
+@pytest.mark.asyncio
 async def test_fill_cache_invalidated_after_resume_patch(app_client, make_user):
     client, fake = app_client
     user = await make_user("eve")

@@ -210,8 +210,9 @@ node --test With_Le/chrome-extension/tests/*.test.js
 - [x] `filled` 包含 value/confidence/source/reasoning
 - [x] 无法确定字段进入 `needs_user_input`
 - [x] 动态下拉 `enumerable=false` 时不强制要求 options 内选择
-- [ ] `groupId` 复合字段能正确拆分，如手机号区号/号码
-- [ ] 日期字段能返回标准日期值
+- [x] `groupId` 复合字段能正确拆分，如手机号区号/号码
+- [x] 日期字段能返回标准日期值
+- [x] 缓存命中后可按 `fieldFingerprint` 重映射刷新后的随机 `fieldId`
 
 当前缺口：
 
@@ -225,19 +226,19 @@ node --test With_Le/chrome-extension/tests/*.test.js
 
 插件侧自查：
 
-- [ ] 插件保存 `fieldId -> DOM element` 映射
-- [ ] text/textarea 可写入 React/Vue 受控组件
-- [ ] pseudo-radio 可选择
-- [ ] native select 可选择
-- [ ] custom-dropdown 可打开并搜索/选择
-- [ ] cascader 可逐级选择
-- [ ] date-picker 可选择日期
-- [ ] checkbox/radio 可点击
-- [ ] repeater 可新增多段经历
+- [x] 插件保存 `fieldId -> DOM element` 映射
+- [x] text/textarea 可写入 React/Vue 受控组件
+- [x] pseudo-radio 可选择
+- [x] native select 可选择
+- [x] custom-dropdown 可打开并搜索/选择
+- [x] cascader 可逐级选择
+- [x] date-picker 可选择日期
+- [x] checkbox/radio 可点击
+- [x] repeater 可新增多段经历
 - [ ] file upload 可上传简历文件
-- [ ] iframe 页面可定位并执行
+- [x] iframe 页面可定位并执行
 - [ ] Shadow DOM 场景有处理方案
-- [ ] 失败字段能给出具体原因
+- [x] 失败字段能给出具体原因
 
 当前根据队友说明：
 

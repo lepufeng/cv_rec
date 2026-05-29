@@ -44,6 +44,7 @@ from app.schemas.fill_plan import (
 
 
 log = get_logger("fill_service")
+_CACHE_FIELD_FINGERPRINTS_KEY = "_field_fingerprints"
 
 
 def _utcnow() -> datetime:
@@ -98,25 +99,32 @@ class FillService:
                 form_structure_hash=structure_hash,
             )
         if cached and cached.resume_data_version == resume.parsed_data_version:
-            await self.cache_repo.increment_hit(cached)
-            log.info(
-                "fill_cache_hit",
+            cached_plan = _plan_from_cache_for_current_fields(cached.plan_data, form_fields_dump)
+            if cached_plan is not None:
+                await self.cache_repo.increment_hit(cached)
+                log.info(
+                    "fill_cache_hit",
+                    user_id=user_id,
+                    resume_id=resume.id,
+                    thinking_mode=effective_thinking_mode,
+                )
+                cached_plan = _apply_deterministic_field_repairs(
+                    cached_plan,
+                    resume.parsed_data,
+                    form_fields_dump,
+                )
+                cached_plan = self._ensure_field_coverage(cached_plan, form_field_ids)
+                return FillPlanResponse(
+                    plan_id=cached.id,
+                    cache_hit=True,
+                    filled=cached_plan.filled,
+                    needs_user_input=cached_plan.needs_user_input,
+                    warnings=cached_plan.warnings,
+                )
+            log.warning(
+                "fill_cache_unusable_missing_field_fingerprints",
                 user_id=user_id,
                 resume_id=resume.id,
-                thinking_mode=effective_thinking_mode,
-            )
-            cached_plan = _apply_deterministic_field_repairs(
-                FillPlanLLMOutput.model_validate(cached.plan_data),
-                resume.parsed_data,
-                form_fields_dump,
-            )
-            cached_plan = self._ensure_field_coverage(cached_plan, form_field_ids)
-            return FillPlanResponse(
-                plan_id=cached.id,
-                cache_hit=True,
-                filled=cached_plan.filled,
-                needs_user_input=cached_plan.needs_user_input,
-                warnings=cached_plan.warnings,
             )
 
         # 3. Call LLM
@@ -136,7 +144,7 @@ class FillService:
             resume_data_version=resume.parsed_data_version,
             site_domain=site_domain,
             form_structure_hash=structure_hash,
-            plan_data=plan.model_dump(mode="json"),
+            plan_data=_plan_data_for_cache(plan, form_fields_dump),
             expires_at=_utcnow() + timedelta(days=ttl_days),
         )
         await self.cache_repo.add(cache_row)
@@ -324,6 +332,97 @@ def _build_rules_fallback_plan(resume_data: dict, form_fields: list[dict]) -> Fi
         needs_user_input=list(dict.fromkeys(needs_user_input)),
         warnings=["模型输出校验失败，已使用规则匹配兜底"],
     )
+
+
+def _plan_data_for_cache(plan: FillPlanLLMOutput, form_fields: list[dict]) -> dict[str, Any]:
+    data = plan.model_dump(mode="json")
+    data[_CACHE_FIELD_FINGERPRINTS_KEY] = _field_id_to_fingerprint(form_fields)
+    return data
+
+
+def _plan_from_cache_for_current_fields(
+    plan_data: dict[str, Any],
+    form_fields: list[dict],
+) -> FillPlanLLMOutput | None:
+    plan = FillPlanLLMOutput.model_validate(plan_data)
+    cached_fingerprints = plan_data.get(_CACHE_FIELD_FINGERPRINTS_KEY)
+    current_ids = set(_field_id_to_fingerprint(form_fields))
+
+    if not isinstance(cached_fingerprints, dict):
+        cached_ids = set(plan.filled) | set(plan.needs_user_input)
+        if cached_ids - current_ids:
+            return None
+        return plan
+
+    return _remap_cached_plan_field_ids(plan, cached_fingerprints, form_fields)
+
+
+def _remap_cached_plan_field_ids(
+    plan: FillPlanLLMOutput,
+    cached_fingerprints: dict[str, Any],
+    form_fields: list[dict],
+) -> FillPlanLLMOutput:
+    current_by_fingerprint: dict[str, list[str]] = {}
+    for field_id, fingerprint in _field_id_to_fingerprint(form_fields).items():
+        current_by_fingerprint.setdefault(fingerprint, []).append(field_id)
+
+    current_ids = {field_id for ids in current_by_fingerprint.values() for field_id in ids}
+    used_current_ids: set[str] = set()
+    used_fingerprint_offsets: dict[str, int] = {}
+    memo: dict[str, str | None] = {}
+
+    def remap(old_id: str) -> str | None:
+        if old_id in memo:
+            return memo[old_id]
+
+        fingerprint = _as_text(cached_fingerprints.get(old_id))
+        if fingerprint:
+            candidates = current_by_fingerprint.get(fingerprint, [])
+            offset = used_fingerprint_offsets.get(fingerprint, 0)
+            while offset < len(candidates) and candidates[offset] in used_current_ids:
+                offset += 1
+            if offset < len(candidates):
+                new_id = candidates[offset]
+                used_fingerprint_offsets[fingerprint] = offset + 1
+                used_current_ids.add(new_id)
+                memo[old_id] = new_id
+                return new_id
+
+        if old_id in current_ids and old_id not in used_current_ids:
+            used_current_ids.add(old_id)
+            memo[old_id] = old_id
+            return old_id
+
+        memo[old_id] = None
+        return None
+
+    filled: dict[str, FilledField] = {}
+    for old_id, value in plan.filled.items():
+        new_id = remap(old_id)
+        if new_id:
+            filled[new_id] = value
+
+    needs_user_input: list[str] = []
+    for old_id in plan.needs_user_input:
+        new_id = remap(old_id)
+        if new_id:
+            needs_user_input.append(new_id)
+
+    return FillPlanLLMOutput(
+        filled=filled,
+        needs_user_input=list(dict.fromkeys(needs_user_input)),
+        warnings=plan.warnings,
+    )
+
+
+def _field_id_to_fingerprint(form_fields: list[dict]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for field in _iter_fields(form_fields):
+        field_id = _as_text(field.get("fieldId") or field.get("id"))
+        fingerprint = _as_text(field.get("fieldFingerprint") or field.get("field_fingerprint"))
+        if field_id and fingerprint:
+            out[field_id] = fingerprint
+    return out
 
 
 def _apply_deterministic_field_repairs(
