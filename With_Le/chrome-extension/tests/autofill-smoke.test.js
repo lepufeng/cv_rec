@@ -1817,6 +1817,124 @@ test('select handler commits searchable dropdowns with keyboard fallback', async
   }
 });
 
+test('select handler waits for async searchable dropdown results', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>学校名称</label>
+      <div id="school" class="atsx-select ud__select" role="combobox" aria-haspopup="listbox" aria-autocomplete="list" data-form-field-i18n-name="学校名称">
+        <span id="school-selected"></span>
+        <input id="school-input" type="text">
+      </div>
+      <script>
+        const input = document.getElementById('school-input');
+        document.getElementById('school').addEventListener('click', () => {
+          if (window.asyncDropdownStarted) return;
+          window.asyncDropdownStarted = true;
+          setTimeout(() => {
+            const dropdown = document.createElement('div');
+            dropdown.className = 'school-dropdown ant-select-dropdown';
+            dropdown.innerHTML = '<div role="listbox"><div role="option" data-value="上海交通大学">上海交通大学</div></div>';
+            dropdown.querySelector('[role="option"]').addEventListener('click', event => {
+              const option = event.currentTarget;
+              option.setAttribute('aria-selected', 'true');
+              document.getElementById('school-selected').textContent = option.getAttribute('data-value');
+              input.value = '';
+              event.stopPropagation();
+            });
+            document.body.appendChild(dropdown);
+          }, 650);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const school = fields.find(field => field.label === '学校名称');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [school.fieldId]: '上海交通大学' }, fields);
+      return {
+        fill,
+        widget: school.widget,
+        selected: document.getElementById('school-selected').textContent,
+        inputValue: document.getElementById('school-input').value,
+      };
+    });
+
+    assert.equal(result.widget, 'search-select');
+    assert.equal(result.fill.filled, 1);
+    assert.equal(result.selected, '上海交通大学');
+    assert.equal(result.inputValue, '');
+  } finally {
+    await browser.close();
+  }
+});
+
+test('select handler does not accept bare typed text for searchable dropdowns', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>学校名称</label>
+      <div id="school" class="atsx-select ud__select" role="combobox" aria-haspopup="listbox" aria-autocomplete="list" data-form-field-i18n-name="学校名称">
+        <span id="school-selected"></span>
+        <input id="school-input" type="text">
+      </div>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      SelectHandler.DROPDOWN_WAIT_MS = 160;
+      const fields = FieldScanner.scan();
+      const school = fields.find(field => field.label === '学校名称');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({ [school.fieldId]: '不存在大学' }, fields);
+      return {
+        fill,
+        selected: document.getElementById('school-selected').textContent,
+        inputValue: document.getElementById('school-input').value,
+      };
+    });
+
+    assert.equal(result.fill.filled, 0);
+    assert.equal(result.fill.skipped.length, 1);
+    assert.equal(result.selected, '');
+    assert.equal(result.inputValue, '不存在大学');
+  } finally {
+    await browser.close();
+  }
+});
+
 test('select handler fills cascader controls by path', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

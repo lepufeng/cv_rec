@@ -1,4 +1,7 @@
 var SelectHandler = {
+  DROPDOWN_WAIT_MS: 1600,
+  DROPDOWN_POLL_MS: 120,
+
   canHandle(field) {
     return field.type === 'select';
   },
@@ -61,7 +64,7 @@ var SelectHandler = {
     for (const str of values) {
       const ok = field && field.widget === 'cascader'
         ? await this._fillCascaderValue(el, str)
-        : await this._fillOneCustomValue(el, str);
+        : await this._fillOneCustomValue(el, str, field);
       if (ok) filled++;
       await new Promise(r => setTimeout(r, 100));
     }
@@ -69,7 +72,7 @@ var SelectHandler = {
     return filled === values.length;
   },
 
-  async _fillOneCustomValue(el, str) {
+  async _fillOneCustomValue(el, str, field) {
     const target = this._editableTarget(el);
 
     try { el.click(); } catch (_) {}
@@ -82,22 +85,17 @@ var SelectHandler = {
       DOMUtils.fireInputEvents(target);
     }
 
-    await new Promise(r => setTimeout(r, 300));
-
-    const dropdowns = this._visibleDropdowns();
-    for (const dropdown of dropdowns) {
-      const match = this._bestDropdownOption(dropdown, str);
-      if (match) {
-        match.click();
-        await new Promise(r => setTimeout(r, 160));
-        if (this._valueAccepted(el, target, str, match, false)) return true;
-      }
+    const match = await this._waitForDropdownMatch(str);
+    if (match) {
+      match.click();
+      await new Promise(r => setTimeout(r, 160));
+      if (this._valueAccepted(el, target, str, match, false)) return true;
     }
 
-    if (await this._commitByKeyboard(target, el, str)) return true;
+    if (await this._commitByKeyboard(target, el, str, field)) return true;
 
     DOMUtils.fireInputEvents(target);
-    return this._valueAccepted(el, target, str, null, true);
+    return this._valueAccepted(el, target, str, null, !this._requiresCommittedOption(field));
   },
 
   async _fillCascaderValue(el, str) {
@@ -159,6 +157,22 @@ var SelectHandler = {
     ) || el;
   },
 
+  async _waitForDropdownMatch(value, timeoutMs) {
+    const timeout = timeoutMs == null ? this.DROPDOWN_WAIT_MS : timeoutMs;
+    const started = Date.now();
+
+    while (Date.now() - started <= timeout) {
+      const dropdowns = this._visibleDropdowns();
+      for (const dropdown of dropdowns) {
+        const match = this._bestDropdownOption(dropdown, value);
+        if (match) return match;
+      }
+      await new Promise(r => setTimeout(r, this.DROPDOWN_POLL_MS));
+    }
+
+    return null;
+  },
+
   _visibleDropdowns() {
     const selector = [
       '[role="listbox"]',
@@ -181,7 +195,7 @@ var SelectHandler = {
       .filter(el => !/display:\s*none|visibility:\s*hidden/i.test(el.getAttribute('style') || ''));
   },
 
-  async _commitByKeyboard(target, el, value) {
+  async _commitByKeyboard(target, el, value, field) {
     const keys = ['Enter', 'Tab'];
     for (const key of keys) {
       try {
@@ -190,7 +204,7 @@ var SelectHandler = {
       } catch (_) {}
       DOMUtils.fireInputEvents(target);
       await new Promise(r => setTimeout(r, 160));
-      if (this._valueAccepted(el, target, value, null, true)) return true;
+      if (this._valueAccepted(el, target, value, null, !this._requiresCommittedOption(field))) return true;
     }
     return false;
   },
@@ -207,6 +221,10 @@ var SelectHandler = {
     const targetValue = this._normalize(target && target.value);
     const targetText = this._normalize(target && target.textContent);
     return targetValue === wanted || targetText === wanted;
+  },
+
+  _requiresCommittedOption(field) {
+    return !!(field && ['search-select', 'custom-dropdown', 'aria-combobox', 'cascader'].includes(field.widget));
   },
 
   _bestDropdownOption(dropdown, value) {

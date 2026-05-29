@@ -112,10 +112,13 @@ test('select handler supports custom pseudo-radio and dropdown controls', () => 
   assert.match(handler, /_fillPseudoGroup\(el, value\)/);
   assert.match(handler, /_pseudoOptions\(el\)/);
   assert.match(handler, /_visibleDropdowns\(\)/);
-  assert.match(handler, /_bestDropdownOption\(dropdown, str\)/);
+  assert.match(handler, /_waitForDropdownMatch\(str\)/);
+  assert.match(handler, /DROPDOWN_WAIT_MS/);
+  assert.match(handler, /_bestDropdownOption\(dropdown, value\)/);
   assert.match(handler, /_dropdownOptions\(dropdown\)/);
   assert.match(handler, /_fillCascaderValue\(el, str\)/);
-  assert.match(handler, /_commitByKeyboard\(target, el, str\)/);
+  assert.match(handler, /_commitByKeyboard\(target, el, str, field\)/);
+  assert.match(handler, /_requiresCommittedOption\(field\)/);
   assert.match(handler, /_valueAccepted\(el, target, str, match, false\)/);
   assert.match(handler, /_values\(value, field\)/);
   assert.match(handler, /_looksLikeMultiValueField\(field\)/);
