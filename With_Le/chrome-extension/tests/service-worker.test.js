@@ -71,6 +71,7 @@ test('REQUEST_MATCH posts plugin scan payload to FastAPI plugin-match endpoint',
     type: 'REQUEST_MATCH',
     resume: { resume_id: 'resume-1' },
     fields: [{ fieldId: 'name', label: '姓名', type: 'text' }],
+    sections: [{ name: '项目经历', currentCount: 1, addButton: true }],
     forceRefresh: true,
     payload: {
       url: 'https://jobs.example/apply',
@@ -92,6 +93,7 @@ test('REQUEST_MATCH posts plugin scan payload to FastAPI plugin-match endpoint',
   assert.equal(calls[0].body.fieldCount, 1);
   assert.equal(calls[0].body.forceRefresh, true);
   assert.deepEqual(calls[0].body.fields, [{ fieldId: 'name', label: '姓名', type: 'text' }]);
+  assert.deepEqual(calls[0].body.sections, [{ name: '项目经历', currentCount: 1, addButton: true }]);
 });
 
 test('UPLOAD_SCAN posts raw scan payload to plugin-scan endpoint', async () => {

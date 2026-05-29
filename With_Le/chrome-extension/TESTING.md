@@ -16,6 +16,16 @@ Open:
 http://127.0.0.1:8090/test-form.html
 ```
 
+## Automated smoke test
+
+From the repository root:
+
+```bash
+node --test With_Le/chrome-extension/tests/autofill-smoke.test.js
+```
+
+The smoke test launches Chromium, injects the extension content scripts into this page, expands repeated project cards, fills the fields, and verifies that final submit is not clicked. In restricted shells where Chromium cannot launch, the test is skipped; run it from a normal local terminal for the full browser check.
+
 ## What it covers
 
 - Moka-style field markers such as `data-moka-field`.
