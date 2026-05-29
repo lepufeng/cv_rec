@@ -58,6 +58,23 @@ test('fill engine uses scanner metadata and keeps unsafe controls skipped', () =
   assert.match(engine, /this\._safeToFill\(el, field\)/);
   assert.match(engine, /handler\.fill\(el, value, field\)/);
   assert.match(engine, /文件上传需人工处理/);
+  assert.match(engine, /_skipRecord\(fieldId, field, el, value, reason\)/);
+  assert.match(engine, /attemptedValuePreview/);
+  assert.match(engine, /repeatSection/);
+  assert.match(engine, /\[文件路径已隐藏\]/);
+});
+
+test('diagnostic report preserves field context for skipped fields', () => {
+  const content = read('content/content.js');
+  const popup = read('popup/popup.js');
+  const annotator = read('content/result-annotator.js');
+
+  assert.match(content, /fieldReportRecord\(fieldId, field, reason\)/);
+  assert.match(content, /copyFieldProp\(record, field, 'repeatIndex'\)/);
+  assert.match(content, /copyFieldProp\(record, field, 'widget'\)/);
+  assert.match(popup, /skipContextText\(item\)/);
+  assert.match(popup, /attemptedValuePreview/);
+  assert.match(annotator, /_contextText\(item\)/);
 });
 
 test('select handler supports custom pseudo-radio and dropdown controls', () => {

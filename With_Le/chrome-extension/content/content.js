@@ -236,12 +236,38 @@ function describeSkippedFields(fieldIds, fields, mappings) {
     .filter(fieldId => !mappedIds.has(fieldId))
     .map(fieldId => {
       const field = fieldsById.get(fieldId) || {};
-      return {
+      return fieldReportRecord(
         fieldId,
-        label: field.label || field.placeholder || fieldId,
-        reason: '后端未找到足够可靠的简历来源，需人工确认',
-      };
+        field,
+        '后端未找到足够可靠的简历来源，需人工确认'
+      );
     });
+}
+
+function fieldReportRecord(fieldId, field, reason) {
+  const record = {
+    fieldId,
+    label: field.label || field.placeholder || field.subLabel || fieldId,
+    reason,
+  };
+  copyFieldProp(record, field, 'type');
+  copyFieldProp(record, field, 'widget');
+  copyFieldProp(record, field, 'section');
+  copyFieldProp(record, field, 'repeatSection');
+  copyFieldProp(record, field, 'repeatIndex');
+  copyFieldProp(record, field, 'repeatSize');
+  copyFieldProp(record, field, 'groupIndex');
+  copyFieldProp(record, field, 'groupSize');
+  copyFieldProp(record, field, 'subLabel');
+  copyFieldProp(record, field, 'placeholder');
+  if (field.required != null) record.required = !!field.required;
+  return record;
+}
+
+function copyFieldProp(record, field, key) {
+  const value = field && field[key];
+  if (value === undefined || value === null || value === '') return;
+  record[key] = value;
 }
 
 function persistLastReport(report) {

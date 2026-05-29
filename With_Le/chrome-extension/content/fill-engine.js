@@ -17,6 +17,7 @@ var FillEngine = {
 
     for (let i = 0; i < entries.length; i++) {
       const [fieldId, value] = entries[i];
+      const knownField = fieldsById.get(fieldId);
 
       if (i > 0) {
         await new Promise(r => setTimeout(r, this.INTERVAL_MS));
@@ -24,28 +25,26 @@ var FillEngine = {
 
       const el = this._findElement(fieldId);
       if (!el) {
-        this.skipped.push({ fieldId, reason: `未找到元素 ${fieldId}` });
+        this.skipped.push(this._skipRecord(fieldId, knownField, null, value, `未找到元素 ${fieldId}`));
         continue;
       }
 
-      const field = fieldsById.get(fieldId) || { fieldId, type: this._detectType(el) };
+      const field = knownField || { fieldId, type: this._detectType(el) };
       const safety = this._safeToFill(el, field);
       if (!safety.ok) {
-        this.skipped.push({
-          fieldId,
-          label: field.label || this._getLabel(el),
-          reason: safety.reason,
-        });
+        this.skipped.push(this._skipRecord(fieldId, field, el, value, safety.reason));
         continue;
       }
 
       const handler = this.handlers.find(h => h.canHandle(field));
       if (!handler) {
-        this.skipped.push({
+        this.skipped.push(this._skipRecord(
           fieldId,
-          label: field.label || this._getLabel(el),
-          reason: `不支持的控件类型: ${field.type || el.type || el.tagName}`,
-        });
+          field,
+          el,
+          value,
+          `不支持的控件类型: ${field.type || el.type || el.tagName}`
+        ));
         continue;
       }
 
@@ -71,8 +70,7 @@ var FillEngine = {
       }
 
       if (!success) {
-        const label = this._getLabel(el);
-        this.skipped.push({ fieldId, label, reason: `设置值 "${value}" 失败` });
+        this.skipped.push(this._skipRecord(fieldId, field, el, value, '设置值失败'));
         continue;
       }
 
@@ -120,5 +118,42 @@ var FillEngine = {
       return { ok: false, reason: '字段当前不可见' };
     }
     return { ok: true };
+  },
+
+  _skipRecord(fieldId, field, el, value, reason) {
+    const record = { fieldId, reason };
+    const label = field && (field.label || field.placeholder || field.subLabel)
+      || (el ? this._getLabel(el) : '');
+    const type = field && field.type || (el ? this._detectType(el) : '');
+
+    if (label) record.label = label;
+    if (type) record.type = type;
+    this._copyFieldProp(record, field, 'widget');
+    this._copyFieldProp(record, field, 'section');
+    this._copyFieldProp(record, field, 'repeatSection');
+    this._copyFieldProp(record, field, 'repeatIndex');
+    this._copyFieldProp(record, field, 'repeatSize');
+    this._copyFieldProp(record, field, 'groupIndex');
+    this._copyFieldProp(record, field, 'groupSize');
+    this._copyFieldProp(record, field, 'subLabel');
+    this._copyFieldProp(record, field, 'placeholder');
+    if (field && field.required != null) record.required = !!field.required;
+    record.attemptedValuePreview = this._valuePreview(value, field || { type });
+    return record;
+  },
+
+  _copyFieldProp(record, field, key) {
+    if (!field) return;
+    const value = field[key];
+    if (value === undefined || value === null || value === '') return;
+    record[key] = value;
+  },
+
+  _valuePreview(value, field) {
+    if (field && field.type === 'file') return '[文件路径已隐藏]';
+    if (value === undefined) return '';
+    if (value === null) return 'null';
+    const raw = Array.isArray(value) ? value.join(', ') : String(value);
+    return raw.length > 80 ? `${raw.slice(0, 77)}...` : raw;
   },
 };

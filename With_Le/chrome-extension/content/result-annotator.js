@@ -39,7 +39,8 @@ var ResultAnnotator = {
       skippedRows = skipped.map(s => {
         const label = s.label || s.fieldId || '';
         const reason = s.reason || '未知原因';
-        return `<li style="margin-bottom:4px"><strong>${this._escape(label)}</strong> — ${this._escape(reason)}</li>`;
+        const context = this._contextText(s);
+        return `<li style="margin-bottom:4px"><strong>${this._escape(label)}</strong>${this._escape(context)} — ${this._escape(reason)}</li>`;
       }).join('');
     } else {
       skippedRows = '<li>无</li>';
@@ -73,5 +74,16 @@ var ResultAnnotator = {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  },
+
+  _contextText(item) {
+    const parts = [];
+    const section = item.repeatSection || item.section;
+    const control = item.widget || item.type;
+    if (section) parts.push(section);
+    if (Number.isInteger(item.repeatIndex)) parts.push(`第 ${item.repeatIndex + 1} 条`);
+    if (Number.isInteger(item.groupIndex)) parts.push(`组内第 ${item.groupIndex + 1} 项`);
+    if (control) parts.push(control);
+    return parts.length ? ` [${parts.join(', ')}]` : '';
   },
 };

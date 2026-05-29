@@ -400,10 +400,22 @@ function renderFillReport(report, title) {
     lines.push('');
     lines.push('跳过示例:');
     report.skipped.slice(0, 12).forEach(item => {
-      lines.push(`  - ${item.label || item.fieldId || '未知字段'}: ${item.reason || '未知原因'}`);
+      lines.push(`  - ${item.label || item.fieldId || '未知字段'}${skipContextText(item)}: ${item.reason || '未知原因'}`);
     });
   }
   debugInfoEl.textContent = lines.join('\n');
+}
+
+function skipContextText(item) {
+  const parts = [];
+  const section = item.repeatSection || item.section;
+  const control = item.widget || item.type;
+  if (section) parts.push(section);
+  if (Number.isInteger(item.repeatIndex)) parts.push(`第 ${item.repeatIndex + 1} 条`);
+  if (Number.isInteger(item.groupIndex)) parts.push(`组内第 ${item.groupIndex + 1} 项`);
+  if (control) parts.push(control);
+  if (item.attemptedValuePreview) parts.push(`值: ${item.attemptedValuePreview}`);
+  return parts.length ? ` [${parts.join(', ')}]` : '';
 }
 
 function fillReportText(report) {

@@ -356,6 +356,9 @@ test('local ATS smoke fills dynamic projects and stops before final submit', asy
     assert.equal(result.page4.filled, 3);
     assert.equal(result.page4.skipped.length, 1);
     assert.equal(result.page4.skipped[0].reason, '文件上传需人工处理');
+    assert.equal(result.page4.skipped[0].label, '附件简历');
+    assert.equal(result.page4.skipped[0].type, 'file');
+    assert.equal(result.page4.skipped[0].attemptedValuePreview, '[文件路径已隐藏]');
     assert.equal(result.isSubmitOnly, true);
     assert.equal(result.hasNextButton, false);
     assert.equal(result.submitState, '');
@@ -1046,6 +1049,9 @@ test('content trigger runs direct autofill across pages with dynamic expansion',
     assert.match(result.overlayText, /自动填写完成/);
     assert.equal(result.report.totalFilled, 29);
     assert.equal(result.report.totalSkipped, 1);
+    assert.equal(result.report.skipped[0].label, '附件简历');
+    assert.equal(result.report.skipped[0].type, 'file');
+    assert.equal(result.report.skipped[0].attemptedValuePreview, '[文件路径已隐藏]');
     assert.equal(result.report.pages.length, 4);
     assert.equal(result.report.pages[2].sectionActions['项目经历'], 'add_2');
     assert.equal(result.report.pages[2].expandedFieldCount, 18);
