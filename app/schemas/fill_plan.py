@@ -22,6 +22,7 @@ FillActionType = Literal[
     "upload_file",
     "needs_user_input",
 ]
+SectionActionType = Literal["add_repeat_items"]
 
 
 class FormOption(BaseModel):
@@ -233,6 +234,20 @@ class FillAction(BaseModel):
     reasoning: str = ""
 
 
+class SectionAction(BaseModel):
+    """Typed dynamic-section expansion step for repeated experiences."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    sectionName: str
+    actionType: SectionActionType = "add_repeat_items"
+    sectionKey: str
+    currentCount: int = Field(ge=0)
+    targetCount: int = Field(ge=0)
+    addCount: int = Field(ge=0)
+    legacyAction: str
+
+
 class PluginMatchResponse(FillPlanResponse):
     """Chrome-extension friendly response shape.
 
@@ -245,6 +260,7 @@ class PluginMatchResponse(FillPlanResponse):
     actions: list[FillAction] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
     sectionActions: dict[str, str] = Field(default_factory=dict)
+    sectionActionDetails: list[SectionAction] = Field(default_factory=list)
 
     @classmethod
     def from_fill_plan(
@@ -252,6 +268,7 @@ class PluginMatchResponse(FillPlanResponse):
         plan: FillPlanResponse,
         fields: list[FormField] | None = None,
         section_actions: dict[str, str] | None = None,
+        section_action_details: list[SectionAction] | None = None,
     ) -> "PluginMatchResponse":
         mappings: dict[str, Any] = {}
         skipped = list(plan.needs_user_input)
@@ -287,6 +304,7 @@ class PluginMatchResponse(FillPlanResponse):
             actions=actions,
             skipped=list(dict.fromkeys(skipped)),
             sectionActions=section_actions or {},
+            sectionActionDetails=section_action_details or [],
         )
 
 

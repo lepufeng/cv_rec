@@ -1,4 +1,4 @@
-from app.api.v1.fill_plans import _build_section_actions
+from app.api.v1.fill_plans import _build_section_action_details, _build_section_actions
 
 
 def test_build_section_actions_supports_common_ats_section_names():
@@ -40,3 +40,20 @@ def test_build_section_actions_counts_empty_repeat_sections_from_zero():
     sections = [{"name": "项目经历", "currentCount": 0, "addButton": True}]
 
     assert _build_section_actions(sections, resume_data) == {"项目经历": "add_3"}
+
+
+def test_build_section_action_details_preserve_counts_and_section_key():
+    resume_data = {"project_experience": [{}, {}, {}]}
+    sections = [{"name": "项目经历", "currentCount": 1, "addButton": True}]
+
+    details = _build_section_action_details(sections, resume_data)
+
+    assert [detail.model_dump(mode="json") for detail in details] == [{
+        "sectionName": "项目经历",
+        "actionType": "add_repeat_items",
+        "sectionKey": "project_experience",
+        "currentCount": 1,
+        "targetCount": 3,
+        "addCount": 2,
+        "legacyAction": "add_2",
+    }]

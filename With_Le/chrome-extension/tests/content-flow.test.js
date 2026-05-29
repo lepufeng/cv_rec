@@ -13,7 +13,7 @@ test('content direct fill force-refreshes before and after dynamic expansion', (
   const content = read('content/content.js');
 
   assert.match(content, /requestMatch\(initialFields, resume, sectionInfo, true\)/);
-  assert.match(content, /pageReport\.sectionActionResults = await SectionManager\.executeActions\(firstMatch\.sectionActions\)/);
+  assert.match(content, /pageReport\.sectionActionResults = await SectionManager\.executeActions\(sectionActions\)/);
   assert.match(content, /requestMatch\(expandedFields, resume, expandedSectionInfo, true\)/);
   assert.match(content, /payload: pagePayload\(fields, forceRefresh\)/);
   assert.match(content, /url: location\.href/);
@@ -22,6 +22,9 @@ test('content direct fill force-refreshes before and after dynamic expansion', (
   assert.match(content, /mappingsFromMatch\(secondMatch\)/);
   assert.match(content, /skippedIdsFromMatch\(firstMatch\)/);
   assert.match(content, /action\.actionType === 'needs_user_input'/);
+  assert.match(content, /sectionActionsFromMatch\(firstMatch\)/);
+  assert.match(content, /sectionActionDetails/);
+  assert.match(content, /detail\.legacyAction/);
   assert.match(content, /FillEngine\.fillAll\(mappings, activeFields\)/);
   assert.match(content, /describeSkippedFields\(matchSkipped, activeFields, mappings\)/);
 });

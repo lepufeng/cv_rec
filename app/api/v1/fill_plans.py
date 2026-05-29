@@ -12,6 +12,7 @@ from app.schemas.fill_plan import (
     FillPlanResponse,
     PluginMatchResponse,
     PluginScanResponse,
+    SectionAction,
 )
 
 
@@ -36,14 +37,17 @@ async def create_plugin_match(
     """Return a fill plan plus the simple mapping shape used by the extension."""
     plan = await svc.create_plan(user.id, payload)
     section_actions: dict[str, str] = {}
+    section_action_details: list[SectionAction] = []
     if payload.resumeId:
         resume = await svc.resume_repo.get(payload.resumeId)
         if resume and resume.user_id == user.id and resume.parsed_data:
-            section_actions = _build_section_actions(payload.sections or [], resume.parsed_data)
+            section_action_details = _build_section_action_details(payload.sections or [], resume.parsed_data)
+            section_actions = _section_actions_from_details(section_action_details)
     return PluginMatchResponse.from_fill_plan(
         plan,
         fields=payload.fields,
         section_actions=section_actions,
+        section_action_details=section_action_details,
     )
 
 
@@ -74,7 +78,12 @@ async def receive_plugin_scan(
 
 def _build_section_actions(sections: list[dict[str, Any]], resume_data: dict[str, Any]) -> dict[str, str]:
     """Suggest dynamic form expansions for repeated resume sections."""
-    actions: dict[str, str] = {}
+    return _section_actions_from_details(_build_section_action_details(sections, resume_data))
+
+
+def _build_section_action_details(sections: list[dict[str, Any]], resume_data: dict[str, Any]) -> list[SectionAction]:
+    """Suggest typed dynamic form expansions for repeated resume sections."""
+    actions: list[SectionAction] = []
     if not sections:
         return actions
 
@@ -99,8 +108,19 @@ def _build_section_actions(sections: list[dict[str, Any]], resume_data: dict[str
         current_count = _safe_positive_int(section.get("currentCount"), default=1)
         add_count = target_count - current_count
         if add_count > 0:
-            actions[name] = f"add_{add_count}"
+            actions.append(SectionAction(
+                sectionName=name,
+                sectionKey=key,
+                currentCount=current_count,
+                targetCount=target_count,
+                addCount=add_count,
+                legacyAction=f"add_{add_count}",
+            ))
     return actions
+
+
+def _section_actions_from_details(details: list[SectionAction]) -> dict[str, str]:
+    return {detail.sectionName: detail.legacyAction for detail in details}
 
 
 def _list_len(value: Any) -> int:

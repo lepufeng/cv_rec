@@ -315,13 +315,61 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
     resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
     assert resp.status_code == 200, resp.text
 
-    assert resp.json()["sectionActions"] == {
+    body = resp.json()
+    assert body["sectionActions"] == {
         "项目经历": "add_3",
         "教育经历": "add_1",
         "实习经验": "add_1",
         "employment-history": "add_1",
         "社会实践": "add_1",
     }
+    assert body["sectionActionDetails"] == [
+        {
+            "sectionName": "项目经历",
+            "actionType": "add_repeat_items",
+            "sectionKey": "project_experience",
+            "currentCount": 1,
+            "targetCount": 4,
+            "addCount": 3,
+            "legacyAction": "add_3",
+        },
+        {
+            "sectionName": "教育经历",
+            "actionType": "add_repeat_items",
+            "sectionKey": "education",
+            "currentCount": 1,
+            "targetCount": 2,
+            "addCount": 1,
+            "legacyAction": "add_1",
+        },
+        {
+            "sectionName": "实习经验",
+            "actionType": "add_repeat_items",
+            "sectionKey": "internship_experience",
+            "currentCount": 1,
+            "targetCount": 2,
+            "addCount": 1,
+            "legacyAction": "add_1",
+        },
+        {
+            "sectionName": "employment-history",
+            "actionType": "add_repeat_items",
+            "sectionKey": "work_experience",
+            "currentCount": 1,
+            "targetCount": 2,
+            "addCount": 1,
+            "legacyAction": "add_1",
+        },
+        {
+            "sectionName": "社会实践",
+            "actionType": "add_repeat_items",
+            "sectionKey": "campus_experience",
+            "currentCount": 1,
+            "targetCount": 2,
+            "addCount": 1,
+            "legacyAction": "add_1",
+        },
+    ]
 
 
 @pytest.mark.asyncio

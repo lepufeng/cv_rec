@@ -87,6 +87,7 @@ async function startFill(resumeId) {
         initialFieldCount: initialFields.length,
         sectionCount: sectionInfo.length,
         sectionActions: {},
+        sectionActionDetails: [],
         sectionActionResults: [],
         expandedFieldCount: null,
         mappingCount: 0,
@@ -112,10 +113,14 @@ async function startFill(resumeId) {
       // Beisen often render only one project/education card first. If the
       // backend asks us to add cards, expand the DOM, then re-scan and
       // re-match the full page so repeated groups can be mapped in order.
-      if (firstMatch.sectionActions && Object.keys(firstMatch.sectionActions).length > 0) {
-        pageReport.sectionActions = firstMatch.sectionActions;
+      const sectionActions = sectionActionsFromMatch(firstMatch);
+      if (Object.keys(sectionActions).length > 0) {
+        pageReport.sectionActions = sectionActions;
+        pageReport.sectionActionDetails = Array.isArray(firstMatch.sectionActionDetails)
+          ? firstMatch.sectionActionDetails
+          : [];
         sendProgress(`正在展开板块... (第 ${page + 1} 页)`);
-        pageReport.sectionActionResults = await SectionManager.executeActions(firstMatch.sectionActions);
+        pageReport.sectionActionResults = await SectionManager.executeActions(sectionActions);
         await new Promise(r => setTimeout(r, 600));
 
         const expandedFields = FieldScanner.scan();
@@ -273,6 +278,19 @@ function skippedIdsFromMatch(match) {
     }
   }
   return Array.from(skipped);
+}
+
+function sectionActionsFromMatch(match) {
+  if (match && Array.isArray(match.sectionActionDetails) && match.sectionActionDetails.length > 0) {
+    const actions = {};
+    for (const detail of match.sectionActionDetails) {
+      if (!detail || !detail.sectionName) continue;
+      const legacyAction = detail.legacyAction || (detail.addCount > 0 ? `add_${detail.addCount}` : '');
+      if (legacyAction) actions[detail.sectionName] = legacyAction;
+    }
+    return actions;
+  }
+  return match && match.sectionActions ? match.sectionActions : {};
 }
 
 function describeSkippedFields(fieldIds, fields, mappings) {

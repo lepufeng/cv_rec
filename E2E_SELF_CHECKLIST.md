@@ -219,7 +219,8 @@ node --test With_Le/chrome-extension/tests/*.test.js
 
 - [x] 返回基础动作级 `FillAction v2`：`set_text/select_option/set_date/check/needs_user_input`
 - [x] 对 `custom-dropdown/cascader/date-picker` 的执行意图已由 `actionType` + `widget` 明确
-- [ ] 对 repeater/group 的返回结构还需加强
+- [x] 动态重复板块返回结构化 `sectionActionDetails`，保留旧 `sectionActions` 执行兼容
+- [ ] group 内部更细粒度动作结构还需加强
 
 ---
 
