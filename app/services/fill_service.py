@@ -384,6 +384,7 @@ def _match_field_from_resume(
         (("手机号", "手机", "电话", "phone", "mobile", "tel"), basic.get("phone"), "basic_info.phone", 0.9),
         (("出生", "生日", "birth", "birthday"), basic.get("birth_date"), "basic_info.birth_date", 0.86),
         (("年龄", "age"), basic.get("age"), "basic_info.age", 0.78),
+        (("期望城市", "意向城市", "工作地点", "工作城市", "location preference"), intent.get("work_location_preference"), "job_intent.work_location_preference", 0.74),
         (("现居", "所在地", "当前城市", "居住地", "location", "city"), basic.get("location"), "basic_info.location", 0.72),
         (("籍贯", "hometown"), basic.get("hometown"), "basic_info.hometown", 0.78),
         (("婚姻", "marital"), basic.get("marital_status"), "basic_info.marital_status", 0.78),
@@ -392,7 +393,6 @@ def _match_field_from_resume(
         (("目标岗位", "期望岗位", "应聘岗位", "职位", "position", "job title"), intent.get("target_position"), "job_intent.target_position", 0.76),
         (("期望薪资", "薪资", "salary"), intent.get("expected_salary"), "job_intent.expected_salary", 0.76),
         (("到岗", "入职", "available"), intent.get("available_date"), "job_intent.available_date", 0.76),
-        (("期望城市", "意向城市", "工作地点"), intent.get("work_location_preference"), "job_intent.work_location_preference", 0.74),
         (("学校", "院校", "school", "university"), education.get("school"), "education[0].school", 0.84),
         (("学历", "学位", "degree"), education.get("degree"), "education[0].degree", 0.82),
         (("专业", "major"), education.get("major"), "education[0].major", 0.82),
@@ -405,7 +405,7 @@ def _match_field_from_resume(
         if _contains_any(text, terms):
             value_text = _as_text(value)
             if not value_text:
-                return None
+                continue
             return _filled(_coerce_option_value(field, value_text), source, confidence)
 
     return None

@@ -166,3 +166,16 @@ def test_repeated_fields_can_infer_section_from_label_and_repeat_index():
         {"label": "公司", "repeatIndex": 1},
         resume,
     ) == ("未来科技", "work_experience[1].company", 0.82)
+
+
+def test_location_preference_list_maps_to_multi_select_text():
+    resume = {
+        "job_intent": {
+            "work_location_preference": ["上海", "深圳"],
+        },
+    }
+
+    assert _match_field_from_resume(
+        {"label": "期望工作城市（至多三个）", "type": "select"},
+        resume,
+    ) == ("上海、深圳", "job_intent.work_location_preference", 0.74)

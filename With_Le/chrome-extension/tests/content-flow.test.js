@@ -69,6 +69,9 @@ test('select handler supports custom pseudo-radio and dropdown controls', () => 
   assert.match(handler, /_visibleDropdowns\(\)/);
   assert.match(handler, /_bestDropdownOption\(dropdown, str\)/);
   assert.match(handler, /_dropdownOptions\(dropdown\)/);
+  assert.match(handler, /_values\(value, field\)/);
+  assert.match(handler, /_looksLikeMultiValueField\(field\)/);
+  assert.match(handler, /\[role="treeitem"\]/);
   assert.match(handler, /data-value/);
   assert.match(handler, /aria-checked/);
   assert.match(handler, /aria-selected/);

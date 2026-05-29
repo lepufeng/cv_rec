@@ -744,6 +744,87 @@ test('custom select chooses portal option leaves instead of dropdown containers'
   }
 });
 
+test('select handler fills multi-value custom and native selects', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label>期望工作城市（至多三个）</label>
+      <div id="cities" class="atsx-select ud__select" role="combobox" aria-haspopup="listbox" data-form-field-i18n-name="期望工作城市">
+        <input id="cities-input" type="text">
+      </div>
+      <div id="city-tags"></div>
+
+      <label>开发语言</label>
+      <select id="languages" multiple>
+        <option>Python</option>
+        <option>JavaScript</option>
+        <option>Go</option>
+      </select>
+
+      <script>
+        window.selectedCities = [];
+        document.getElementById('cities').addEventListener('click', () => {
+          if (document.querySelector('.multi-city-dropdown')) return;
+          const dropdown = document.createElement('div');
+          dropdown.className = 'multi-city-dropdown ant-select-dropdown';
+          dropdown.innerHTML = '<div role="listbox"><div role="option" data-value="北京">北京</div><div role="option" data-value="上海">上海</div><div role="option" data-value="深圳">深圳</div></div>';
+          dropdown.querySelectorAll('[data-value]').forEach(option => {
+            option.addEventListener('click', event => {
+              const value = option.getAttribute('data-value');
+              if (!window.selectedCities.includes(value)) window.selectedCities.push(value);
+              option.setAttribute('aria-selected', 'true');
+              document.getElementById('city-tags').textContent = window.selectedCities.join('|');
+              document.getElementById('cities-input').value = '';
+              event.stopPropagation();
+            });
+          });
+          document.body.appendChild(dropdown);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const city = fields.find(field => field.label === '期望工作城市');
+      const languages = fields.find(field => field.label === '开发语言');
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        [city.fieldId]: '上海、深圳',
+        [languages.fieldId]: ['Python', 'JavaScript'],
+      }, fields);
+      return {
+        fill,
+        cityTags: document.getElementById('city-tags').textContent,
+        selectedCities: window.selectedCities,
+        selectedLanguages: [...document.getElementById('languages').selectedOptions].map(option => option.textContent),
+      };
+    });
+
+    assert.equal(result.fill.filled, 2);
+    assert.deepEqual(result.selectedCities, ['上海', '深圳']);
+    assert.equal(result.cityTags, '上海|深圳');
+    assert.deepEqual(result.selectedLanguages, ['Python', 'JavaScript']);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
