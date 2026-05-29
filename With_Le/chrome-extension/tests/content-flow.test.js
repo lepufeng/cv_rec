@@ -83,8 +83,11 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /REPEAT_ITEM_SELECTOR/);
   assert.match(manager, /_countRepeatItems\(container\)/);
   assert.match(manager, /_collectSectionsFromAddButtons/);
+  assert.match(manager, /_collectSectionsFromDataContainers/);
+  assert.match(manager, /SECTION_ATTRS/);
   assert.match(manager, /_deriveSectionNameFromAddText/);
   assert.match(manager, /if \(!this\._isVisible\(h\)\) return/);
+  assert.match(manager, /data-field-list-item/);
   assert.match(manager, /moka/);
   assert.match(manager, /beisen/);
   assert.match(manager, /atsx/);

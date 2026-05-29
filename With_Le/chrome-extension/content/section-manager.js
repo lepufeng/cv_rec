@@ -14,7 +14,18 @@ var SectionManager = {
   REPEAT_SECTION_REGEX:
     /项目|教育|学历|院校|实习|工作经历|工作经验|校园|社团|学生干部|project|education|intern|work experience|campus|experience/i,
   REPEAT_ITEM_SELECTOR:
-    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"]',
+    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"], [data-field-list-item], [data-form-list-item], [data-list-item], [data-repeat-item]',
+  SECTION_ATTRS: [
+    'data-section-title',
+    'data-form-field-i18n-name',
+    'data-section',
+    'data-module',
+    'data-name',
+    'aria-label',
+    'title',
+  ],
+  SECTION_ATTR_SELECTOR:
+    '[data-section-title], [data-form-field-i18n-name], [data-section], [data-module], [data-name], [aria-label], [title]',
 
   reset() {
     this.expansionCount = 0;
@@ -69,6 +80,7 @@ var SectionManager = {
     });
 
     this._collectSectionsFromAddButtons(sections, seen);
+    this._collectSectionsFromDataContainers(sections, seen);
     return sections;
   },
 
@@ -83,9 +95,15 @@ var SectionManager = {
 
     const headings = document.querySelectorAll(this.HEADING_SELECTOR);
     for (const h of headings) {
+      if (!this._isVisible(h)) continue;
       if (!h.textContent.includes(sectionName)) continue;
       const container = this._sectionContainerForHeading(h);
       if (!container) continue;
+      const btn = this._findAddButtonNear(sectionName, container);
+      if (btn) return btn;
+    }
+
+    for (const container of this._sectionContainersByName(sectionName)) {
       const btn = this._findAddButtonNear(sectionName, container);
       if (btn) return btn;
     }
@@ -99,11 +117,12 @@ var SectionManager = {
       const text = this._buttonText(btn);
       if (!this._looksLikeAddButtonText(text)) continue;
 
-      const sectionName = this._deriveSectionNameFromAddText(text);
+      const container = this._buttonSectionContainer(btn);
+      const sectionName =
+        this._deriveSectionNameFromAddText(text) ||
+        this._sectionNameFromContainer(container);
       if (!sectionName || seen.has(sectionName) || !this.REPEAT_SECTION_REGEX.test(sectionName)) continue;
 
-      const container = btn.closest('[class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], fieldset') ||
-        btn.parentElement;
       sections.push({
         name: sectionName,
         currentCount: container ? this._countRepeatItems(container) : 1,
@@ -121,6 +140,22 @@ var SectionManager = {
         (this._textMatchesSection(text, sectionName) || this._isGenericAddText(text)) &&
         this._isVisible(btn);
     }) || null;
+  },
+
+  _collectSectionsFromDataContainers(sections, seen) {
+    const containers = document.querySelectorAll(this.SECTION_ATTR_SELECTOR);
+    for (const container of containers) {
+      if (!this._isVisible(container)) continue;
+      const sectionName = this._sectionNameFromContainer(container);
+      if (!sectionName || seen.has(sectionName) || !this.REPEAT_SECTION_REGEX.test(sectionName)) continue;
+
+      const addButton = !!this._findAddButtonNear(sectionName, container);
+      const currentCount = this._countRepeatItems(container);
+      if (!addButton && currentCount <= 1) continue;
+
+      sections.push({ name: sectionName, currentCount, addButton });
+      seen.add(sectionName);
+    }
   },
 
   _sectionContainerForHeading(heading) {
@@ -161,7 +196,16 @@ var SectionManager = {
   },
 
   _buttonText(btn) {
-    return (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '')
+    const visible = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+    const hints = [
+      btn.getAttribute('aria-label'),
+      btn.getAttribute('title'),
+      btn.getAttribute('data-name'),
+      btn.getAttribute('data-testid'),
+      btn.getAttribute('data-test-id'),
+    ].filter(Boolean).join(' ');
+    const text = visible && !this._isGenericAddText(visible) ? visible : `${visible} ${hints}`;
+    return text
       .replace(/\s+/g, ' ')
       .trim();
   },
@@ -192,6 +236,30 @@ var SectionManager = {
       /项目经历|项目经验|项目|教育经历|教育|学历|院校|实习经历|实习|工作经历|工作经验|校园经历|校园|社团经历|社团|project experience|project|education|internship|intern|work experience|campus experience|campus/i
     );
     return matched ? matched[0] : cleaned;
+  },
+
+  _buttonSectionContainer(btn) {
+    return btn.closest('[class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
+      btn.parentElement;
+  },
+
+  _sectionContainersByName(sectionName) {
+    return Array.from(document.querySelectorAll(this.SECTION_ATTR_SELECTOR))
+      .filter(container => this._isVisible(container))
+      .filter(container => this._textMatchesSection(this._sectionNameFromContainer(container), sectionName));
+  },
+
+  _sectionNameFromContainer(container) {
+    if (!container || !container.getAttribute) return '';
+    for (const attr of this.SECTION_ATTRS) {
+      const value = container.getAttribute(attr);
+      if (!value) continue;
+      const text = value.replace(/\s+/g, ' ').trim();
+      if (!text || text.length > 50) continue;
+      const matched = this._deriveSectionNameFromAddText(text);
+      return matched || text;
+    }
+    return '';
   },
 
   _waitForDomChange(timeout) {

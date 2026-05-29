@@ -435,6 +435,65 @@ test('scanner annotates Formily-style repeated list items without card classes',
   }
 });
 
+test('section manager expands generic plus buttons from data-named containers', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <section data-form-field-i18n-name="项目经历">
+        <div id="items" data-field-list>
+          <div data-field-list-item>
+            <label>项目名称<input type="text"></label>
+            <label>项目成果<textarea></textarea></label>
+          </div>
+        </div>
+        <button id="add-project" type="button">+</button>
+      </section>
+      <script>
+        document.getElementById('add-project').addEventListener('click', () => {
+          const item = document.querySelector('[data-field-list-item]').cloneNode(true);
+          item.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
+          document.getElementById('items').appendChild(item);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      SectionManager.reset();
+      const before = SectionManager.collectSectionInfo();
+      await SectionManager.executeActions({ '项目经历': 'add_2' });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const after = SectionManager.collectSectionInfo();
+      return {
+        before,
+        after,
+        itemCount: document.querySelectorAll('[data-field-list-item]').length,
+      };
+    });
+
+    assert.deepEqual(result.before, [{ name: '项目经历', currentCount: 1, addButton: true }]);
+    assert.deepEqual(result.after, [{ name: '项目经历', currentCount: 3, addButton: true }]);
+    assert.equal(result.itemCount, 3);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
