@@ -57,6 +57,7 @@ test('fill engine uses scanner metadata and keeps unsafe controls skipped', () =
   const engine = read('content/fill-engine.js');
 
   assert.match(engine, /fillAll\(mappings, fields\)/);
+  assert.match(engine, /this\._orderedEntries\(mappings, fields\)/);
   assert.match(engine, /fieldsById/);
   assert.match(engine, /this\._safeToFill\(el, field\)/);
   assert.match(engine, /handler\.fill\(el, value, field\)/);

@@ -1709,6 +1709,77 @@ test('select handler fills cascader controls by path', async t => {
   }
 });
 
+test('fill engine applies unordered mappings in scanned page order', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <label for="country">国家/地区</label>
+      <input id="country" type="text">
+      <label for="phone">手机号码</label>
+      <input id="phone" type="text" disabled>
+      <script>
+        window.fillOrder = [];
+        const country = document.getElementById('country');
+        const phone = document.getElementById('phone');
+        country.addEventListener('input', () => {
+          window.fillOrder.push('country');
+          phone.disabled = false;
+        });
+        phone.addEventListener('input', () => {
+          window.fillOrder.push('phone');
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan();
+      const country = fields.find(field => field.label === '国家/地区');
+      const phone = fields.find(field => field.label === '手机号码');
+      const unorderedMappings = {
+        [phone.fieldId]: '13800138000',
+        [country.fieldId]: '中国',
+      };
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll(unorderedMappings, fields);
+      return {
+        fill,
+        countryValue: document.getElementById('country').value,
+        phoneValue: document.getElementById('phone').value,
+        phoneDisabled: document.getElementById('phone').disabled,
+        fillOrder: window.fillOrder,
+        orderedIds: FillEngine._orderedEntries(unorderedMappings, fields).map(entry => entry[0]),
+        countryId: country.fieldId,
+        phoneId: phone.fieldId,
+      };
+    });
+
+    assert.equal(result.fill.filled, 2);
+    assert.equal(result.countryValue, '中国');
+    assert.equal(result.phoneValue, '13800138000');
+    assert.equal(result.phoneDisabled, false);
+    assert.deepEqual(result.fillOrder, ['country', 'phone']);
+    assert.deepEqual(result.orderedIds, [result.countryId, result.phoneId]);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('fill engine checks current experience checkbox from mapped present value', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

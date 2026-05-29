@@ -11,7 +11,7 @@ var FillEngine = {
   },
 
   async fillAll(mappings, fields) {
-    const entries = Object.entries(mappings);
+    const entries = this._orderedEntries(mappings, fields);
     const fieldsById = new Map((fields || []).map(field => [field.fieldId, field]));
     let filled = 0;
 
@@ -78,6 +78,27 @@ var FillEngine = {
     }
 
     return { filled, skipped: this.skipped };
+  },
+
+  _orderedEntries(mappings, fields) {
+    const rawEntries = Object.entries(mappings || {});
+    if (!Array.isArray(fields) || fields.length === 0) return rawEntries;
+
+    const byId = new Map(rawEntries);
+    const ordered = [];
+    const used = new Set();
+
+    for (const field of fields) {
+      const fieldId = field && field.fieldId;
+      if (!fieldId || !byId.has(fieldId) || used.has(fieldId)) continue;
+      ordered.push([fieldId, byId.get(fieldId)]);
+      used.add(fieldId);
+    }
+
+    for (const entry of rawEntries) {
+      if (!used.has(entry[0])) ordered.push(entry);
+    }
+    return ordered;
   },
 
   _findElement(fieldId) {
