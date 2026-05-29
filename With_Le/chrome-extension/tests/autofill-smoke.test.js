@@ -716,6 +716,170 @@ test('section manager expands generic plus buttons from data-named containers', 
   }
 });
 
+test('scanner handles Tencent-style Element UI resume form labels and add buttons', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <main>
+        <section class="resume-module basic-module">
+          <h2>基础信息</h2>
+          <div class="el-form-item is-required">
+            <label class="el-form-item__label">姓名*</label>
+            <div class="el-form-item__content"><div class="el-input"><input class="el-input__inner" placeholder="请输入姓名"></div></div>
+          </div>
+          <div class="el-form-item is-required">
+            <label class="el-form-item__label">性别*</label>
+            <div class="el-form-item__content">
+              <label class="el-radio" role="radio"><span class="el-radio__label">男</span><input class="el-radio__original" type="radio" name="gender" value="男"></label>
+              <label class="el-radio" role="radio"><span class="el-radio__label">女</span><input class="el-radio__original" type="radio" name="gender" value="女"></label>
+            </div>
+          </div>
+          <div class="el-form-item is-required">
+            <label class="el-form-item__label">证件信息</label>
+            <div class="el-form-item__content">
+              <span class="el-dropdown-link" role="button" aria-haspopup="list">请选择</span>
+              <div class="el-input"><input class="el-input__inner" placeholder="请填写您的证件号码"></div>
+            </div>
+          </div>
+          <div class="el-form-item is-required">
+            <label class="el-form-item__label">期望工作城市*</label>
+            <div class="el-select"><input class="el-input__inner" placeholder="请选择期望工作城市（至多三个）"></div>
+          </div>
+        </section>
+
+        <section class="resume-module project-module">
+          <h2>项目经历</h2>
+          <div id="project-list">
+            <div class="project-experience-card">
+              <div class="el-form-item">
+                <label class="el-form-item__label">项目名称</label>
+                <div class="el-form-item__content"><input class="el-input__inner" placeholder="请输入项目名称（含校园实践）"></div>
+              </div>
+              <div class="el-form-item">
+                <label class="el-form-item__label">项目角色</label>
+                <div class="el-form-item__content"><input class="el-input__inner" placeholder="请输入在项目中担任的角色"></div>
+              </div>
+              <div class="el-form-item">
+                <label class="el-form-item__label">项目时间</label>
+                <div class="el-form-item__content">
+                  <input class="el-input__inner" placeholder="选择日期">
+                  <input class="el-input__inner" placeholder="选择日期">
+                </div>
+              </div>
+              <div class="el-form-item">
+                <label class="el-form-item__label">项目描述</label>
+                <textarea class="el-textarea__inner" placeholder="请输入描述内容"></textarea>
+              </div>
+            </div>
+          </div>
+          <button id="add_btn" class="el-button el-button--text" type="button">添加项目经历</button>
+        </section>
+
+        <section class="resume-module internship-module">
+          <h2>实习经历</h2>
+          <div class="internship-experience-card">
+            <div class="el-form-item"><label class="el-form-item__label">实习公司</label><input class="el-input__inner" placeholder="请输入实习公司"></div>
+            <div class="el-form-item"><label class="el-form-item__label">职位</label><input class="el-input__inner" placeholder="请输入职位"></div>
+          </div>
+          <button id="add_btn" class="el-button el-button--text" type="button">添加实习经历</button>
+        </section>
+      </main>
+      <script>
+        document.querySelectorAll('button').forEach(button => {
+          button.addEventListener('click', () => {
+            if (!button.textContent.includes('项目')) return;
+            const item = document.querySelector('.project-experience-card').cloneNode(true);
+            item.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
+            document.getElementById('project-list').appendChild(item);
+          });
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      FieldScanner._resetMap();
+      const fields = FieldScanner.scan();
+      SectionManager.reset();
+      const before = SectionManager.collectSectionInfo();
+      await SectionManager.executeActions({ '项目经历': 'add_1' });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const afterFields = FieldScanner.scan();
+      const after = SectionManager.collectSectionInfo();
+
+      const byLabel = label => fields.find(field => field.label === label);
+      return {
+        labels: fields.map(field => field.label).filter(Boolean),
+        name: byLabel('姓名'),
+        gender: byLabel('性别'),
+        idFields: fields.filter(field => field.label === '证件信息').map(field => ({
+          label: field.label,
+          subLabel: field.subLabel,
+          groupIndex: field.groupIndex,
+          widget: field.widget,
+          type: field.type,
+        })),
+        city: byLabel('期望工作城市'),
+        projectFields: afterFields.filter(field => field.repeatSection === '项目经历').map(field => ({
+          label: field.label,
+          widget: field.widget,
+          repeatIndex: field.repeatIndex,
+          repeatSize: field.repeatSize,
+          groupIndex: field.groupIndex,
+        })),
+        before,
+        after,
+        projectCardCount: document.querySelectorAll('.project-experience-card').length,
+      };
+    });
+
+    assert.equal(result.name.type, 'text');
+    assert.equal(result.name.required, true);
+    assert.equal(result.gender.widget, 'pseudo-radio');
+    assert.deepEqual(result.gender.options, ['男', '女']);
+    assert.equal(result.idFields.length, 2);
+    assert.deepEqual(result.idFields.map(field => field.groupIndex), [0, 1]);
+    assert.equal(result.idFields[0].widget, 'aria-combobox');
+    assert.equal(result.idFields[1].subLabel, '证件号码');
+    assert.equal(result.city.label, '期望工作城市');
+    assert.equal(result.city.widget, 'search-select');
+    assert.deepEqual(result.before.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 1,
+      addButton: true,
+    });
+    assert.deepEqual(result.after.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 2,
+      addButton: true,
+    });
+    assert.equal(result.projectCardCount, 2);
+    assert.deepEqual(
+      [...new Set(result.projectFields.map(field => field.repeatIndex))].sort((a, b) => a - b),
+      [0, 1],
+    );
+    assert.equal(result.projectFields.every(field => field.repeatSize === 2), true);
+    assert.equal(result.projectFields.some(field => field.label === '项目时间' && field.groupIndex === 1), true);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('custom select chooses portal option leaves instead of dropdown containers', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

@@ -727,8 +727,29 @@ var FieldScanner = {
       '[class*="form-item"], [class*="formItem"], [class*="info-row"], [class*="infoItem"], [class*="field"], .form-group, dl, tr, li'
     );
     if (!item) return false;
-    if (item.querySelector('[class*="required"], .required, .is-required, [class*="asterisk"]')) return true;
-    return /(\*|＊)/.test((item.textContent || '').slice(0, 80));
+    const scope = this._requiredScope(item);
+    const requiredSelector = '[class*="required"], .required, .is-required, [class*="asterisk"]';
+    if (scope.matches(requiredSelector)) return true;
+    if (scope.querySelector(requiredSelector)) return true;
+    return /(\*|＊)/.test((scope.textContent || '').slice(0, 80));
+  },
+
+  _requiredScope(item) {
+    let cur = item;
+    let best = item;
+    let depth = 0;
+    while (cur && cur !== document.body && depth < 4) {
+      if (this._looksLikeFormItemRoot(cur)) best = cur;
+      cur = cur.parentElement;
+      depth++;
+    }
+    return best;
+  },
+
+  _looksLikeFormItemRoot(el) {
+    const cls = (el && el.className && typeof el.className === 'string') ? el.className : '';
+    return /(^|\s)(?:el-|ant-|atsx-|moka-|beisen-|b-)?form-item(?:\s|$)/i.test(cls) ||
+      /(^|\s)(?:formItem|info-row|infoItem|form-group|field)(?:\s|$)/i.test(cls);
   },
 
   _extractOptions(el) {
@@ -925,12 +946,14 @@ var FieldScanner = {
         const placeholderLeak =
           !!f.label && !!f.placeholder &&
           this._cleanLabel(f.label) === this._cleanLabel(f.placeholder);
-        const labelChanged = !f.label || placeholderLeak;
-        if (!f.label || placeholderLeak) f.label = primaryLabel;
+        const sub = this._deriveSubLabel(f);
+        const placeholderDerived =
+          !!f.label && !!sub && this._cleanLabel(f.label) === this._cleanLabel(sub);
+        const labelChanged = !f.label || placeholderLeak || placeholderDerived;
+        if (!f.label || placeholderLeak || placeholderDerived) f.label = primaryLabel;
         f.groupId = groupId;
         f.groupSize = indices.length;
         f.groupIndex = posInGroup;
-        const sub = this._deriveSubLabel(f);
         if (sub) f.subLabel = sub;
 
         // If this sibling just inherited a label and it's still classified
