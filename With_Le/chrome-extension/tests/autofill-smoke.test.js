@@ -1147,6 +1147,103 @@ test('section manager clears checked empty-section toggles before adding experie
   }
 });
 
+test('section manager reports zero count when empty toggle hides an unmounted list', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <section class="moka-form-section">
+        <h2>项目经历</h2>
+        <label id="no-project-wrap" class="moka-checkbox checked">
+          <input id="no-project" type="checkbox" checked>
+          无项目经历
+        </label>
+        <div id="project-list"></div>
+        <button id="add-project" class="moka-add-btn" type="button" style="display:none">添加项目经历</button>
+      </section>
+      <script>
+        const noProject = document.getElementById('no-project');
+        noProject.addEventListener('change', () => {
+          document.getElementById('no-project-wrap').classList.toggle('checked', noProject.checked);
+          document.getElementById('add-project').style.display = noProject.checked ? 'none' : 'inline-block';
+        });
+        document.getElementById('add-project').addEventListener('click', () => {
+          const item = document.createElement('div');
+          item.className = 'moka-experience-card project-card';
+          item.innerHTML = '<label>项目名称<input type="text"></label><label>项目成果<textarea></textarea></label>';
+          document.getElementById('project-list').appendChild(item);
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      SectionManager.reset();
+      const before = SectionManager.collectSectionInfo();
+      const actionResults = await SectionManager.executeActions({ '项目经历': 'add_3' });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const after = SectionManager.collectSectionInfo();
+      return {
+        before,
+        after,
+        actionResults,
+        checked: document.getElementById('no-project').checked,
+        itemCount: document.querySelectorAll('.project-card').length,
+      };
+    });
+
+    assert.deepEqual(result.before.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 0,
+      addButton: true,
+    });
+    assert.deepEqual(result.after.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 3,
+      addButton: true,
+    });
+    assert.equal(result.checked, false);
+    assert.equal(result.itemCount, 3);
+    assert.deepEqual(result.actionResults.map(item => ({
+      sectionName: item.sectionName,
+      requested: item.requested,
+      attempted: item.attempted,
+      added: item.added,
+      beforeCount: item.beforeCount,
+      afterCount: item.afterCount,
+      clearedEmptyToggle: item.clearedEmptyToggle,
+      status: item.status,
+    })), [
+      {
+        sectionName: '项目经历',
+        requested: 3,
+        attempted: 3,
+        added: 3,
+        beforeCount: 0,
+        afterCount: 3,
+        clearedEmptyToggle: true,
+        status: 'completed',
+      },
+    ]);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('section manager reports add actions that do not increase repeat count', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

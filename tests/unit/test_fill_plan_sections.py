@@ -33,3 +33,10 @@ def test_build_section_actions_ignores_sections_without_add_button():
     sections = [{"name": "项目经历", "currentCount": 1, "addButton": False}]
 
     assert _build_section_actions(sections, resume_data) == {}
+
+
+def test_build_section_actions_counts_empty_repeat_sections_from_zero():
+    resume_data = {"project_experience": [{}, {}, {}]}
+    sections = [{"name": "项目经历", "currentCount": 0, "addButton": True}]
+
+    assert _build_section_actions(sections, resume_data) == {"项目经历": "add_3"}

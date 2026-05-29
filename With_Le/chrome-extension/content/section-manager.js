@@ -130,12 +130,15 @@ var SectionManager = {
       seen.add(text);
 
       const container = this._sectionContainerForHeading(h);
+      const hasClearableEmptyToggle = this._hasClearableEmptyToggle(text);
       const addButton = !!this._findAddButtonNear(text, container) ||
-        this._hasClearableEmptyToggle(text);
-      let currentCount = 1;
+        hasClearableEmptyToggle;
+      let currentCount = 0;
 
       if (container) {
-        currentCount = this._countRepeatItems(container);
+        currentCount = this._countRepeatItems(container, {
+          includeHiddenTemplates: hasClearableEmptyToggle,
+        });
       }
 
       sections.push({ name: text, currentCount, addButton });
@@ -192,7 +195,7 @@ var SectionManager = {
 
       sections.push({
         name: sectionName,
-        currentCount: container ? this._countRepeatItems(container) : 1,
+        currentCount: container ? this._countRepeatItems(container) : 0,
         addButton: true,
       });
       seen.add(sectionName);
@@ -218,8 +221,10 @@ var SectionManager = {
 
       const addButton = !!this._findAddButtonNear(sectionName, container);
       const expandable = addButton || this._hasClearableEmptyToggle(sectionName);
-      const currentCount = this._countRepeatItems(container);
-      if (!expandable && currentCount <= 1) continue;
+      const currentCount = this._countRepeatItems(container, {
+        includeHiddenTemplates: !addButton && expandable,
+      });
+      if (!expandable && currentCount <= 0) continue;
 
       sections.push({ name: sectionName, currentCount, addButton: expandable });
       seen.add(sectionName);
@@ -240,16 +245,37 @@ var SectionManager = {
       parent;
   },
 
-  _countRepeatItems(container) {
-    const candidates = Array.from(container.querySelectorAll(this.REPEAT_ITEM_SELECTOR))
-      .filter(el => this._isVisible(el))
+  _countRepeatItems(container, options = {}) {
+    const visibleCandidates = this._repeatItemCandidates(container, { visibleOnly: true });
+    const visibleLeaves = this._leafRepeatCandidates(visibleCandidates);
+    if (visibleLeaves.length > 0) return visibleLeaves.length;
+
+    if (options.includeHiddenTemplates) {
+      const hiddenCandidates = this._repeatItemCandidates(container, { visibleOnly: false });
+      const hiddenLeaves = this._leafRepeatCandidates(hiddenCandidates);
+      return hiddenLeaves.length;
+    }
+
+    return 0;
+  },
+
+  _repeatItemCandidates(container, { visibleOnly }) {
+    if (!container || !container.querySelectorAll) return [];
+    const candidates = [];
+    if (container.matches && container.matches(this.REPEAT_ITEM_SELECTOR)) {
+      candidates.push(container);
+    }
+    candidates.push(...Array.from(container.querySelectorAll(this.REPEAT_ITEM_SELECTOR)));
+    return candidates
+      .filter(el => !visibleOnly || this._isVisible(el))
       .filter(el => this._controlCount(el) >= 2)
       .filter(el => !this._containsVisibleAddButtonOnly(el));
+  },
 
-    const leafCandidates = candidates.filter(el => {
+  _leafRepeatCandidates(candidates) {
+    return candidates.filter(el => {
       return !candidates.some(other => other !== el && el.contains(other));
     });
-    return Math.max(1, leafCandidates.length || 1);
   },
 
   _controlCount(container) {
