@@ -33,28 +33,83 @@ var SectionManager = {
   },
 
   async executeActions(sectionActions) {
+    const results = [];
+
     for (const [sectionName, action] of Object.entries(sectionActions)) {
-      if (!action.startsWith('add_')) continue;
+      const result = {
+        sectionName,
+        action,
+        requested: 0,
+        attempted: 0,
+        added: 0,
+        beforeCount: null,
+        afterCount: null,
+        status: 'skipped',
+      };
+      results.push(result);
+
+      if (!action.startsWith('add_')) {
+        result.status = 'unsupported_action';
+        continue;
+      }
       const count = parseInt(action.split('_')[1], 10);
-      if (count <= 0) continue;
+      result.requested = Number.isFinite(count) ? count : 0;
+      if (count <= 0) {
+        result.status = 'invalid_count';
+        continue;
+      }
 
       for (let i = 0; i < count; i++) {
-        if (this.expansionCount >= this.MAX_EXPANSIONS) return;
-        if (this.depth >= this.MAX_DEPTH) return;
+        if (this.expansionCount >= this.MAX_EXPANSIONS) {
+          result.status = 'expansion_limit';
+          break;
+        }
+        if (this.depth >= this.MAX_DEPTH) {
+          result.status = 'depth_limit';
+          break;
+        }
 
-        const btn = this._findAddButton(sectionName);
-        if (!btn || !this._isVisible(btn)) break;
+        const target = this._findAddTarget(sectionName);
+        const btn = target && target.button;
+        if (!btn || !this._isVisible(btn)) {
+          result.status = result.added > 0 ? 'partial_button_not_found' : 'button_not_found';
+          break;
+        }
 
         this.depth++;
-        const waitForChange = this._waitForDomChange(this.EXPAND_TIMEOUT);
+        const container = target.container || this._buttonSectionContainer(btn);
+        const beforeCount = container ? this._countRepeatItems(container) : null;
+        if (result.beforeCount == null && beforeCount != null) result.beforeCount = beforeCount;
+        const waitForIncrease = container
+          ? this._waitForCountIncrease(container, beforeCount, this.EXPAND_TIMEOUT)
+          : this._waitForDomChange(this.EXPAND_TIMEOUT);
         btn.click();
+        result.attempted++;
         this.expansionCount++;
 
-        const changed = await waitForChange;
+        const changed = await waitForIncrease;
         this.depth--;
-        if (!changed) break;
+        const afterCount = container ? this._countRepeatItems(container) : null;
+        result.afterCount = afterCount;
+
+        const countIncreased = beforeCount == null || afterCount == null
+          ? !!changed
+          : afterCount > beforeCount;
+        if (!countIncreased) {
+          result.status = changed ? 'count_unchanged' : 'timeout';
+          break;
+        }
+        result.added++;
+      }
+
+      if (result.added === count) {
+        result.status = 'completed';
+      } else if (result.status === 'skipped') {
+        result.status = result.added > 0 ? 'partial' : 'not_completed';
       }
     }
+
+    return results;
   },
 
   collectSectionInfo() {
@@ -85,13 +140,18 @@ var SectionManager = {
   },
 
   _findAddButton(sectionName) {
+    const target = this._findAddTarget(sectionName);
+    return target ? target.button : null;
+  },
+
+  _findAddTarget(sectionName) {
     const direct = Array.from(document.querySelectorAll(this.BUTTON_SELECTOR)).find(btn => {
       const text = this._buttonText(btn);
       return this._looksLikeAddButtonText(text) &&
         this._textMatchesSection(text, sectionName) &&
         this._isVisible(btn);
     });
-    if (direct) return direct;
+    if (direct) return { button: direct, container: this._buttonSectionContainer(direct) };
 
     const headings = document.querySelectorAll(this.HEADING_SELECTOR);
     for (const h of headings) {
@@ -100,12 +160,12 @@ var SectionManager = {
       const container = this._sectionContainerForHeading(h);
       if (!container) continue;
       const btn = this._findAddButtonNear(sectionName, container);
-      if (btn) return btn;
+      if (btn) return { button: btn, container };
     }
 
     for (const container of this._sectionContainersByName(sectionName)) {
       const btn = this._findAddButtonNear(sectionName, container);
-      if (btn) return btn;
+      if (btn) return { button: btn, container };
     }
     return null;
   },
@@ -252,7 +312,8 @@ var SectionManager = {
   },
 
   _buttonSectionContainer(btn) {
-    return btn.closest('[class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
+    const parent = btn && btn.parentElement;
+    return parent && parent.closest('[class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
       btn.parentElement;
   },
 
@@ -286,6 +347,30 @@ var SectionManager = {
         observer.disconnect();
         resolve(false);
       }, timeout);
+    });
+  },
+
+  _waitForCountIncrease(container, beforeCount, timeout) {
+    if (!container || beforeCount == null) return this._waitForDomChange(timeout);
+
+    return new Promise(resolve => {
+      let done = false;
+      let interval = null;
+      const finish = changed => {
+        if (done) return;
+        done = true;
+        observer.disconnect();
+        if (interval) clearInterval(interval);
+        resolve(changed);
+      };
+      const check = () => {
+        if (this._countRepeatItems(container) > beforeCount) finish(true);
+      };
+      const observer = new MutationObserver(check);
+      observer.observe(container, { childList: true, subtree: true });
+      interval = setInterval(check, 100);
+      setTimeout(() => finish(false), timeout);
+      check();
     });
   },
 

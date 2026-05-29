@@ -13,7 +13,7 @@ test('content direct fill force-refreshes before and after dynamic expansion', (
   const content = read('content/content.js');
 
   assert.match(content, /requestMatch\(initialFields, resume, sectionInfo, true\)/);
-  assert.match(content, /SectionManager\.executeActions\(firstMatch\.sectionActions\)/);
+  assert.match(content, /pageReport\.sectionActionResults = await SectionManager\.executeActions\(firstMatch\.sectionActions\)/);
   assert.match(content, /requestMatch\(expandedFields, resume, expandedSectionInfo, true\)/);
   assert.match(content, /FillEngine\.fillAll\(mappings, activeFields\)/);
   assert.match(content, /describeSkippedFields\(matchSkipped, activeFields, mappings\)/);
@@ -25,6 +25,7 @@ test('content records a fill report for real-page diagnostics', () => {
   assert.match(content, /const report = \{/);
   assert.match(content, /initialFieldCount/);
   assert.match(content, /expandedFieldCount/);
+  assert.match(content, /sectionActionResults/);
   assert.match(content, /backendSkippedCount/);
   assert.match(content, /runtimeSkippedCount/);
   assert.match(content, /resumeAutofillLastReport/);
@@ -125,6 +126,9 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /_collectSectionsFromAddButtons/);
   assert.match(manager, /_collectSectionsFromDataContainers/);
   assert.match(manager, /SECTION_ATTRS/);
+  assert.match(manager, /_findAddTarget\(sectionName\)/);
+  assert.match(manager, /_waitForCountIncrease\(container, beforeCount, this\.EXPAND_TIMEOUT\)/);
+  assert.match(manager, /status: 'skipped'/);
   assert.match(manager, /_deriveSectionNameFromAddText/);
   assert.match(manager, /if \(!this\._isVisible\(h\)\) return/);
   assert.match(manager, /data-field-list-item/);

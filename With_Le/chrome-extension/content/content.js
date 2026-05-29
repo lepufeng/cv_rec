@@ -87,6 +87,7 @@ async function startFill(resumeId) {
         initialFieldCount: initialFields.length,
         sectionCount: sectionInfo.length,
         sectionActions: {},
+        sectionActionResults: [],
         expandedFieldCount: null,
         mappingCount: 0,
         backendSkippedCount: 0,
@@ -114,7 +115,7 @@ async function startFill(resumeId) {
       if (firstMatch.sectionActions && Object.keys(firstMatch.sectionActions).length > 0) {
         pageReport.sectionActions = firstMatch.sectionActions;
         sendProgress(`正在展开板块... (第 ${page + 1} 页)`);
-        await SectionManager.executeActions(firstMatch.sectionActions);
+        pageReport.sectionActionResults = await SectionManager.executeActions(firstMatch.sectionActions);
         await new Promise(r => setTimeout(r, 600));
 
         const expandedFields = FieldScanner.scan();

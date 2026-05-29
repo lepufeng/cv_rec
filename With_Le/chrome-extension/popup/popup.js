@@ -388,9 +388,12 @@ function renderFillReport(report, title) {
     lines.push('页面执行明细:');
     report.pages.slice(0, 8).forEach(page => {
       const actions = page.sectionActions ? Object.keys(page.sectionActions).length : 0;
+      const actionResults = Array.isArray(page.sectionActionResults) ? page.sectionActionResults : [];
+      const added = actionResults.reduce((sum, item) => sum + (item.added || 0), 0);
+      const failedActions = actionResults.filter(item => item.status && item.status !== 'completed').length;
       const expanded = page.expandedFieldCount == null ? '-' : page.expandedFieldCount;
       lines.push(
-        `  #${page.page}: 初扫 ${page.initialFieldCount}, 展开后 ${expanded}, 匹配 ${page.mappingCount}, 已填 ${page.filledCount}, 跳过 ${page.backendSkippedCount + page.runtimeSkippedCount}, 动态动作 ${actions}`
+        `  #${page.page}: 初扫 ${page.initialFieldCount}, 展开后 ${expanded}, 匹配 ${page.mappingCount}, 已填 ${page.filledCount}, 跳过 ${page.backendSkippedCount + page.runtimeSkippedCount}, 动态动作 ${actions}, 新增 ${added}${failedActions ? ', 异常 ' + failedActions : ''}`
       );
       if (page.stopReason) lines.push(`      停止原因: ${page.stopReason}`);
     });
