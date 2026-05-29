@@ -633,6 +633,7 @@ var FieldScanner = {
   _extractFieldMetadata(el, widget) {
     const out = {};
     if (!el || !el.getAttribute) return out;
+    out.frameUrl = location.href;
 
     const htmlType = this._htmlType(el);
     if (htmlType) out.htmlType = htmlType;

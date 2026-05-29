@@ -15,6 +15,9 @@ test('content direct fill force-refreshes before and after dynamic expansion', (
   assert.match(content, /requestMatch\(initialFields, resume, sectionInfo, true\)/);
   assert.match(content, /pageReport\.sectionActionResults = await SectionManager\.executeActions\(firstMatch\.sectionActions\)/);
   assert.match(content, /requestMatch\(expandedFields, resume, expandedSectionInfo, true\)/);
+  assert.match(content, /payload: pagePayload\(fields, forceRefresh\)/);
+  assert.match(content, /url: location\.href/);
+  assert.match(content, /frames: \[\{/);
   assert.match(content, /FillEngine\.fillAll\(mappings, activeFields\)/);
   assert.match(content, /describeSkippedFields\(matchSkipped, activeFields, mappings\)/);
 });
@@ -51,6 +54,7 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /_inferRepeatSectionFromItem\(item\)/);
   assert.match(scanner, /data-form-field-id/);
   assert.match(scanner, /_extractFieldMetadata\(ctrl, widget\)/);
+  assert.match(scanner, /out\.frameUrl = location\.href/);
   assert.match(scanner, /isSearchableSelect/);
   assert.match(scanner, /_looksLikeReadonlySelectLabel\(label\)/);
   assert.match(scanner, /if \(!this\._isVisible\(t\)\) continue/);

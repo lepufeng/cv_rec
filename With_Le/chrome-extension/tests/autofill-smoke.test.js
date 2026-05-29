@@ -115,6 +115,7 @@ async function installMockChromeRuntime(page) {
         sections,
         fieldCount: fields.length,
         forceRefresh: !!message.forceRefresh,
+        payload: message.payload,
       });
 
       if (labels.has('推荐方式')) {
@@ -975,6 +976,7 @@ test('scanner emits backend matching metadata without losing widget semantics', 
     assert.equal(result.name.currentValue, '张三');
     assert.equal(result.name.readonly, true);
     assert.equal(result.name.maxLength, 20);
+    assert.equal(typeof result.name.frameUrl, 'string');
 
     assert.equal(result.phone.htmlType, 'tel');
     assert.equal(result.phone.disabled, true);
@@ -2168,6 +2170,10 @@ test('content trigger runs direct autofill across pages with dynamic expansion',
     assert.equal(result.report.pages[3].stopReason, 'submit_only');
     assert.deepEqual(result.storedReport, result.report);
     assert.equal(result.matchRequests.length, 5);
+    assert.equal(result.matchRequests.every(req => req.payload && req.payload.url.endsWith('/test-form.html')), true);
+    assert.equal(result.matchRequests.every(req => req.payload.fieldCount === req.fieldCount), true);
+    assert.equal(result.matchRequests.every(req => req.payload.frames[0].url === req.payload.url), true);
+    assert.equal(result.matchRequests.every(req => req.payload.frames[0].fieldCount === req.fieldCount), true);
     assert.deepEqual(result.matchRequests[2].sections, [
       { name: '项目经历', currentCount: 1, addButton: true },
     ]);

@@ -211,7 +211,14 @@ function requestResume(resumeId) {
 function requestMatch(fields, resume, sections, forceRefresh) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
-      { type: MSG.REQUEST_MATCH, fields, resume, sections, forceRefresh: !!forceRefresh },
+      {
+        type: MSG.REQUEST_MATCH,
+        fields,
+        resume,
+        sections,
+        forceRefresh: !!forceRefresh,
+        payload: pagePayload(fields, forceRefresh),
+      },
       response => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message || '后台未响应'));
@@ -226,6 +233,20 @@ function requestMatch(fields, resume, sections, forceRefresh) {
       }
     );
   });
+}
+
+function pagePayload(fields, forceRefresh) {
+  return {
+    url: location.href,
+    title: document.title,
+    fieldCount: Array.isArray(fields) ? fields.length : 0,
+    frames: [{
+      url: location.href,
+      title: document.title,
+      fieldCount: Array.isArray(fields) ? fields.length : 0,
+    }],
+    forceRefresh: !!forceRefresh,
+  };
 }
 
 function describeSkippedFields(fieldIds, fields, mappings) {

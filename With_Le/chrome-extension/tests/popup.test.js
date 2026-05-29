@@ -44,6 +44,9 @@ test('popup primary flow starts real fill while scan remains preview-only', () =
   assert.match(popupJs, /copyReportBtn\.addEventListener/);
   assert.match(popupJs, /clearReportBtn\.addEventListener/);
   assert.match(popupJs, /请先在插件中粘贴网页登录 token/);
+  assert.match(popupJs, /out\.htmlType = f\.htmlType/);
+  assert.match(popupJs, /out\.frameUrl = f\.frameUrl/);
+  assert.match(popupJs, /out\.isSearchableSelect = !!f\.isSearchableSelect/);
 
   const fillHandler = popupJs.slice(
     popupJs.indexOf("fillBtn.addEventListener('click'"),

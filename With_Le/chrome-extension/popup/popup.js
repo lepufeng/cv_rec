@@ -202,6 +202,16 @@ async function scanFieldsInAllFrames(tabId) {
           if (f.min != null) out.min = f.min;
           if (f.max != null) out.max = f.max;
           if (f.pattern != null) out.pattern = f.pattern;
+          if (f.htmlType) out.htmlType = f.htmlType;
+          if (f.ariaLabel) out.ariaLabel = f.ariaLabel;
+          if (f.autocomplete) out.autocomplete = f.autocomplete;
+          if (f.name) out.name = f.name;
+          if (f.currentValue) out.currentValue = f.currentValue;
+          if (f.frameUrl) out.frameUrl = f.frameUrl;
+          if (f.disabled != null) out.disabled = !!f.disabled;
+          if (f.readonly != null) out.readonly = !!f.readonly;
+          if (f.isMultiselect != null) out.isMultiselect = !!f.isMultiselect;
+          if (f.isSearchableSelect != null) out.isSearchableSelect = !!f.isSearchableSelect;
           return out;
         });
         return {
