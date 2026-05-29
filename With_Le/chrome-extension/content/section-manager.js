@@ -44,6 +44,7 @@ var SectionManager = {
         added: 0,
         beforeCount: null,
         afterCount: null,
+        clearedEmptyToggle: false,
         status: 'skipped',
       };
       results.push(result);
@@ -69,7 +70,12 @@ var SectionManager = {
           break;
         }
 
-        const target = this._findAddTarget(sectionName);
+        let target = this._findAddTarget(sectionName);
+        if (!target && await this._clearEmptySectionToggle(sectionName)) {
+          result.clearedEmptyToggle = true;
+          await new Promise(resolve => setTimeout(resolve, 250));
+          target = this._findAddTarget(sectionName);
+        }
         const btn = target && target.button;
         if (!btn || !this._isVisible(btn)) {
           result.status = result.added > 0 ? 'partial_button_not_found' : 'button_not_found';
@@ -335,6 +341,70 @@ var SectionManager = {
       return matched || text;
     }
     return '';
+  },
+
+  async _clearEmptySectionToggle(sectionName) {
+    const toggles = document.querySelectorAll(
+      'label, input[type="checkbox"], input[type="radio"], [role="checkbox"], [role="switch"]'
+    );
+    for (const toggle of toggles) {
+      if (!this._isVisible(toggle)) continue;
+      if (!this._emptyToggleMatchesSection(toggle, sectionName)) continue;
+      if (!this._isToggleChecked(toggle)) continue;
+
+      const clickable = this._toggleClickable(toggle);
+      if (!clickable || !this._isVisible(clickable)) continue;
+      clickable.click();
+      return true;
+    }
+    return false;
+  },
+
+  _emptyToggleMatchesSection(toggle, sectionName) {
+    const text = this._toggleText(toggle);
+    if (!text || !/(^|\s|[，。；、])(?:无|没有|暂无|不填写|none|no)(?:相关)?/i.test(text)) {
+      return false;
+    }
+    const section = this._normalizeText(this._deriveSectionNameFromAddText(sectionName));
+    const toggleSection = this._normalizeText(this._deriveSectionNameFromAddText(text));
+    return !!section && (
+      toggleSection.includes(section) ||
+      section.includes(toggleSection) ||
+      this._textMatchesSection(text, sectionName)
+    );
+  },
+
+  _toggleText(toggle) {
+    const parts = [
+      toggle.textContent,
+      toggle.getAttribute && toggle.getAttribute('aria-label'),
+      toggle.getAttribute && toggle.getAttribute('title'),
+    ];
+    const input = this._toggleInput(toggle);
+    const label = input && input.closest && input.closest('label');
+    if (label && label !== toggle) parts.push(label.textContent);
+    return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  },
+
+  _toggleInput(toggle) {
+    if (!toggle || !toggle.querySelector) return toggle;
+    if (toggle.matches && toggle.matches('input[type="checkbox"], input[type="radio"]')) return toggle;
+    return toggle.querySelector('input[type="checkbox"], input[type="radio"]') || toggle;
+  },
+
+  _isToggleChecked(toggle) {
+    const input = this._toggleInput(toggle);
+    if (input && typeof input.checked === 'boolean') return input.checked;
+    const ariaChecked = toggle.getAttribute && toggle.getAttribute('aria-checked');
+    if (ariaChecked != null) return ariaChecked === 'true';
+    const cls = toggle.getAttribute && toggle.getAttribute('class') || '';
+    return /\b(is-)?checked\b|\bselected\b|\bactive\b/i.test(cls);
+  },
+
+  _toggleClickable(toggle) {
+    if (!toggle) return null;
+    if (toggle.matches && toggle.matches('label, [role="checkbox"], [role="switch"]')) return toggle;
+    return (toggle.closest && toggle.closest('label')) || toggle;
   },
 
   _waitForDomChange(timeout) {
