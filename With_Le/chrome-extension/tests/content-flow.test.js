@@ -43,6 +43,8 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /data-moka-field/);
   assert.match(scanner, /data-beisen-field/);
   assert.match(scanner, /atsx-form-item/);
+  assert.match(scanner, /\.send_title/);
+  assert.match(scanner, /\.info_box/);
   assert.match(scanner, /data-field-list-item/);
   assert.match(scanner, /_REPEAT_FIELD_LABEL_HINT_REGEX/);
   assert.match(scanner, /_repeatFieldSignaturesMatch\(a, b\)/);
@@ -135,6 +137,9 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /moka/);
   assert.match(manager, /beisen/);
   assert.match(manager, /atsx/);
+  assert.match(manager, /\.send_title/);
+  assert.match(manager, /\.info_list/);
+  assert.match(manager, /\.experience_box/);
   assert.match(manager, /employment/);
   assert.match(manager, /_normalizeText\(text\)/);
 });

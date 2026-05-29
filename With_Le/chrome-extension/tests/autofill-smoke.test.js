@@ -912,6 +912,136 @@ test('scanner handles Tencent-style Element UI resume form labels and add button
   }
 });
 
+test('section manager handles live Tencent-style send_title resume modules', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <ul class="send_list">
+        <li class="send_box">
+          <div class="send_title">项目经历</div>
+          <div class="send_content">
+            <div id="project-experience" class="experience_box">
+              <div class="info_list">
+                <div class="experience_title project_scorll_0">项目经历-1 <button type="button" class="el-button el-button--text">删除经历</button></div>
+                <div class="info_box"><div class="subtitle must">项目名称*</div><div class="input_box"><div class="el-input"><input class="el-input__inner" placeholder="请输入项目名称（含校园实践）"></div></div></div>
+                <div class="info_box"><div class="subtitle must">在项目中担任的角色*</div><div class="input_box"><div class="el-input"><input class="el-input__inner" placeholder="请输入在项目中担任的角色"></div></div></div>
+                <div class="info_box">
+                  <div class="subtitle must">起止时间*</div>
+                  <div class="input_box"><input class="el-input__inner" placeholder="选择日期"><input class="el-input__inner" placeholder="选择日期"></div>
+                </div>
+                <div class="info_box"><div class="subtitle">描述*</div><textarea class="el-textarea__inner" placeholder="请输入描述内容"></textarea></div>
+              </div>
+              <div class="info_box"><button id="add-project" class="el-button el-button--text" type="button">添加项目经历</button></div>
+            </div>
+          </div>
+        </li>
+      </ul>
+      <button id="final-submit" class="el-button el-button--primary" type="button">提交简历</button>
+      <script>
+        document.getElementById('add-project').addEventListener('click', () => {
+          const list = document.querySelector('#project-experience');
+          const item = list.querySelector('.info_list').cloneNode(true);
+          const next = list.querySelectorAll('.info_list').length + 1;
+          item.querySelector('.experience_title').textContent = '项目经历-' + next + ' 删除经历';
+          item.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
+          list.insertBefore(item, document.getElementById('add-project').closest('.info_box'));
+        });
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      FieldScanner._resetMap();
+      SectionManager.reset();
+      const before = SectionManager.collectSectionInfo();
+      const actionResults = await SectionManager.executeActions({ '项目经历': 'add_2' });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const after = SectionManager.collectSectionInfo();
+      const fields = FieldScanner.scan();
+      const projectFields = fields.filter(field => field.repeatSection === '项目经历');
+      const projectName = fields.find(field => field.label === '项目名称');
+      const projectDates = fields.filter(field => field.label === '起止时间');
+      return {
+        before,
+        after,
+        actionResults,
+        projectCardCount: document.querySelectorAll('#project-experience .info_list').length,
+        projectName,
+        projectDates: projectDates.map(field => ({
+          label: field.label,
+          type: field.type,
+          widget: field.widget,
+          required: field.required,
+          groupIndex: field.groupIndex,
+          repeatIndex: field.repeatIndex,
+          repeatSize: field.repeatSize,
+          repeatSection: field.repeatSection,
+          section: field.section,
+        })),
+        repeatIndexes: [...new Set(projectFields.map(field => field.repeatIndex).filter(Number.isInteger))]
+          .sort((a, b) => a - b),
+        submitOnly: NavigationDetector.isSubmitOnly(),
+      };
+    });
+
+    assert.deepEqual(result.before.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 1,
+      addButton: true,
+    });
+    assert.deepEqual(result.after.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 3,
+      addButton: true,
+    });
+    assert.deepEqual(result.actionResults.map(item => ({
+      sectionName: item.sectionName,
+      requested: item.requested,
+      attempted: item.attempted,
+      added: item.added,
+      beforeCount: item.beforeCount,
+      afterCount: item.afterCount,
+      status: item.status,
+    })), [
+      {
+        sectionName: '项目经历',
+        requested: 2,
+        attempted: 2,
+        added: 2,
+        beforeCount: 1,
+        afterCount: 3,
+        status: 'completed',
+      },
+    ]);
+    assert.equal(result.projectCardCount, 3);
+    assert.equal(result.projectName.section, '项目经历');
+    assert.equal(result.projectName.required, true);
+    assert.deepEqual(result.repeatIndexes, [0, 1, 2]);
+    assert.equal(result.projectDates.length, 6);
+    assert.equal(result.projectDates.every(field => field.widget === 'date-picker'), true);
+    assert.equal(result.projectDates.every(field => field.repeatSize === 3), true);
+    assert.equal(result.projectDates.some(field => field.groupIndex === 1), true);
+    assert.equal(result.submitOnly, true);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('section manager reports add actions that do not increase repeat count', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {

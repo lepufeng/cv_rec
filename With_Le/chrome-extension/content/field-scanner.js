@@ -99,6 +99,7 @@ var FieldScanner = {
 
   _TITLE_SELECTOR: [
     'h1', 'h2', 'h3', 'h4', 'h5', 'legend',
+    '.send_title',
     '[class*="section-title"]', '[class*="sectionTitle"]',
     '[class*="step-title"]', '[class*="stepTitle"]',
     '[class*="card-title"]', '[class*="cardTitle"]',
@@ -724,7 +725,7 @@ var FieldScanner = {
     if (el.required) return true;
     if (el.getAttribute && el.getAttribute('aria-required') === 'true') return true;
     const item = el.closest && el.closest(
-      '[class*="form-item"], [class*="formItem"], [class*="info-row"], [class*="infoItem"], [class*="field"], .form-group, dl, tr, li'
+      '[class*="form-item"], [class*="formItem"], .info_box, .infoBox, [class*="info-row"], [class*="infoItem"], [class*="field"], .form-group, dl, tr, li'
     );
     if (!item) return false;
     const scope = this._requiredScope(item);
@@ -859,6 +860,7 @@ var FieldScanner = {
     '[class*="beisen-form-item"]', '[class*="beisenFormItem"]',
     '[class*="beisen-field"]', '[class*="beisenField"]',
     '[class*="b-form-item"]',
+    '.info_box', '.infoBox',
     '[class*="info-row"]', '[class*="infoRow"]',
     '[class*="info-item"]', '[class*="infoItem"]',
     '[class*="info-line"]', '[class*="infoLine"]',

@@ -7,14 +7,14 @@ var SectionManager = {
   depth: 0,
 
   HEADING_SELECTOR:
-    'h2, h3, h4, fieldset legend, [class*="section-title"], [class*="sectionTitle"], [class*="step-title"], [class*="stepTitle"], [class*="module-title"], [class*="moduleTitle"], [class*="block-title"], [class*="blockTitle"], [class*="atsx-title"], [class*="atsxTitle"], [class*="moka-title"], [class*="mokaTitle"], [class*="beisen-title"], [class*="beisenTitle"], [data-section-title]',
+    'h2, h3, h4, fieldset legend, .send_title, [class*="section-title"], [class*="sectionTitle"], [class*="step-title"], [class*="stepTitle"], [class*="module-title"], [class*="moduleTitle"], [class*="block-title"], [class*="blockTitle"], [class*="atsx-title"], [class*="atsxTitle"], [class*="moka-title"], [class*="mokaTitle"], [class*="beisen-title"], [class*="beisenTitle"], [data-section-title]',
   BUTTON_SELECTOR:
     'button, [role="button"], a[href="#"], a:not([href]), span[class*="btn"], div[class*="btn"], span[class*="button"], div[class*="button"]',
   ADD_TEXT_REGEX: /^\+$|添加|新增|继续添加|增加|\badd\b|\bnew\b/i,
   REPEAT_SECTION_REGEX:
     /项目|教育|学历|院校|求学|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|学生干部|社会实践|实践经历|project|education|school|intern|internship|work experience|work history|employment history|professional experience|campus|experience/i,
   REPEAT_ITEM_SELECTOR:
-    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="history"], [class*="History"], [class*="employment"], [class*="Employment"], [class*="career"], [class*="Career"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"], [data-field-list-item], [data-form-list-item], [data-list-item], [data-repeat-item]',
+    '.info_list, .infoList, [class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="history"], [class*="History"], [class*="employment"], [class*="Employment"], [class*="career"], [class*="Career"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"], [data-field-list-item], [data-form-list-item], [data-list-item], [data-repeat-item]',
   SECTION_ATTRS: [
     'data-section-title',
     'data-form-field-i18n-name',
@@ -221,6 +221,7 @@ var SectionManager = {
   _sectionContainerForHeading(heading) {
     const parent = heading.parentElement;
     return heading.closest('fieldset') ||
+      (parent && parent.closest('.send_box, .send_content, .experience_box')) ||
       (parent && parent.closest('[class*="section"]')) ||
       (parent && parent.closest('[class*="module"]')) ||
       (parent && parent.closest('[class*="block"]')) ||
@@ -313,7 +314,7 @@ var SectionManager = {
 
   _buttonSectionContainer(btn) {
     const parent = btn && btn.parentElement;
-    return parent && parent.closest('[class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
+    return parent && parent.closest('.send_box, .send_content, .experience_box, [class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
       btn.parentElement;
   },
 
