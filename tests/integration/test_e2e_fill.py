@@ -173,6 +173,18 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
             {"name": f"项目{i}", "role": "负责人", "start_date": "2024-01", "end_date": "2024-06", "achievements": [], "tech_stack": []}
             for i in range(4)
         ],
+        "internship_experience": [
+            SAMPLE_PARSED_RESUME["internship_experience"][0],
+            {**SAMPLE_PARSED_RESUME["internship_experience"][0], "company": "美团"},
+        ],
+        "work_experience": [
+            SAMPLE_PARSED_RESUME["work_experience"][0],
+            {**SAMPLE_PARSED_RESUME["work_experience"][0], "company": "阿里云"},
+        ],
+        "campus_experience": [
+            SAMPLE_PARSED_RESUME["campus_experience"][0],
+            {**SAMPLE_PARSED_RESUME["campus_experience"][0], "organization": "研究生会"},
+        ],
     }
     fake.queue_response(parsed)
     rid = (await client.post(
@@ -184,6 +196,9 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
     payload["sections"] = [
         {"name": "项目经历", "currentCount": 1, "addButton": True},
         {"name": "教育经历", "currentCount": 1, "addButton": True},
+        {"name": "实习经验", "currentCount": 1, "addButton": True},
+        {"name": "employment-history", "currentCount": 1, "addButton": True},
+        {"name": "社会实践", "currentCount": 1, "addButton": True},
         {"name": "工作城市", "currentCount": 1, "addButton": True},
     ]
     fake.queue_response(SAMPLE_FILL_PLAN)
@@ -193,6 +208,9 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
     assert resp.json()["sectionActions"] == {
         "项目经历": "add_3",
         "教育经历": "add_1",
+        "实习经验": "add_1",
+        "employment-history": "add_1",
+        "社会实践": "add_1",
     }
 
 

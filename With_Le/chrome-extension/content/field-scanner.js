@@ -849,12 +849,12 @@ var FieldScanner = {
   MAX_REPEAT_ITEM_CONTROLS: 30,
 
   _REPEAT_SECTION_REGEX:
-    /项目|教育|学历|院校|实习|工作经历|工作经验|校园|社团|学生干部|project|education|intern|work experience|campus|experience/i,
+    /项目|教育|学历|院校|求学|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|学生干部|社会实践|实践经历|project|education|school|intern|internship|work experience|work history|employment history|professional experience|campus|experience/i,
 
   _REPEAT_ITEM_HINT_REGEX:
-    /card|entry|record|block|module|panel|resume|experience|project|education|intern|campus|work|moka|beisen|atsx|feishu|经历|项目|教育|实习|校园/i,
+    /card|entry|record|block|module|panel|resume|experience|history|employment|career|project|education|intern|campus|work|moka|beisen|atsx|feishu|经历|履历|项目|教育|实习|校园/i,
   _REPEAT_FIELD_LABEL_HINT_REGEX:
-    /项目|学校|院校|学历|学位|专业|院系|公司|职位|岗位|角色|起止|开始|结束|描述|成果|职责|实习|工作经历|工作经验|校园|社团|project|school|university|degree|major|company|position|role|start|end|description|achievement|intern|work experience|campus/i,
+    /项目|学校|院校|学历|学位|专业|院系|公司|职位|岗位|角色|起止|开始|结束|描述|成果|职责|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|社会实践|project|school|university|degree|major|company|position|role|start|end|description|achievement|intern|internship|work experience|work history|employment history|campus/i,
 
   _findItemContainer(el) {
     for (const sel of this._ITEM_GROUP_SELECTORS) {
@@ -1189,7 +1189,7 @@ var FieldScanner = {
       return '教育经历';
     }
     if (/校园|社团|学生干部|campus/.test(normalized)) return '校园经历';
-    if (/工作经历|工作经验|公司|职位|岗位|work experience|company|position/.test(normalized)) {
+    if (/工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|公司|职位|岗位|work experience|work history|employment history|professional experience|company|position/.test(normalized)) {
       return '工作经历';
     }
     return '';

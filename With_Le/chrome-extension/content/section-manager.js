@@ -12,9 +12,9 @@ var SectionManager = {
     'button, [role="button"], a[href="#"], a:not([href]), span[class*="btn"], div[class*="btn"], span[class*="button"], div[class*="button"]',
   ADD_TEXT_REGEX: /^\+$|添加|新增|继续添加|增加|\badd\b|\bnew\b/i,
   REPEAT_SECTION_REGEX:
-    /项目|教育|学历|院校|实习|工作经历|工作经验|校园|社团|学生干部|project|education|intern|work experience|campus|experience/i,
+    /项目|教育|学历|院校|求学|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|学生干部|社会实践|实践经历|project|education|school|intern|internship|work experience|work history|employment history|professional experience|campus|experience/i,
   REPEAT_ITEM_SELECTOR:
-    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"], [data-field-list-item], [data-form-list-item], [data-list-item], [data-repeat-item]',
+    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="history"], [class*="History"], [class*="employment"], [class*="Employment"], [class*="career"], [class*="Career"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"], [data-field-list-item], [data-form-list-item], [data-list-item], [data-repeat-item]',
   SECTION_ATTRS: [
     'data-section-title',
     'data-form-field-i18n-name',
@@ -221,7 +221,11 @@ var SectionManager = {
   _textMatchesSection(text, sectionName) {
     if (!text || !sectionName) return false;
     const derived = this._deriveSectionNameFromAddText(text);
-    return text.includes(sectionName) || (!!derived && sectionName.includes(derived));
+    const normalizedText = this._normalizeText(text);
+    const normalizedSection = this._normalizeText(sectionName);
+    const normalizedDerived = this._normalizeText(derived);
+    return normalizedText.includes(normalizedSection) ||
+      (!!normalizedDerived && normalizedSection.includes(normalizedDerived));
   },
 
   _deriveSectionNameFromAddText(text) {
@@ -230,12 +234,21 @@ var SectionManager = {
       .replace(/^(继续)?(添加|新增|增加)(一段|一条|一个|新的)?/, '')
       .replace(/^(一段|一条|一个|新的)/, '')
       .replace(/\b(add|new)\b/ig, '')
+      .replace(/[-_]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
     const matched = cleaned.match(
-      /项目经历|项目经验|项目|教育经历|教育|学历|院校|实习经历|实习|工作经历|工作经验|校园经历|校园|社团经历|社团|project experience|project|education|internship|intern|work experience|campus experience|campus/i
+      /项目经历|项目经验|项目|教育经历|教育背景|求学经历|教育|学历|院校|实习经历|实习经验|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园经历|校园|社团经历|社团|社会实践|实践经历|project experience|project|education|school experience|school|internship experience|internship|intern|work experience|work history|employment history|professional experience|career history|campus experience|campus/i
     );
     return matched ? matched[0] : cleaned;
+  },
+
+  _normalizeText(text) {
+    return String(text || '')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   },
 
   _buttonSectionContainer(btn) {

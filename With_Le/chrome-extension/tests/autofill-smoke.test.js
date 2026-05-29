@@ -648,11 +648,25 @@ test('section manager expands generic plus buttons from data-named containers', 
         </div>
         <button id="add-project" type="button">+</button>
       </section>
+      <section data-name="employment-history">
+        <div id="work-items">
+          <div class="employment-history-item">
+            <label>公司<input type="text"></label>
+            <label>职位<input type="text"></label>
+          </div>
+        </div>
+        <button id="add-work" type="button" aria-label="add-work-experience">+</button>
+      </section>
       <script>
         document.getElementById('add-project').addEventListener('click', () => {
           const item = document.querySelector('[data-field-list-item]').cloneNode(true);
           item.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
           document.getElementById('items').appendChild(item);
+        });
+        document.getElementById('add-work').addEventListener('click', () => {
+          const item = document.querySelector('.employment-history-item').cloneNode(true);
+          item.querySelectorAll('input').forEach(el => { el.value = ''; });
+          document.getElementById('work-items').appendChild(item);
         });
       </script>
     `);
@@ -661,19 +675,39 @@ test('section manager expands generic plus buttons from data-named containers', 
     const result = await page.evaluate(async () => {
       SectionManager.reset();
       const before = SectionManager.collectSectionInfo();
-      await SectionManager.executeActions({ '项目经历': 'add_2' });
+      await SectionManager.executeActions({ '项目经历': 'add_2', 'work experience': 'add_1' });
       await new Promise(resolve => setTimeout(resolve, 100));
       const after = SectionManager.collectSectionInfo();
       return {
         before,
         after,
         itemCount: document.querySelectorAll('[data-field-list-item]').length,
+        workItemCount: document.querySelectorAll('.employment-history-item').length,
       };
     });
 
-    assert.deepEqual(result.before, [{ name: '项目经历', currentCount: 1, addButton: true }]);
-    assert.deepEqual(result.after, [{ name: '项目经历', currentCount: 3, addButton: true }]);
+    assert.deepEqual(result.before.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 1,
+      addButton: true,
+    });
+    assert.deepEqual(result.before.find(section => section.name === 'work experience'), {
+      name: 'work experience',
+      currentCount: 1,
+      addButton: true,
+    });
+    assert.deepEqual(result.after.find(section => section.name === '项目经历'), {
+      name: '项目经历',
+      currentCount: 3,
+      addButton: true,
+    });
+    assert.deepEqual(result.after.find(section => section.name === 'work experience'), {
+      name: 'work experience',
+      currentCount: 2,
+      addButton: true,
+    });
     assert.equal(result.itemCount, 3);
+    assert.equal(result.workItemCount, 2);
   } finally {
     await browser.close();
   }

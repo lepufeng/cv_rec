@@ -112,15 +112,24 @@ def _safe_positive_int(value: Any, *, default: int) -> int:
 
 
 def _section_key(name: str) -> str | None:
-    text = name.casefold()
+    text = name.replace("-", " ").replace("_", " ").casefold()
     if "项目" in text or "project" in text:
         return "project_experience"
-    if "教育" in text or "学历" in text or "院校" in text or "education" in text:
+    if (
+        "教育" in text or "学历" in text or "院校" in text or "求学" in text or
+        "education" in text or "school" in text
+    ):
         return "education"
-    if "实习" in text or "intern" in text:
+    if "实习" in text or "intern" in text or "internship" in text:
         return "internship_experience"
-    if "工作经历" in text or "工作经验" in text or "work experience" in text:
+    if (
+        "工作经历" in text or "工作经验" in text or "工作履历" in text or
+        "任职经历" in text or "职业经历" in text or "就业经历" in text or
+        "work experience" in text or "work history" in text or
+        "employment history" in text or "professional experience" in text or
+        "career history" in text
+    ):
         return "work_experience"
-    if "校园" in text or "社团" in text or "学生干部" in text or "campus" in text:
+    if "校园" in text or "社团" in text or "学生干部" in text or "社会实践" in text or "实践经历" in text or "campus" in text:
         return "campus_experience"
     return None

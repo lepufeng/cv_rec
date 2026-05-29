@@ -100,6 +100,8 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /moka/);
   assert.match(manager, /beisen/);
   assert.match(manager, /atsx/);
+  assert.match(manager, /employment/);
+  assert.match(manager, /_normalizeText\(text\)/);
 });
 
 test('navigation detector skips final submit style buttons', () => {
