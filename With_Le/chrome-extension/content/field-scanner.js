@@ -785,6 +785,7 @@ var FieldScanner = {
     let bestText = '';
 
     for (const t of allTitles) {
+      if (!this._isVisible(t)) continue;
       if (t === el || t.contains(el) || el.contains(t)) continue;
       const cmp = el.compareDocumentPosition(t);
       if (!(cmp & Node.DOCUMENT_POSITION_PRECEDING)) continue;
@@ -1064,12 +1065,26 @@ var FieldScanner = {
   },
 
   _looksLikeRepeatItem(el) {
+    if (this._hasAnyAttr(el, [
+      'data-field-list-item',
+      'data-form-list-item',
+      'data-list-item',
+      'data-repeat-item',
+    ])) {
+      return true;
+    }
+
     const text = [
       this._attrText(el, 'class'),
       this._attrText(el, 'data-testid'),
       this._attrText(el, 'data-test-id'),
       this._attrText(el, 'data-name'),
       this._attrText(el, 'data-field'),
+      this._attrText(el, 'data-form-field-id'),
+      this._attrText(el, 'data-form-field-name'),
+      this._attrText(el, 'data-form-field-i18n-name'),
+      this._attrText(el, 'data-section'),
+      this._attrText(el, 'data-module'),
       this._attrText(el, 'role'),
     ].join(' ');
     return this._REPEAT_ITEM_HINT_REGEX.test(text);
@@ -1086,5 +1101,9 @@ var FieldScanner = {
   _attrText(el, name) {
     const value = el && el.getAttribute ? el.getAttribute(name) : '';
     return value == null ? '' : String(value);
+  },
+
+  _hasAnyAttr(el, names) {
+    return !!(el && el.hasAttribute && names.some(name => el.hasAttribute(name)));
   },
 };

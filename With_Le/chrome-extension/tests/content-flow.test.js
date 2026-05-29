@@ -42,6 +42,9 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /data-moka-field/);
   assert.match(scanner, /data-beisen-field/);
   assert.match(scanner, /atsx-form-item/);
+  assert.match(scanner, /data-field-list-item/);
+  assert.match(scanner, /data-form-field-id/);
+  assert.match(scanner, /if \(!this\._isVisible\(t\)\) continue/);
 });
 
 test('fill engine uses scanner metadata and keeps unsafe controls skipped', () => {

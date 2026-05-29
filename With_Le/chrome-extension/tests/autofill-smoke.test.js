@@ -364,6 +364,77 @@ test('local ATS smoke fills dynamic projects and stops before final submit', asy
   }
 });
 
+test('scanner annotates Formily-style repeated list items without card classes', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <main>
+        <section style="display:none"><h2>教育经历</h2></section>
+        <section data-form-field-i18n-name="项目经历">
+          <h2>项目经历</h2>
+          <div data-field-list>
+            <div data-field-list-item>
+              <label>项目名称<input type="text" placeholder="项目名称"></label>
+              <label>项目角色<input type="text" placeholder="项目角色"></label>
+              <label>项目成果<textarea placeholder="项目成果"></textarea></label>
+            </div>
+            <div data-field-list-item>
+              <label>项目名称<input type="text" placeholder="项目名称"></label>
+              <label>项目角色<input type="text" placeholder="项目角色"></label>
+              <label>项目成果<textarea placeholder="项目成果"></textarea></label>
+            </div>
+            <div data-field-list-item>
+              <label>项目名称<input type="text" placeholder="项目名称"></label>
+              <label>项目角色<input type="text" placeholder="项目角色"></label>
+              <label>项目成果<textarea placeholder="项目成果"></textarea></label>
+            </div>
+          </div>
+        </section>
+      </main>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(() => {
+      const fields = FieldScanner.scan();
+      return {
+        fields: fields.map(field => ({
+          label: field.label,
+          section: field.section,
+          repeatIndex: field.repeatIndex,
+          repeatSize: field.repeatSize,
+          repeatSection: field.repeatSection,
+        })),
+        repeatIndexes: [...new Set(fields.map(field => field.repeatIndex).filter(Number.isInteger))]
+          .sort((a, b) => a - b),
+      };
+    });
+
+    assert.equal(result.fields.length, 9);
+    assert.deepEqual(result.repeatIndexes, [0, 1, 2]);
+    assert.equal(result.fields.every(field => field.section === '项目经历'), true);
+    assert.equal(result.fields.every(field => field.repeatSection === '项目经历'), true);
+    assert.equal(result.fields.every(field => field.repeatSize === 3), true);
+    assert.equal(result.fields.some(field => field.section === '教育经历'), false);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('content trigger runs direct autofill across pages with dynamic expansion', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
