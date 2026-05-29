@@ -208,10 +208,12 @@ async function scanFieldsInAllFrames(tabId) {
           if (f.name) out.name = f.name;
           if (f.currentValue) out.currentValue = f.currentValue;
           if (f.frameUrl) out.frameUrl = f.frameUrl;
+          if (f.visible != null) out.visible = !!f.visible;
           if (f.disabled != null) out.disabled = !!f.disabled;
           if (f.readonly != null) out.readonly = !!f.readonly;
           if (f.isMultiselect != null) out.isMultiselect = !!f.isMultiselect;
           if (f.isSearchableSelect != null) out.isSearchableSelect = !!f.isSearchableSelect;
+          if (Array.isArray(f.optionObjects) && f.optionObjects.length) out.optionObjects = f.optionObjects;
           return out;
         });
         return {
