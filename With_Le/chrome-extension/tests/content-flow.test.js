@@ -100,6 +100,10 @@ test('navigation detector skips final submit style buttons', () => {
   const detector = read('content/navigation-detector.js');
 
   assert.match(detector, /FINAL_SUBMIT_REGEX/);
+  assert.match(detector, /NEXT_TEXT_REGEX/);
+  assert.match(detector, /HARD_FINAL_REGEX/);
+  assert.match(detector, /_buttonText\(btn\)/);
+  assert.match(detector, /_looksLikeExactNext\(text\)/);
   assert.match(detector, /if \(this\._looksLikeFinalSubmit\(text\)\) continue/);
   assert.match(detector, /if \(this\.findNextButton\(\)\) return false/);
 });

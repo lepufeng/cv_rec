@@ -435,6 +435,89 @@ test('scanner annotates Formily-style repeated list items without card classes',
   }
 });
 
+test('navigation detector treats confirm and save continue buttons as safe next steps', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <main>
+        <button id="submit-application" type="button">提交投递</button>
+        <button id="confirm-submit" type="button">确认提交</button>
+        <button id="confirm-continue" type="button">确认并继续</button>
+        <button id="save-next" type="button">保存并下一步</button>
+        <button id="save-page" type="button">保存并进入下一页</button>
+        <input id="aria-next" type="button" aria-label="Save and continue">
+      </main>
+    `);
+    await injectScriptFiles(page, [
+      'shared/dom-utils.js',
+      'content/navigation-detector.js',
+    ]);
+
+    const result = await page.evaluate(() => {
+      const ids = [
+        'submit-application',
+        'confirm-submit',
+        'confirm-continue',
+        'save-next',
+        'save-page',
+        'aria-next',
+      ];
+      const classification = {};
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        const text = NavigationDetector._buttonText(el);
+        classification[id] = {
+          text,
+          next: NavigationDetector._looksLikeNext(text),
+          final: NavigationDetector._looksLikeFinalSubmit(text),
+        };
+      }
+
+      const firstNext = NavigationDetector.findNextButton();
+      const beforeSubmitOnly = NavigationDetector.isSubmitOnly();
+      for (const id of ['confirm-continue', 'save-next', 'save-page', 'aria-next']) {
+        document.getElementById(id).remove();
+      }
+
+      return {
+        firstNextId: firstNext && firstNext.id,
+        beforeSubmitOnly,
+        afterHasNext: !!NavigationDetector.findNextButton(),
+        afterSubmitOnly: NavigationDetector.isSubmitOnly(),
+        classification,
+      };
+    });
+
+    assert.equal(result.firstNextId, 'confirm-continue');
+    assert.equal(result.beforeSubmitOnly, false);
+    assert.equal(result.afterHasNext, false);
+    assert.equal(result.afterSubmitOnly, true);
+    assert.equal(result.classification['confirm-continue'].next, true);
+    assert.equal(result.classification['save-next'].next, true);
+    assert.equal(result.classification['save-page'].next, true);
+    assert.equal(result.classification['aria-next'].next, true);
+    assert.equal(result.classification['submit-application'].final, true);
+    assert.equal(result.classification['confirm-submit'].final, true);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('section manager expands generic plus buttons from data-named containers', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
