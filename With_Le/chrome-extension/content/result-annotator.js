@@ -4,7 +4,7 @@ var ResultAnnotator = {
 
     const overlay = document.createElement('div');
     overlay.id = 'resume-autofill-result';
-    overlay.innerHTML = this._buildHTML(filledCount, skippedList, report);
+    overlay.innerHTML = this._buildHTML(filledCount, skippedList);
 
     Object.assign(overlay.style, {
       position: 'fixed',
@@ -33,36 +33,29 @@ var ResultAnnotator = {
     if (el) el.remove();
   },
 
-  _buildHTML(filled, skipped, report) {
+  _buildHTML(filled, skipped) {
     let skippedRows = '';
     if (skipped.length > 0) {
       skippedRows = skipped.map(s => {
-        const label = s.label || s.fieldId || '';
-        const reason = s.reason || '未知原因';
-        const context = this._contextText(s);
-        return `<li style="margin-bottom:4px"><strong>${this._escape(label)}</strong>${this._escape(context)} — ${this._escape(reason)}</li>`;
+        const label = s.label || '未知字段';
+        const reason = s.reason || '需要手动填写';
+        const section = s.repeatSection || s.section;
+        const idx = Number.isInteger(s.repeatIndex) ? `第 ${s.repeatIndex + 1} 条 ` : '';
+        const context = section ? `（${section} ${idx}）` : '';
+        return `<li style="margin-bottom:4px"><strong>${this._escape(label)}</strong> ${this._escape(context)}— ${this._escape(reason)}</li>`;
       }).join('');
     } else {
       skippedRows = '<li>无</li>';
     }
-    const pageCount = report && Array.isArray(report.pages) ? report.pages.length : 0;
-    const expandedCount = report && Array.isArray(report.pages)
-      ? report.pages.filter(p => p.expandedFieldCount != null).length
-      : 0;
 
     return `
       <div style="font-weight:600;font-size:16px;margin-bottom:8px">自动填写完成</div>
       <div style="margin-bottom:6px">已填: <strong>${filled}</strong> 个字段</div>
       <div style="margin-bottom:10px">跳过: <strong>${skipped.length}</strong> 个字段</div>
-      <div style="margin-bottom:10px;color:#4b5563">
-        页面: <strong>${pageCount}</strong> 页；动态展开: <strong>${expandedCount}</strong> 次
-      </div>
-      <ul style="margin:0 0 12px 0;padding-left:18px;max-height:200px;overflow-y:auto">
+      ${skipped.length > 0 ? `<div style="font-size:13px;color:#374151;margin-bottom:6px">以下字段需要手动填写：</div>` : ''}
+      <ul style="margin:0 0 12px 0;padding-left:18px;max-height:200px;overflow-y:auto;font-size:13px">
         ${skippedRows}
       </ul>
-      <div style="margin-bottom:10px;color:#6b7280;font-size:12px">
-        安全边界：不会点击最终提交按钮；附件仅上传已保存的原始简历。
-      </div>
       <button id="resume-autofill-close" style="
         display:block;width:100%;padding:8px;border:none;border-radius:6px;
         background:#2563eb;color:#fff;font-size:14px;cursor:pointer
@@ -74,16 +67,5 @@ var ResultAnnotator = {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
-  },
-
-  _contextText(item) {
-    const parts = [];
-    const section = item.repeatSection || item.section;
-    const control = item.widget || item.type;
-    if (section) parts.push(section);
-    if (Number.isInteger(item.repeatIndex)) parts.push(`第 ${item.repeatIndex + 1} 条`);
-    if (Number.isInteger(item.groupIndex)) parts.push(`组内第 ${item.groupIndex + 1} 项`);
-    if (control) parts.push(control);
-    return parts.length ? ` [${parts.join(', ')}]` : '';
   },
 };

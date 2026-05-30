@@ -119,10 +119,8 @@ test('diagnostic report preserves field context for skipped fields', () => {
   assert.match(content, /fieldReadRecords\(fields\)/);
   assert.match(content, /reportValuePreview\(field\.currentValue, field\)/);
   assert.match(content, /reportValuePreview\(value, field\)/);
-  assert.match(popup, /skipContextText\(item\)/);
-  assert.match(popup, /日志: 读取/);
-  assert.match(popup, /attemptedValuePreview/);
-  assert.match(annotator, /_contextText\(item\)/);
+  // Diagnostics are silently persisted to storage, not rendered in popup
+  assert.match(popup, /resumeAutofillLastReport/);
 });
 
 test('text handler supports framework-backed rich text editors', () => {
