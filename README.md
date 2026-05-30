@@ -8,11 +8,65 @@ AI 智能简历填写产品的后端服务 + Web 前端 + Chrome 插件。上传
 
 ## Quickstart
 
-```bash
-# 1. 系统依赖（macOS）
-brew install poppler          # pdf2image 需要
+### Option A: 一键启动（推荐给测试/交付用户）
 
-# 2. 后端
+先安装基础运行环境：
+
+| 平台 | 需要预装 |
+|---|---|
+| Windows | Python 3.11+、Chrome |
+| macOS | Python 3.11+、Chrome、`brew install poppler` |
+| Linux | Python 3.11+、Chrome/Chromium、`poppler-utils` |
+
+如果是从 Git 源码直接运行，还需要 Node.js LTS 来首次构建前端。如果使用 `scripts/package_release.py` 生成的交付包，包内已经包含 `web/dist`，普通用户不需要安装 Node.js。
+
+然后在项目根目录运行：
+
+```bash
+python start_cv_rec.py
+```
+
+也可以使用平台包装入口：
+
+```bash
+# Windows
+start_cv_rec.bat
+
+# macOS / Linux
+./start_cv_rec.sh
+```
+
+启动器会自动完成：
+
+1. 创建 `.venv`
+2. 安装后端依赖
+3. 首次生成 `.env`
+4. 安装前端依赖
+5. 构建 `web/dist`
+6. 启动 FastAPI，并由后端直接托管前端页面
+7. 自动打开浏览器访问 `http://127.0.0.1:8000`
+
+首次解析简历前，需要在 `.env` 中填写 `GLM_API_KEY` 或 `QWEN_API_KEY`，也可以登录后在管理员模型配置页填写。
+
+Chrome 插件仍需加载一次：
+
+1. 打开 `chrome://extensions`
+2. 开启「开发者模式」
+3. 点击「加载已解压的扩展程序」
+4. 选择 `With_Le/chrome-extension`
+5. 回到网页登录/上传简历，`/plugin?autolink=1` 会自动连接插件
+
+生成交付 zip：
+
+```bash
+.venv/bin/python scripts/package_release.py
+# 输出 dist/cv-rec-release.zip
+```
+
+### Option B: 手动开发启动
+
+```bash
+# 1. 后端
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -21,28 +75,28 @@ cp .env.example .env
 uvicorn app.main:app --reload
 # API: http://127.0.0.1:8000   docs: http://127.0.0.1:8000/docs
 
-# 3. 前端（另一终端）
+# 2. 前端（另一终端）
 cd web
 npm install
 npm run dev
 # 浏览器访问 http://localhost:5173
 # Vite 已配置 /api 代理，无需 CORS
 
-# 4. 测试
+# 3. 测试
 pytest                                  # 后端测试
 cd web && npm run build                 # 前端构建检查
 node --test With_Le/chrome-extension/tests/*.test.js
 
-# 5. 后端基础连通自检
+# 4. 后端基础连通自检
 .venv/bin/python scripts/backend_smoke_check.py
 
-# 6. 简历解析链路自检
+# 5. 简历解析链路自检
 .venv/bin/python scripts/resume_parse_chain_check.py
 
-# 7. 简历数据质量自检
+# 6. 简历数据质量自检
 .venv/bin/python scripts/resume_data_quality_check.py --resume-id <resume_id>
 
-# 8. Chrome 插件打包预检 / 生成 zip
+# 7. Chrome 插件打包预检 / 生成 zip
 .venv/bin/python scripts/package_extension.py --dry-run
 .venv/bin/python scripts/package_extension.py
 ```

@@ -4,10 +4,13 @@ from __future__ import annotations
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.errors import install_error_handlers
 from app.api.v1 import admin, auth, fill_plans, health, resumes, users
@@ -19,6 +22,8 @@ from app.core.logging import configure_logging, get_logger
 configure_logging()
 log = get_logger("main")
 request_log = get_logger("http")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+FRONTEND_DIST = PROJECT_ROOT / "web" / "dist"
 
 
 @asynccontextmanager
@@ -95,8 +100,36 @@ def create_app() -> FastAPI:
     app.include_router(resumes.router, prefix="/api/v1")
     app.include_router(fill_plans.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
+    mount_frontend(app)
 
     return app
+
+
+def mount_frontend(app: FastAPI) -> None:
+    """Serve the Vite production build when it exists.
+
+    Local developers can still run Vite separately. For one-click/demo mode,
+    `web/dist` lets the FastAPI process serve both the API and the UI.
+    """
+    index_html = FRONTEND_DIST / "index.html"
+    assets_dir = FRONTEND_DIST / "assets"
+    if not index_html.exists():
+        log.info("frontend_dist_missing", path=str(FRONTEND_DIST))
+        return
+
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="frontend-assets")
+
+    @app.get("/", include_in_schema=False)
+    async def frontend_index():
+        return FileResponse(index_html)
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def frontend_spa(path: str):
+        reserved = ("api/", "docs", "redoc", "openapi.json")
+        if path.startswith(reserved):
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse(index_html)
 
 
 app = create_app()
