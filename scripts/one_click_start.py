@@ -120,8 +120,6 @@ def ensure_port_available(port: int) -> None:
 
 def start_backend() -> subprocess.Popen[str]:
     env = os.environ.copy()
-    env.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./data/app.db")
-    env.setdefault("LOG_FILE_PATH", "./data/logs/app.log")
     cmd = [
         sys.executable,
         "-m",
