@@ -42,7 +42,7 @@ const CONNECT_TIMEOUT_MS = 1600;
 
 function localBackendBase() {
   const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") {
+  if ((host === "localhost" || host === "127.0.0.1") && window.location.port === "5173") {
     return "http://127.0.0.1:8000/api/v1";
   }
   return `${window.location.origin}/api/v1`;
