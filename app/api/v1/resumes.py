@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Response, UploadFile, status
 
-from app.api.deps import CurrentUser, ResumeSvc
+from app.api.deps import CurrentUser, ResumeReadSvc, ResumeSvc
 from app.schemas.api import (
     ParseStatusResponse,
     ResumeDetailResponse,
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/resumes", tags=["resumes"])
 
 
 @router.get("", response_model=list[ResumeDetailResponse])
-async def list_resumes(user: CurrentUser, svc: ResumeSvc) -> list[ResumeDetailResponse]:
+async def list_resumes(user: CurrentUser, svc: ResumeReadSvc) -> list[ResumeDetailResponse]:
     rows = await svc.list_for_user(user.id)
     return [
         ResumeDetailResponse(
@@ -68,7 +68,7 @@ async def upload_resume(
 async def get_status(
     resume_id: str,
     user: CurrentUser,
-    svc: ResumeSvc,
+    svc: ResumeReadSvc,
 ) -> ParseStatusResponse:
     resume = await svc.get(user.id, resume_id)
     return ParseStatusResponse(
@@ -83,7 +83,7 @@ async def get_status(
 async def get_resume(
     resume_id: str,
     user: CurrentUser,
-    svc: ResumeSvc,
+    svc: ResumeReadSvc,
 ) -> ResumeDetailResponse:
     resume = await svc.get(user.id, resume_id)
     return ResumeDetailResponse(
@@ -100,7 +100,7 @@ async def get_resume(
 async def download_resume_file(
     resume_id: str,
     user: CurrentUser,
-    svc: ResumeSvc,
+    svc: ResumeReadSvc,
 ) -> Response:
     """Download the authenticated user's original uploaded resume file."""
     resume, content = await svc.get_original_file(user.id, resume_id)
@@ -123,7 +123,7 @@ async def patch_resume(
     resume_id: str,
     payload: ResumePatch,
     user: CurrentUser,
-    svc: ResumeSvc,
+    svc: ResumeReadSvc,
 ) -> ResumeDetailResponse:
     resume = await svc.patch(user.id, resume_id, payload.patch)
     return ResumeDetailResponse(
@@ -140,7 +140,7 @@ async def patch_resume(
 async def delete_resume(
     resume_id: str,
     user: CurrentUser,
-    svc: ResumeSvc,
+    svc: ResumeReadSvc,
 ) -> None:
     await svc.delete(user.id, resume_id)
 

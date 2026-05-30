@@ -12,6 +12,7 @@ from app.adapters.storage.base import StorageBackend
 from app.core.config import get_settings
 from app.core.exceptions import (
     BusinessError,
+    ConfigError,
     ForbiddenError,
     NotFoundError,
     ValidationError,
@@ -101,7 +102,7 @@ class ResumeService:
         self,
         session: AsyncSession,
         storage: StorageBackend,
-        parsing: ParsingService,
+        parsing: ParsingService | None = None,
     ) -> None:
         self.session = session
         self.storage = storage
@@ -119,7 +120,8 @@ class ResumeService:
         thinking_mode: str | None = None,
     ) -> Resume:
         settings = get_settings()
-        effective_thinking_mode = _apply_thinking_mode(self.parsing.model, thinking_mode)
+        parsing = self._require_parsing()
+        effective_thinking_mode = _apply_thinking_mode(parsing.model, thinking_mode)
         if len(content) > settings.max_file_size_bytes:
             raise ValidationError(
                 f"File exceeds {settings.max_file_size_mb} MB",
@@ -299,7 +301,8 @@ class ResumeService:
         """Re-run parsing on the already-uploaded file. Useful when the previous
         attempt was truncated or used a stale model configuration."""
         resume = await self.get(user_id, resume_id)
-        effective_thinking_mode = _apply_thinking_mode(self.parsing.model, thinking_mode)
+        parsing = self._require_parsing()
+        effective_thinking_mode = _apply_thinking_mode(parsing.model, thinking_mode)
         bind_contextvars(user_id=user_id, resume_id=resume_id)
         log.info(
             "resume_reparse_requested",
@@ -380,7 +383,8 @@ class ResumeService:
         content: bytes,
         fmt: str,
     ):
-        ocr_model_id = getattr(self.parsing.model, "ocr_model_id", "")
+        parsing = self._require_parsing()
+        ocr_model_id = getattr(parsing.model, "ocr_model_id", "")
         if fmt in OCR_PREFERRED_FORMATS and ocr_model_id:
             log.info(
                 "resume_ocr_parse_selected",
@@ -390,7 +394,7 @@ class ResumeService:
                 ocr_model=ocr_model_id,
             )
             try:
-                return await self.parsing.parse_with_ocr(filename=filename, content=content)
+                return await parsing.parse_with_ocr(filename=filename, content=content)
             except Exception as exc:
                 log.warning(
                     "resume_ocr_parse_failed_falling_back",
@@ -416,7 +420,12 @@ class ResumeService:
             file_format=fmt,
             **_doc_trace_fields(doc),
         )
-        return await self.parsing.parse(doc)
+        return await parsing.parse(doc)
+
+    def _require_parsing(self) -> ParsingService:
+        if self.parsing is None:
+            raise ConfigError("Model API key is missing")
+        return self.parsing
 
     async def _log_successful_parse_cost(self, user_id: str, outcome) -> None:
         responses = outcome.responses or [outcome.response]

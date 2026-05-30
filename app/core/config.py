@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     debug_invalid_model_output_max_chars: int = 20000
 
     # ---- Database ----
-    database_url: str = "sqlite+aiosqlite:///./data/app.db"
+    database_url: str = "sqlite+aiosqlite:///./data/dev.db"
 
     # ---- Storage ----
     storage_backend: Literal["local"] = "local"

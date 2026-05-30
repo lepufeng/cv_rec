@@ -3,15 +3,18 @@ from __future__ import annotations
 
 import os
 import shutil
+import tempfile
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _setup_test_env(tmp_path_factory):
-    tmpdir = tmp_path_factory.mktemp("cv_rec_test")
+_TEST_TMP_ROOT = Path(tempfile.mkdtemp(prefix="cv_rec_test_"))
+
+
+def _configure_test_env(tmpdir) -> None:
     os.environ["APP_ENV"] = "test"
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{tmpdir}/test.db"
     os.environ["STORAGE_LOCAL_PATH"] = str(tmpdir / "uploads")
@@ -22,12 +25,18 @@ def _setup_test_env(tmp_path_factory):
     os.environ["LOG_TO_FILE"] = "false"
     os.environ["DEBUG_CAPTURE_INVALID_MODEL_OUTPUTS"] = "false"
 
+
+_configure_test_env(_TEST_TMP_ROOT)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _setup_test_env():
     from app.core.config import get_settings
     get_settings.cache_clear()
 
     yield
 
-    shutil.rmtree(tmpdir, ignore_errors=True)
+    shutil.rmtree(_TEST_TMP_ROOT, ignore_errors=True)
 
 
 @pytest_asyncio.fixture

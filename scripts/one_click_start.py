@@ -60,7 +60,7 @@ def ensure_env_file() -> None:
     else:
         ENV_FILE.write_text(
             "APP_ENV=dev\n"
-            "DATABASE_URL=sqlite+aiosqlite:///./data/app.db\n"
+            "DATABASE_URL=sqlite+aiosqlite:///./data/dev.db\n"
             "LOG_FILE_PATH=./data/logs/app.log\n",
             encoding="utf-8",
         )

@@ -95,6 +95,11 @@ async def get_resume_service(session: DbSession) -> ResumeService:
     return ResumeService(session, storage, parsing)
 
 
+def get_resume_read_service(session: DbSession) -> ResumeService:
+    storage = get_storage()
+    return ResumeService(session, storage)
+
+
 async def get_fill_service(session: DbSession) -> FillService:
     model = await _build_model(session)
     return FillService(session, model)
@@ -102,5 +107,6 @@ async def get_fill_service(session: DbSession) -> FillService:
 
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 ResumeSvc = Annotated[ResumeService, Depends(get_resume_service)]
+ResumeReadSvc = Annotated[ResumeService, Depends(get_resume_read_service)]
 FillSvc = Annotated[FillService, Depends(get_fill_service)]
 ConfigSvc = Annotated[ConfigService, Depends(get_config_service)]

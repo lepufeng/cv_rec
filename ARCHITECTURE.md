@@ -311,7 +311,7 @@ ORM 已预留 `parse_status / parse_started_at / parse_completed_at` 字段。
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `APP_ENV` | `dev` | `dev` / `prod` / `test` |
-| `DATABASE_URL` | SQLite | 本地默认 `sqlite+aiosqlite:///./data/app.db`；生产换 PG |
+| `DATABASE_URL` | SQLite | 本地默认 `sqlite+aiosqlite:///./data/dev.db`；生产换 PG |
 | `LOG_TO_FILE` | `true` | 是否将结构化日志写入文件 |
 | `LOG_FILE_PATH` | `./data/logs/app.log` | 自动记录日志文件路径 |
 | `LOG_FILE_MAX_MB` | `10` | 单个日志文件大小上限，超过后轮转 |

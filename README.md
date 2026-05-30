@@ -48,6 +48,8 @@ start_cv_rec.bat
 
 首次解析简历前，需要在 `.env` 中填写 `GLM_API_KEY` 或 `QWEN_API_KEY`，也可以登录后在管理员模型配置页填写。
 
+本地 SQLite 数据库会在首次启动后端时自动创建，默认路径为 `data/dev.db`。`data/` 是本机运行数据目录，不进入 Git，也不会被 `scripts/package_release.py` 打入交付 zip；队友首次运行会得到一个空数据库，需要自行注册账号、配置模型 API key 并上传简历。
+
 Chrome 插件仍需加载一次：
 
 1. 打开 `chrome://extensions`
