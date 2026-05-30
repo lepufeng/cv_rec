@@ -18,10 +18,6 @@ EXTENSION_ZIP = ROOT / "dist" / "cv-rec-autofill-extension.zip"
 RELEASE_ROOT = "cv-rec"
 ROOT_FILES = (
     "README.md",
-    "DOCS.md",
-    "SCHEMA.md",
-    "ARCHITECTURE.md",
-    "RELEASE_CHECKLIST.md",
     "pyproject.toml",
     ".env.example",
     "start_cv_rec.py",

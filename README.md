@@ -158,22 +158,6 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
 
 ---
 
-## 项目文档
-
-> 当前文档入口见 [DOCS.md](./DOCS.md)。当前数据契约见 [SCHEMA.md](./SCHEMA.md)。旧的全站点调研、Kiro 规格和 mock 后端文档已从主仓库删除，避免继续牵引当前 MVP。
-
-| 文档 | 内容 |
-|---|---|
-| [DOCS.md](./DOCS.md) | 文档导航、当前文档边界、修改文档同步规则 |
-| [SCHEMA.md](./SCHEMA.md) | 当前 `ResumeData v1.6`、插件字段扫描、填表方案数据契约 |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 系统架构、模块职责、扩展点、API 速查表 |
-| [FEISHU_SCOPE_REDUCTION_REVIEW.md](./FEISHU_SCOPE_REDUCTION_REVIEW.md) | 当前飞书招聘范围收缩、保留/删除边界 |
-| [PLUGIN_MVP_FIELD_REQUIREMENTS.md](./PLUGIN_MVP_FIELD_REQUIREMENTS.md) | 小鹏/飞书招聘插件字段扫描上报要求 |
-| [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) | 提交/用户测试前检查清单与插件打包说明 |
-| [web/README.md](./web/README.md) | 前端本地开发、路由与构建说明 |
-
----
-
 ## 当前 MVP 范围
 
 - ✅ 简历上传（PDF/DOCX/PNG/JPG）+ 同步多模态解析
@@ -190,7 +174,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
 - ✅ 插件运行时门控：非飞书招聘系页面直接停止
 - ✅ 后端自动化测试 + 插件 manifest / service worker / autofill smoke 测试
 
-未在 MVP 中：异步队列、对象存储、多模型路由降级、Redis 缓存、敏感字段加密、速率限制 — 见 ARCHITECTURE.md 第 10 节。
+未在 MVP 中：异步队列、对象存储、多模型路由降级、Redis 缓存、敏感字段加密、速率限制。
 
 ---
 

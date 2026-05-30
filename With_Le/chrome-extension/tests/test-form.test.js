@@ -5,7 +5,6 @@ const test = require('node:test');
 
 const extensionRoot = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(extensionRoot, 'test-form.html'), 'utf8');
-const testingDoc = fs.readFileSync(path.join(extensionRoot, 'TESTING.md'), 'utf8');
 
 test('local test form covers Feishu recruiting markers', () => {
   assert.match(html, /Feishu Recruiting Form Test/);
@@ -34,13 +33,4 @@ test('local test form covers custom controls and final submit safety', () => {
   assert.match(html, /id="resume-file"/);
   assert.match(html, /id="final-submit"/);
   assert.match(html, /ERROR: final submit was clicked/);
-});
-
-test('local Feishu test instructions cover expected safety checks', () => {
-  assert.match(testingDoc, /Xiaopeng \/ Feishu Recruiting/);
-  assert.match(testingDoc, /python3 -m http\.server 8090/);
-  assert.match(testingDoc, /must not click `提交投递`/);
-  assert.match(testingDoc, /复制诊断报告/);
-  assert.match(testingDoc, /stopReason: submit_only/);
-  assert.match(testingDoc, /multiple checked skills/);
 });
