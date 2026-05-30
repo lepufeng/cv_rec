@@ -36,6 +36,9 @@ const STATUS_REQUEST = "CV_REC_PLUGIN_STATUS";
 const STATUS_RESULT = "CV_REC_PLUGIN_STATUS_RESULT";
 const CONNECT_REQUEST = "CV_REC_CONNECT_PLUGIN";
 const CONNECT_RESULT = "CV_REC_CONNECT_PLUGIN_RESULT";
+const MAX_BRIDGE_ATTEMPTS = 3;
+const STATUS_TIMEOUT_MS = 1400;
+const CONNECT_TIMEOUT_MS = 1600;
 
 function localBackendBase() {
   const host = window.location.hostname;
@@ -103,19 +106,23 @@ export default function PluginConnect() {
     );
   }, []);
 
-  const requestPluginStatus = useCallback(() => {
+  const requestPluginStatus = useCallback((attempt = 0) => {
     const requestId = bridgeRequestId();
     pendingStatusId.current = requestId;
     setBridge((current) => ({
       ...current,
       checked: false,
-      message: "正在检测浏览器插件...",
+      message: attempt === 0 ? "正在检测浏览器插件..." : "正在重新检测浏览器插件...",
     }));
     postBridgeMessage(STATUS_REQUEST, requestId);
     if (statusTimer.current) window.clearTimeout(statusTimer.current);
     statusTimer.current = window.setTimeout(() => {
       if (pendingStatusId.current !== requestId) return;
       pendingStatusId.current = "";
+      if (attempt + 1 < MAX_BRIDGE_ATTEMPTS) {
+        requestPluginStatus(attempt + 1);
+        return;
+      }
       setBridge({
         checked: true,
         available: false,
@@ -123,10 +130,10 @@ export default function PluginConnect() {
         message: "未检测到插件，请确认已在 Chrome 扩展管理页加载插件。",
         status: null,
       });
-    }, 1400);
+    }, STATUS_TIMEOUT_MS);
   }, [postBridgeMessage]);
 
-  const connectPlugin = useCallback((manual: boolean) => {
+  const connectPlugin = useCallback((manual: boolean, attempt = 0) => {
     if (!token) {
       setBridge((current) => ({
         ...current,
@@ -144,7 +151,13 @@ export default function PluginConnect() {
       ...current,
       checked: true,
       connecting: true,
-      message: manual ? "正在连接插件..." : "网页登录已完成，正在自动连接插件...",
+      message: attempt === 0
+        ? manual
+          ? "正在连接插件..."
+          : "网页登录已完成，正在自动连接插件..."
+        : manual
+          ? "正在重新连接插件..."
+          : "正在重新自动连接插件...",
     }));
     postBridgeMessage(CONNECT_REQUEST, requestId, {
       platformHome: portalUrl,
@@ -158,6 +171,10 @@ export default function PluginConnect() {
     connectTimer.current = window.setTimeout(() => {
       if (pendingConnectId.current !== requestId) return;
       pendingConnectId.current = "";
+      if (attempt + 1 < MAX_BRIDGE_ATTEMPTS) {
+        connectPlugin(manual, attempt + 1);
+        return;
+      }
       setBridge((current) => ({
         ...current,
         checked: true,
@@ -165,7 +182,7 @@ export default function PluginConnect() {
         connecting: false,
         message: "插件没有响应，请刷新本页或重新加载 Chrome 插件后重试。",
       }));
-    }, 1600);
+    }, CONNECT_TIMEOUT_MS);
   }, [backendBase, postBridgeMessage, portalUrl, recommendedResume?.resume_id, token, user?.username]);
 
   useEffect(() => {
@@ -285,7 +302,7 @@ export default function PluginConnect() {
               >
                 {bridge.connecting ? "连接中..." : "连接到插件"}
               </button>
-              <button type="button" className="btn-secondary" onClick={requestPluginStatus}>
+              <button type="button" className="btn-secondary" onClick={() => requestPluginStatus()}>
                 重新检测
               </button>
             </div>
