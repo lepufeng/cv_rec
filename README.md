@@ -6,7 +6,20 @@ AI 简历智能填写平台：上传简历 → 多模态模型解析为结构化
 
 ---
 
-## Quickstart
+## 目录
+
+- [Quickstart（快速开始）](#quickstart快速开始)
+  - [一键启动（推荐）](#一键启动推荐)
+  - [安装 Chrome 插件](#安装-chrome-插件)
+  - [手动开发启动](#手动开发启动)
+- [Web 界面](#web-界面)
+- [插件自动填写流程](#插件自动填写流程)
+- [API 示例](#api-示例)
+- [云端部署](#云端部署)
+
+---
+
+## Quickstart（快速开始）
 
 ### 一键启动（推荐）
 
@@ -27,6 +40,13 @@ python start_cv_rec.py
 启动器自动完成：创建 `.venv`、安装依赖、构建前端、启动服务并打开浏览器 `http://127.0.0.1:8000`。
 
 首次使用需在 `.env` 中填写 `GLM_API_KEY` 或 `QWEN_API_KEY`，也可在管理员模型配置页填写。
+
+**首次使用流程：**
+
+1. 启动后访问 `http://127.0.0.1:8000`，页面会自动跳转到管理员初始化页
+2. 创建管理员账户（仅需设置用户名和密码，整个系统只允许创建一次）
+3. 用管理员登录后，在 `/admin/models` 页面配置模型 API Key
+4. 普通用户通过 `/register` 自行注册即可上传简历
 
 ### 安装 Chrome 插件
 
@@ -144,6 +164,125 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
   -H "Content-Type: application/json" \
   -d @./examples/form_fields.json
 ```
+
+---
+
+## 云端部署
+
+项目支持 Docker 一键部署至云服务器（阿里云、腾讯云、AWS 等）。
+
+### 前置条件
+
+- 一台云服务器（2 核 4G 即可），已安装 Docker 和 Docker Compose
+- 一个域名（可选，配 HTTPS 需要）
+- 模型 API Key（GLM 或 Qwen）
+
+### 第一步：构建镜像
+
+在本地或 CI 环境中构建：
+
+```bash
+# 构建前端
+cd web && npm install && npm run build && cd ..
+
+# 构建 Docker 镜像
+docker build -t cv-rec:latest .
+```
+
+### 第二步：准备环境配置
+
+在服务器上创建 `.env` 文件：
+
+```bash
+# 必须
+APP_ENV=prod
+SECRET_KEY=<用 openssl rand -hex 32 生成一个随机密钥>
+GLM_API_KEY=<你的模型 API Key>
+
+# 数据库（推荐生产环境使用 PostgreSQL）
+DATABASE_URL=postgresql+asyncpg://cvrec:cvrec123@db:5432/cvrec
+
+# CORS（设为你的前端域名，多个用逗号分隔）
+CORS_ORIGINS=https://your-domain.com
+```
+
+### 第三步：启动服务
+
+创建 `docker-compose.prod.yml`：
+
+```yaml
+version: "3.9"
+services:
+  app:
+    image: cv-rec:latest
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cvrec
+      POSTGRES_USER: cvrec
+      POSTGRES_PASSWORD: cvrec123
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "cvrec"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+```
+
+启动：
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+访问 `http://你的服务器IP:8000` 即可。首次打开会引导创建管理员账户。
+
+### 第四步（可选）：配置 HTTPS
+
+推荐使用 Nginx 反向代理 + Let's Encrypt：
+
+```bash
+# 安装 certbot
+apt install certbot python3-certbot-nginx
+
+# 申请证书（替换为你的域名）
+certbot --nginx -d your-domain.com
+```
+
+Nginx 配置参考：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+配置完成后，Chrome 插件的「平台主页」改为 `https://your-domain.com` 即可连接云端实例。
 
 ---
 
