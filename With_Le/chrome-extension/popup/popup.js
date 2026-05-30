@@ -8,6 +8,9 @@ const authTokenInput = document.getElementById('auth-token');
 const openPlatformBtn = document.getElementById('open-platform-btn');
 const saveSettingsBtn = document.getElementById('save-settings-btn');
 const expandToggle = document.getElementById('expand-toggle');
+const connectionStateEl = document.getElementById('connection-state');
+const connectionDetailEl = document.getElementById('connection-detail');
+const connectionMetaEl = document.getElementById('connection-meta');
 const debugInfoEl = document.getElementById('debug-info');
 const copyReportBtn = document.getElementById('copy-report-btn');
 const clearReportBtn = document.getElementById('clear-report-btn');
@@ -54,6 +57,39 @@ function normalizeUrl(value, fallback) {
   return withScheme.replace(/\/+$/, '');
 }
 
+function platformPathUrl(platformHome, path, params) {
+  try {
+    const url = new URL(normalizeUrl(platformHome, DEFAULT_PLATFORM_HOME));
+    url.pathname = path;
+    url.search = params || '';
+    url.hash = '';
+    return url.toString();
+  } catch (_) {
+    return `${DEFAULT_PLATFORM_HOME}${path}${params || ''}`;
+  }
+}
+
+function platformConnectUrl(platformHome) {
+  return platformPathUrl(platformHome, '/plugin', 'autolink=1');
+}
+
+function renderPrimaryAction(settings) {
+  const hasToken = !!settings.authToken;
+  const hasResume = !!settings.resumeId;
+  if (!hasToken) {
+    fillBtn.textContent = '连接平台账号';
+    scanBtn.disabled = true;
+    return;
+  }
+  if (!hasResume) {
+    fillBtn.textContent = '选择或上传简历';
+    scanBtn.disabled = false;
+    return;
+  }
+  fillBtn.textContent = '开始自动填写';
+  scanBtn.disabled = false;
+}
+
 function readSettings() {
   return {
     platformHome: normalizeUrl(platformHomeInput.value, DEFAULT_PLATFORM_HOME),
@@ -64,11 +100,48 @@ function readSettings() {
   };
 }
 
+function shortValue(value, start = 8, end = 6) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.length <= start + end + 3) return text;
+  return `${text.slice(0, start)}...${text.slice(-end)}`;
+}
+
+function renderConnectionSummary(settings) {
+  const hasToken = !!settings.authToken;
+  const hasResume = !!settings.resumeId;
+  connectionStateEl.className = 'state-pill';
+  renderPrimaryAction(settings);
+
+  if (hasToken && hasResume) {
+    connectionStateEl.textContent = '已连接';
+    connectionStateEl.classList.add('connected');
+    connectionDetailEl.textContent = '网页账户已连接，可以在小鹏或飞书招聘页面开始自动填写。';
+  } else if (hasToken) {
+    connectionStateEl.textContent = '待选简历';
+    connectionStateEl.classList.add('partial');
+    connectionDetailEl.textContent = '网页登录已同步，请在网页上传或选择简历后再次连接。';
+  } else {
+    connectionStateEl.textContent = '未连接';
+    connectionDetailEl.textContent = '登录网页后会自动连接插件，也可以打开平台手动连接。';
+  }
+
+  const meta = [];
+  if (settings.backendBase) meta.push(`API ${settings.backendBase}`);
+  if (hasResume) meta.push(`简历 ${shortValue(settings.resumeId)}`);
+  if (settings.linkedUsername) meta.push(`账号 ${settings.linkedUsername}`);
+  connectionMetaEl.textContent = meta.join(' · ');
+}
+
 async function saveSettings(quiet) {
   const settings = readSettings();
   platformHomeInput.value = settings.platformHome;
   backendBaseInput.value = settings.backendBase;
-  await storageSet(settings);
+  await storageSet({
+    ...settings,
+    linkedAt: new Date().toISOString(),
+  });
+  renderConnectionSummary(settings);
   if (!quiet) {
     statusEl.textContent = '配置已保存';
   }
@@ -82,6 +155,8 @@ async function restoreSettings() {
     'authToken',
     'resumeId',
     'expandOnScan',
+    'linkedAt',
+    'linkedUsername',
     'resumeAutofillLastReport',
   ]);
   platformHomeInput.value = data.platformHome || DEFAULT_PLATFORM_HOME;
@@ -89,6 +164,13 @@ async function restoreSettings() {
   authTokenInput.value = data.authToken || '';
   resumeIdInput.value = data.resumeId || '';
   expandToggle.checked = !!data.expandOnScan;
+  renderConnectionSummary({
+    platformHome: platformHomeInput.value,
+    backendBase: backendBaseInput.value,
+    authToken: authTokenInput.value,
+    resumeId: resumeIdInput.value,
+    linkedUsername: data.linkedUsername || '',
+  });
   if (data.resumeAutofillLastReport) {
     renderFillReport(data.resumeAutofillLastReport, '上次自动填写结果');
   }
@@ -522,7 +604,7 @@ saveSettingsBtn.addEventListener('click', () => {
 
 openPlatformBtn.addEventListener('click', async () => {
   const settings = await saveSettings(true);
-  chrome.tabs.create({ url: settings.platformHome });
+  chrome.tabs.create({ url: platformConnectUrl(settings.platformHome) });
 });
 
 expandToggle.addEventListener('change', () => {
@@ -549,8 +631,16 @@ clearReportBtn.addEventListener('click', async () => {
 fillBtn.addEventListener('click', async () => {
   await runWithButtonsDisabled(async () => {
     const settings = await saveSettings(true);
-    if (!settings.resumeId) throw new Error('请输入简历 ID');
-    if (!settings.authToken) throw new Error('请先在插件中粘贴网页登录 token');
+    if (!settings.authToken) {
+      statusEl.textContent = '正在打开平台连接页...';
+      chrome.tabs.create({ url: platformConnectUrl(settings.platformHome) });
+      return;
+    }
+    if (!settings.resumeId) {
+      statusEl.textContent = '正在打开简历连接页...';
+      chrome.tabs.create({ url: platformConnectUrl(settings.platformHome) });
+      return;
+    }
 
     statusEl.textContent = '准备自动填写...';
     debugInfoEl.textContent = '';
@@ -574,13 +664,15 @@ fillBtn.addEventListener('click', async () => {
     ].join('\n');
   }).catch(err => {
     statusEl.textContent = '填写启动失败: ' + (err && err.message ? err.message : err);
+  }).finally(() => {
+    renderPrimaryAction(readSettings());
   });
 });
 
 scanBtn.addEventListener('click', async () => {
   await runWithButtonsDisabled(async () => {
     const settings = await saveSettings(true);
-    if (!settings.authToken) throw new Error('请先在插件中粘贴网页登录 token');
+    if (!settings.authToken) throw new Error('请先在网页完成自动连接或手动粘贴登录 token');
 
     statusEl.textContent = '准备扫描页面...';
     debugInfoEl.textContent = '';
@@ -595,6 +687,8 @@ scanBtn.addEventListener('click', async () => {
     statusEl.textContent = '扫描校验完成';
   }).catch(err => {
     statusEl.textContent = '扫描失败: ' + (err && err.message ? err.message : err);
+  }).finally(() => {
+    renderPrimaryAction(readSettings());
   });
 });
 

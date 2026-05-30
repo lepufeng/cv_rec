@@ -17,6 +17,8 @@ function assertFile(relativePath) {
 
 test('Chrome extension manifest points to existing runtime files', () => {
   assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.name, 'CV Rec Autofill');
+  assert.match(manifest.description, /Feishu Recruiting/);
   assert.equal(manifest.permissions.includes('storage'), true);
   assert.equal(manifest.permissions.includes('scripting'), true);
   assert.deepEqual(manifest.host_permissions, ['<all_urls>']);

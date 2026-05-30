@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Resume Auto-fill",
+  "name": "CV Rec Autofill",
   "version": "0.1.0",
-  "description": "Auto-fill corporate recruitment forms using resume data",
+  "description": "Auto-fill Xiaopeng and Feishu Recruiting forms with your parsed resume",
   "permissions": ["storage", "activeTab", "scripting", "tabs"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Resume Auto-fill"
+    "default_title": "CV Rec Autofill"
   },
   "background": {
     "service_worker": "service-worker/service-worker.js"
@@ -18,6 +18,7 @@
       "js": [
         "shared/message-types.js",
         "shared/dom-utils.js",
+        "content/platform-bridge.js",
         "content/handlers/text-handler.js",
         "content/handlers/select-handler.js",
         "content/handlers/date-handler.js",

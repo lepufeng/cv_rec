@@ -1,9 +1,41 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Card, EmptyState, ErrorBanner, PageHeader, StatusPill } from "@/components/UI";
 import { endpoints, getToken, HttpError, type ResumeDetail } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 type CopyKey = "portal" | "backend" | "token" | `resume:${string}`;
+type BridgeStatus = {
+  connected: boolean;
+  hasResume: boolean;
+  platformHome: string;
+  backendBase: string;
+  resumeId: string;
+  linkedAt?: string;
+  linkedUsername?: string;
+};
+type BridgeState = {
+  checked: boolean;
+  available: boolean;
+  connecting: boolean;
+  message: string;
+  status: BridgeStatus | null;
+};
+type BridgeResponse = {
+  source?: string;
+  type?: string;
+  requestId?: string;
+  ok?: boolean;
+  error?: string;
+  status?: BridgeStatus;
+};
+
+const PLATFORM_BRIDGE_SOURCE = "cv-rec-platform";
+const EXTENSION_BRIDGE_SOURCE = "cv-rec-extension";
+const STATUS_REQUEST = "CV_REC_PLUGIN_STATUS";
+const STATUS_RESULT = "CV_REC_PLUGIN_STATUS_RESULT";
+const CONNECT_REQUEST = "CV_REC_CONNECT_PLUGIN";
+const CONNECT_RESULT = "CV_REC_CONNECT_PLUGIN_RESULT";
 
 function localBackendBase() {
   const host = window.location.hostname;
@@ -23,11 +55,25 @@ export default function PluginConnect() {
   const [resumes, setResumes] = useState<ResumeDetail[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<CopyKey | null>(null);
+  const [bridge, setBridge] = useState<BridgeState>({
+    checked: false,
+    available: false,
+    connecting: false,
+    message: "正在检测浏览器插件...",
+    status: null,
+  });
   const [params] = useSearchParams();
+  const user = useAuth((s) => s.user);
   const token = getToken("user");
   const portalUrl = useMemo(() => window.location.origin, []);
   const backendBase = useMemo(localBackendBase, []);
   const selectedResumeId = params.get("rid");
+  const autoLink = params.get("autolink") === "1";
+  const pendingStatusId = useRef("");
+  const pendingConnectId = useRef("");
+  const statusTimer = useRef<number | null>(null);
+  const connectTimer = useRef<number | null>(null);
+  const autoLinkAttempted = useRef(false);
   const orderedResumes = useMemo(() => {
     if (!resumes || !selectedResumeId) return resumes;
     return [...resumes].sort((a, b) => {
@@ -36,6 +82,91 @@ export default function PluginConnect() {
       return 0;
     });
   }, [resumes, selectedResumeId]);
+  const recommendedResume = useMemo(() => {
+    if (!resumes || resumes.length === 0) return null;
+    return (
+      resumes.find((resume) => resume.resume_id === selectedResumeId) ||
+      resumes.find((resume) => resume.status === "completed") ||
+      resumes[0]
+    );
+  }, [resumes, selectedResumeId]);
+
+  const postBridgeMessage = useCallback((type: string, requestId: string, payload?: unknown) => {
+    window.postMessage(
+      {
+        source: PLATFORM_BRIDGE_SOURCE,
+        type,
+        requestId,
+        payload,
+      },
+      window.location.origin,
+    );
+  }, []);
+
+  const requestPluginStatus = useCallback(() => {
+    const requestId = bridgeRequestId();
+    pendingStatusId.current = requestId;
+    setBridge((current) => ({
+      ...current,
+      checked: false,
+      message: "正在检测浏览器插件...",
+    }));
+    postBridgeMessage(STATUS_REQUEST, requestId);
+    if (statusTimer.current) window.clearTimeout(statusTimer.current);
+    statusTimer.current = window.setTimeout(() => {
+      if (pendingStatusId.current !== requestId) return;
+      pendingStatusId.current = "";
+      setBridge({
+        checked: true,
+        available: false,
+        connecting: false,
+        message: "未检测到插件，请确认已在 Chrome 扩展管理页加载插件。",
+        status: null,
+      });
+    }, 1400);
+  }, [postBridgeMessage]);
+
+  const connectPlugin = useCallback((manual: boolean) => {
+    if (!token) {
+      setBridge((current) => ({
+        ...current,
+        checked: true,
+        available: current.available,
+        connecting: false,
+        message: "当前未找到网页登录 token，请重新登录。",
+      }));
+      return;
+    }
+
+    const requestId = bridgeRequestId();
+    pendingConnectId.current = requestId;
+    setBridge((current) => ({
+      ...current,
+      checked: true,
+      connecting: true,
+      message: manual ? "正在连接插件..." : "网页登录已完成，正在自动连接插件...",
+    }));
+    postBridgeMessage(CONNECT_REQUEST, requestId, {
+      platformHome: portalUrl,
+      backendBase,
+      authToken: token,
+      resumeId: recommendedResume?.resume_id || "",
+      username: user?.username || "",
+    });
+
+    if (connectTimer.current) window.clearTimeout(connectTimer.current);
+    connectTimer.current = window.setTimeout(() => {
+      if (pendingConnectId.current !== requestId) return;
+      pendingConnectId.current = "";
+      setBridge((current) => ({
+        ...current,
+        checked: true,
+        available: false,
+        connecting: false,
+        message: "插件没有响应，请刷新本页或重新加载 Chrome 插件后重试。",
+      }));
+    }, 1600);
+  }, [backendBase, postBridgeMessage, portalUrl, recommendedResume?.resume_id, token, user?.username]);
 
   useEffect(() => {
     endpoints
@@ -46,6 +177,56 @@ export default function PluginConnect() {
         setResumes([]);
       });
   }, []);
+
+  useEffect(() => {
+    function handleBridgeResponse(event: MessageEvent<BridgeResponse>) {
+      if (event.source !== window) return;
+      const message = event.data || {};
+      if (message.source !== EXTENSION_BRIDGE_SOURCE) return;
+
+      if (message.type === STATUS_RESULT && message.requestId === pendingStatusId.current) {
+        pendingStatusId.current = "";
+        if (statusTimer.current) window.clearTimeout(statusTimer.current);
+        setBridge({
+          checked: true,
+          available: !!message.ok,
+          connecting: false,
+          message: message.ok
+            ? bridgeStatusText(message.status || null)
+            : message.error || "插件状态读取失败",
+          status: message.status || null,
+        });
+      }
+
+      if (message.type === CONNECT_RESULT && message.requestId === pendingConnectId.current) {
+        pendingConnectId.current = "";
+        if (connectTimer.current) window.clearTimeout(connectTimer.current);
+        setBridge({
+          checked: true,
+          available: !!message.ok,
+          connecting: false,
+          message: message.ok
+            ? bridgeStatusText(message.status || null)
+            : message.error || "插件连接失败",
+          status: message.status || null,
+        });
+      }
+    }
+
+    window.addEventListener("message", handleBridgeResponse);
+    requestPluginStatus();
+    return () => {
+      window.removeEventListener("message", handleBridgeResponse);
+      if (statusTimer.current) window.clearTimeout(statusTimer.current);
+      if (connectTimer.current) window.clearTimeout(connectTimer.current);
+    };
+  }, [requestPluginStatus]);
+
+  useEffect(() => {
+    if (!autoLink || autoLinkAttempted.current || resumes === null) return;
+    autoLinkAttempted.current = true;
+    connectPlugin(false);
+  }, [autoLink, connectPlugin, resumes]);
 
   async function copy(value: string, key: CopyKey) {
     await navigator.clipboard.writeText(value);
@@ -68,7 +249,60 @@ export default function PluginConnect() {
 
       <div className="grid grid-cols-12 gap-6">
         <section className="col-span-12 lg:col-span-5 space-y-6">
-          <Card title="插件连接参数" description="在插件弹窗中保存这三项配置。">
+          <Card title="自动连接插件" description="登录后会把账户凭证写入本机 Chrome 插件。">
+            <div className="flex items-center justify-between gap-3 rounded-md border border-ink-200 bg-ink-50 px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-ink-900">
+                  {bridge.available ? "已检测到插件" : bridge.checked ? "未检测到插件" : "检测中"}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-ink-500">{bridge.message}</div>
+              </div>
+              <span
+                className={
+                  bridge.available && bridge.status?.connected
+                    ? "pill-success"
+                    : bridge.available
+                      ? "pill-muted"
+                      : "pill-error"
+                }
+              >
+                {bridge.available && bridge.status?.connected
+                  ? bridge.status.hasResume
+                    ? "已连接"
+                    : "待选简历"
+                  : bridge.available
+                    ? "可连接"
+                    : "未连接"}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => connectPlugin(true)}
+                disabled={bridge.connecting || !token}
+              >
+                {bridge.connecting ? "连接中..." : "连接到插件"}
+              </button>
+              <button type="button" className="btn-secondary" onClick={requestPluginStatus}>
+                重新检测
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-md border border-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
+              推荐简历：
+              {recommendedResume ? (
+                <span className="ml-1 font-mono text-ink-800">
+                  {recommendedResume.resume_id.slice(0, 8)}
+                </span>
+              ) : (
+                <span className="ml-1 text-ink-500">暂无，上传后会自动带入</span>
+              )}
+            </div>
+          </Card>
+
+          <Card title="手动连接参数" description="自动连接不可用时，可复制到插件弹窗。">
             <CopyRow
               label="平台首页"
               value={portalUrl}
@@ -94,7 +328,7 @@ export default function PluginConnect() {
             <ol className="space-y-3 text-sm text-ink-700">
               <li>1. 注册或登录网页账户。</li>
               <li>2. 上传简历并等待解析完成。</li>
-              <li>3. 在插件中保存 API、token 与简历 ID。</li>
+              <li>3. 回到本页点击连接到插件。</li>
               <li>4. 打开小鹏或飞书招聘系填写页，点击插件开始自动填写。</li>
             </ol>
           </Card>
@@ -154,6 +388,19 @@ export default function PluginConnect() {
       </div>
     </div>
   );
+}
+
+function bridgeRequestId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function bridgeStatusText(status: BridgeStatus | null) {
+  if (!status || !status.connected) return "插件已安装，尚未连接当前网页账户。";
+  if (!status.hasResume) return "网页账户已同步，上传或选择简历后可再次连接。";
+  return `插件已连接，当前简历 ${status.resumeId.slice(0, 8)}。`;
 }
 
 function CopyRow({

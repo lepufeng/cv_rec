@@ -46,9 +46,9 @@ export default function Upload() {
         thinkingMode: thinkingEnabled ? "enabled" : "disabled",
       });
       setPhase("done");
-      // Brief pause so the user sees the bar reach 100% before navigating.
+      // Brief pause so the user sees the bar reach 100% before connecting the plugin.
       setTimeout(
-        () => navigate(`/profile?rid=${detail.resume_id}`, { replace: true }),
+        () => navigate(`/plugin?autolink=1&rid=${detail.resume_id}`, { replace: true }),
         500,
       );
     } catch (err) {

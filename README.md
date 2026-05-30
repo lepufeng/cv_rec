@@ -41,6 +41,10 @@ node --test With_Le/chrome-extension/tests/*.test.js
 
 # 7. 简历数据质量自检
 .venv/bin/python scripts/resume_data_quality_check.py --resume-id <resume_id>
+
+# 8. Chrome 插件打包预检 / 生成 zip
+.venv/bin/python scripts/package_extension.py --dry-run
+.venv/bin/python scripts/package_extension.py
 ```
 
 日志默认同时输出到控制台与 `./data/logs/app.log`，文件日志为 JSON Lines，并按大小自动轮转。
@@ -53,7 +57,7 @@ node --test With_Le/chrome-extension/tests/*.test.js
 | `/register` | 公开 | 普通用户注册 |
 | `/profile` | 用户 | 简历预览 + 字段级修正 |
 | `/upload` | 用户 | 拖拽上传，可单次开启增强推理 |
-| `/plugin` | 用户 | 插件连接参数、登录 token、简历 ID 复制入口 |
+| `/plugin` | 用户 | 自动连接 Chrome 插件；提供手动参数兜底 |
 | `/admin/stats` | 管理员 | 用户数 / 调用量 / token / 成本 |
 | `/admin/models` | 管理员 | Provider 切换 + API Key / OCR / 视觉 / 对话 / 推理模型配置 + Thinking 默认策略 + 连通性测试 |
 | `/admin/users` | 管理员 | 用户列表 + 简历数 + 累计成本 |
@@ -61,9 +65,9 @@ node --test With_Le/chrome-extension/tests/*.test.js
 ## 插件连接流程
 
 1. 在 Chrome 扩展管理页加载 `With_Le/chrome-extension`。
-2. 打开插件弹窗，点击“打开主页”进入 Web 前端注册或登录。
-3. 登录后进入 `/plugin`，复制“后端 API”“登录 token”和已解析简历的“简历 ID”。
-4. 回到插件弹窗保存配置。
+2. 打开插件弹窗，点击“打开平台”进入 Web 前端注册或登录。
+3. 登录后网页会进入 `/plugin?autolink=1`，自动把平台地址、登录 token 和可用简历 ID 写入插件。
+4. 如浏览器未检测到插件，可在 `/plugin` 复制手动连接参数到插件弹窗保存。
 5. 打开小鹏或飞书招聘系简历填写页，点击“开始自动填写”。插件会扫描页面字段、请求后端匹配方案，并执行受控 DOM 填写；非飞书招聘页面会直接停止并提示不支持。
 
 ## 完整调用示例
@@ -109,6 +113,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 系统架构、模块职责、扩展点、API 速查表 |
 | [FEISHU_SCOPE_REDUCTION_REVIEW.md](./FEISHU_SCOPE_REDUCTION_REVIEW.md) | 当前飞书招聘范围收缩、保留/删除边界 |
 | [PLUGIN_MVP_FIELD_REQUIREMENTS.md](./PLUGIN_MVP_FIELD_REQUIREMENTS.md) | 小鹏/飞书招聘插件字段扫描上报要求 |
+| [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) | 提交/用户测试前检查清单与插件打包说明 |
 | [web/README.md](./web/README.md) | 前端本地开发、路由与构建说明 |
 
 ---
@@ -125,7 +130,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
 - ✅ GLM / Qwen 模型切换 + 运行时管理员配置
 - ✅ 管理员后台（模型配置 / 用户管理 / 成本统计）
 - ✅ React 前端（用户预览 / 上传 / 管理员后台）
-- ✅ 浏览器插件连接页 + 小鹏/飞书招聘页面扫描与受控填写
+- ✅ 浏览器插件自动连接页 + 小鹏/飞书招聘页面扫描与受控填写
 - ✅ 插件运行时门控：非飞书招聘系页面直接停止
 - ✅ 后端自动化测试 + 插件 manifest / service worker / autofill smoke 测试
 

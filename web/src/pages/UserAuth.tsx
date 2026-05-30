@@ -26,7 +26,8 @@ export default function UserAuth({ mode }: Props) {
           ? await endpoints.loginUser(username.trim(), password)
           : await endpoints.registerUser(username.trim(), password);
       applyAuth(resp);
-      const redirect = (location.state as { from?: Location })?.from?.pathname || "/profile";
+      const from = (location.state as { from?: Location })?.from;
+      const redirect = from ? `${from.pathname}${from.search}` : "/plugin?autolink=1";
       navigate(redirect, { replace: true });
     } catch (err) {
       if (err instanceof HttpError) setError(err.payload.message);

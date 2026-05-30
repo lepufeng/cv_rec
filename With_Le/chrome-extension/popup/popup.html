@@ -6,24 +6,39 @@
 </head>
 <body>
   <div id="popup-container">
-    <h2>CV Rec 插件</h2>
+    <header class="popup-header">
+      <div>
+        <h2>CV Rec</h2>
+        <p>小鹏 / 飞书招聘自动填写</p>
+      </div>
+      <span id="connection-state" class="state-pill">未连接</span>
+    </header>
+
+    <section class="connection-card">
+      <div id="connection-detail">登录网页后会自动连接插件。</div>
+      <div id="connection-meta"></div>
+    </section>
 
     <div class="toolbar">
-      <button id="open-platform-btn" class="secondary compact">打开主页</button>
+      <button id="open-platform-btn" class="secondary compact">打开平台</button>
       <button id="save-settings-btn" class="secondary compact">保存配置</button>
     </div>
 
-    <label for="platform-home">平台主页</label>
-    <input id="platform-home" type="url" placeholder="http://localhost:5173">
+    <details class="settings-panel">
+      <summary>手动配置</summary>
 
-    <label for="backend-base">后端 API 地址</label>
-    <input id="backend-base" type="url" placeholder="http://127.0.0.1:8000/api/v1">
+      <label for="platform-home">平台主页</label>
+      <input id="platform-home" type="url" placeholder="http://localhost:5173">
 
-    <label for="auth-token">登录 token</label>
-    <textarea id="auth-token" rows="3" placeholder="从网页「连接插件」页复制"></textarea>
+      <label for="backend-base">后端 API 地址</label>
+      <input id="backend-base" type="url" placeholder="http://127.0.0.1:8000/api/v1">
 
-    <label for="resume-id">简历 ID</label>
-    <input id="resume-id" type="text" placeholder="输入简历 ID">
+      <label for="auth-token">登录 token</label>
+      <textarea id="auth-token" rows="3" placeholder="网页登录后会自动写入，也可手动粘贴"></textarea>
+
+      <label for="resume-id">简历 ID</label>
+      <input id="resume-id" type="text" placeholder="网页会自动选择最近简历">
+    </details>
 
     <div id="status"></div>
     <button id="fill-btn">开始自动填写</button>

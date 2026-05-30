@@ -83,7 +83,7 @@ async function parseBackendError(res) {
 
 function ensureAuth(config) {
   if (!config.authToken) {
-    throw new Error('请先在插件中粘贴网页「连接插件」页提供的登录 token');
+    throw new Error('请先在网页完成自动连接，或在插件中手动保存登录 token');
   }
 }
 
