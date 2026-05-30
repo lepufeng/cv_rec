@@ -30,7 +30,7 @@ class FakeModel:
     ocr_model_id = "fake-ocr"
 
     def __init__(self, responder: Callable[[FakeCall], str] | None = None) -> None:
-        self._queue: deque[str] = deque()
+        self._queue: deque[str | Exception] = deque()
         self._responder = responder
         self.calls: list[FakeCall] = []
 
@@ -39,12 +39,18 @@ class FakeModel:
             content = json.dumps(content, ensure_ascii=False)
         self._queue.append(content)
 
+    def queue_exception(self, exc: Exception) -> None:
+        self._queue.append(exc)
+
     def _next_content(self, call: FakeCall) -> str:
         if self._responder is not None:
             return self._responder(call)
         if not self._queue:
             return "{}"
-        return self._queue.popleft()
+        item = self._queue.popleft()
+        if isinstance(item, Exception):
+            raise item
+        return item
 
     async def chat(
         self,

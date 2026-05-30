@@ -1,6 +1,6 @@
-# Chrome extension local ATS test
+# Chrome Extension Feishu Recruiting Test
 
-This local page is a repeatable pre-flight check for Moka, Feishu and Beisen style forms.
+This local page is a repeatable pre-flight check for Xiaopeng / Feishu Recruiting style forms.
 
 ## Run the page
 
@@ -16,7 +16,7 @@ Open:
 http://127.0.0.1:8090/test-form.html
 ```
 
-## Automated smoke test
+## Automated Smoke Test
 
 From the repository root:
 
@@ -28,23 +28,23 @@ The smoke test launches Chromium, injects the extension content scripts into thi
 
 The smoke suite includes two layers:
 
-- `local ATS smoke fills dynamic projects and stops before final submit`: verifies scanner, section expansion, fill handlers, and final-submit safety.
+- `local Feishu smoke fills dynamic projects and stops before final submit`: verifies scanner, section expansion, fill handlers, and final-submit safety.
 - `content trigger runs direct autofill across pages with dynamic expansion`: calls the same `window.__resumeAutofillStart()` entrypoint used by the popup and verifies the full content-script loop.
 
-## Real Chrome validation note
+## Real Chrome Validation Note
 
 If Codex cannot claim the user's Chrome tabs and reports `native pipe is closed`, first separate that from product behavior. The local smoke tests above validate our extension scripts without the Codex Chrome Extension bridge. Real-site validation can continue after the Codex Chrome Extension/native messaging bridge is restored.
 
-## What it covers
+## What It Covers
 
-- Moka-style field markers such as `data-moka-field`.
-- Feishu/Formily-style labels such as `data-form-field-i18n-name`.
-- Beisen-style repeated experience containers.
+- Feishu/Formily labels such as `data-form-field-i18n-name`.
+- Feishu-style module wrappers such as `applyFormModuleWrapper`.
+- UD-style custom select controls such as `ud__select`.
 - Dynamic `项目经历` cards with one initial item and an add button.
 - Custom radio/combobox controls.
 - A final `提交投递` button that writes an error marker if clicked.
 
-## Expected plugin behavior
+## Expected Plugin Behavior
 
 - Click `开始自动填写`.
 - The plugin may click `下一步`, but must not click `提交投递`.

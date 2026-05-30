@@ -1,6 +1,6 @@
 """Smoke-check backend fundamentals before plugin integration.
 
-Checks the first section of E2E_SELF_CHECKLIST.md:
+Checks the local backend prerequisites used by the Feishu recruiting flow:
 - API health
 - file logging
 - SQLite DB presence/basic tables

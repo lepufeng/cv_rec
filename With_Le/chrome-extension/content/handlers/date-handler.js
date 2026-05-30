@@ -43,7 +43,10 @@ var DateHandler = {
     const pickerItem = ordered.find(item => this._preferPicker(item.target, item.field));
     if (pickerItem && await this._fillRangeViaPicker(pickerItem.el, pickerItem.target, rangeValues)) {
       ordered.forEach(item => DOMUtils.fireInputEvents(item.target));
-      return true;
+      if (await this._waitForGroupValues(ordered, rangeValues)) {
+        await this._commitRangeValidation(ordered, rangeValues);
+        return await this._waitForGroupValues(ordered, rangeValues);
+      }
     }
 
     let filledAll = true;
@@ -58,7 +61,52 @@ var DateHandler = {
       }
       if (!filled) filledAll = false;
     }
-    return filledAll;
+    if (!filledAll || !(await this._waitForGroupValues(ordered, rangeValues))) return false;
+    await this._commitRangeValidation(ordered, rangeValues);
+    return await this._waitForGroupValues(ordered, rangeValues);
+  },
+
+  async validateFilledGroup(items) {
+    const ordered = (items || [])
+      .filter(item => item && item.el && item.field)
+      .map((item, index) => ({
+        ...item,
+        index,
+        groupIndex: this._groupIndex(item.field),
+        target: this._editableTarget(item.el),
+      }))
+      .sort((a, b) => a.groupIndex - b.groupIndex || a.index - b.index);
+    if (ordered.length < 2) return { ok: false, reason: '日期范围字段不足' };
+
+    const rangeValues = ordered
+      .map(item => this._dateValueText(item.value))
+      .filter(Boolean)
+      .slice(0, 2);
+    if (rangeValues.length < 2) return { ok: false, reason: '日期范围目标值不足' };
+    if (!(await this._waitForGroupValues(ordered, rangeValues))) {
+      return { ok: false, reason: '日期范围值未完整写入' };
+    }
+
+    const beforeValues = ordered.slice(0, 2).map(item => this._targetValue(item.target));
+    const beforeErrors = this._groupValidationErrors(ordered);
+    const clickResult = await this._clickRangeForPostFillValidation(ordered);
+
+    const afterValues = ordered.slice(0, 2).map(item => this._targetValue(item.target));
+    const afterErrors = this._groupValidationErrors(ordered);
+    const changed = beforeValues.some((value, index) => String(value || '') !== String(afterValues[index] || ''));
+    const hasValidationError = afterErrors.length > 0;
+    return {
+      ok: !changed && !hasValidationError && this._groupValuesFilled(ordered, rangeValues),
+      clickedFieldId: clickResult.clickedFieldIds.join(','),
+      clickedFieldIds: clickResult.clickedFieldIds,
+      blankClickCount: clickResult.blankClickCount,
+      dropdownOpenAfter: this._visibleDateDropdowns().length > 0,
+      validationErrorsBefore: beforeErrors,
+      validationErrorsAfter: afterErrors,
+      reason: changed
+        ? '日期校验点击后字段值发生变化'
+        : (hasValidationError ? `日期组件仍显示校验错误：${afterErrors.join('；')}` : ''),
+    };
   },
 
   _editableTarget(el) {
@@ -82,6 +130,180 @@ var DateHandler = {
     if (Number.isInteger(field.groupIndex)) return field.groupIndex;
     const parsed = Number.parseInt(field.groupIndex, 10);
     return Number.isFinite(parsed) ? parsed : 0;
+  },
+
+  async _waitForGroupValues(items, rangeValues) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (this._groupValuesFilled(items, rangeValues)) return true;
+      await new Promise(r => setTimeout(r, 80));
+    }
+    return false;
+  },
+
+  _groupValuesFilled(items, rangeValues) {
+    return items.slice(0, 2).every((item, index) => {
+      const current = this._targetValue(item.target);
+      if (!current) return false;
+      const candidates = this._optionCandidates(rangeValues[index]).map(value => this._normalizeOption(value));
+      const normalized = this._normalizeOption(current);
+      return candidates.some(candidate => candidate && normalized.includes(candidate));
+    });
+  },
+
+  _targetValue(target) {
+    if (!target) return '';
+    if (typeof target.value !== 'undefined') return String(target.value || '').trim();
+    if (target.textContent != null) return String(target.textContent || '').trim();
+    return '';
+  },
+
+  async _commitRangeValidation(items, rangeValues) {
+    const targets = (items || [])
+      .slice(0, 2)
+      .map(item => item && item.target)
+      .filter(Boolean);
+    if (targets.length === 0) return;
+
+    for (const target of targets) {
+      this._commitTarget(target);
+      DOMUtils.fireInputEvents(target);
+      try {
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (_) {}
+      await new Promise(r => setTimeout(r, 40));
+    }
+
+    this._closeVisiblePickers(targets[targets.length - 1]);
+    await new Promise(r => setTimeout(r, 80));
+
+    if (!this._groupValuesFilled(items, rangeValues)) return;
+    targets.forEach(target => DOMUtils.fireInputEvents(target));
+  },
+
+  _commitTarget(target) {
+    if (!target) return;
+    try { target.focus(); } catch (_) {}
+    try { target.blur(); } catch (_) {}
+  },
+
+  async _clickRangeForPostFillValidation(items) {
+    const clickedFieldIds = [];
+    let blankClickCount = 0;
+    for (const item of (items || []).slice(0, 2)) {
+      const target = item && item.target;
+      if (!target) continue;
+      this._clickForPostFillValidation(target);
+      clickedFieldIds.push(item.fieldId || '');
+      await new Promise(r => setTimeout(r, 140));
+      this._commitTarget(target);
+      DOMUtils.fireInputEvents(target);
+      try {
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (_) {}
+      await new Promise(r => setTimeout(r, 60));
+      if (this._clickBlankArea(target)) blankClickCount++;
+      await new Promise(r => setTimeout(r, 140));
+    }
+    return { clickedFieldIds: clickedFieldIds.filter(Boolean), blankClickCount };
+  },
+
+  _clickForPostFillValidation(target) {
+    if (!target) return;
+    try {
+      if (target.scrollIntoView) target.scrollIntoView({ block: 'center', inline: 'center' });
+    } catch (_) {}
+    try { target.click(); return; } catch (_) {}
+    const eventInit = { bubbles: true, cancelable: true, view: window };
+    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) {
+      try { target.dispatchEvent(new MouseEvent(type, eventInit)); } catch (_) {}
+    }
+  },
+
+  _clickBlankArea(target) {
+    try {
+      if (target && target.blur) target.blur();
+    } catch (_) {}
+
+    const receiver = this._blankClickTarget();
+    if (!receiver) return false;
+    const eventInit = { bubbles: true, cancelable: true, view: window };
+    for (const type of ['pointerdown', 'mousedown', 'mouseup']) {
+      try { receiver.dispatchEvent(new MouseEvent(type, eventInit)); } catch (_) {}
+    }
+    try { receiver.click(); return true; } catch (_) {}
+    try { receiver.dispatchEvent(new MouseEvent('click', eventInit)); } catch (_) {}
+    return true;
+  },
+
+  _blankClickTarget() {
+    const candidates = [
+      document.body,
+      document.documentElement,
+    ].filter(Boolean);
+    for (const item of candidates) {
+      if (DOMUtils.isVisible(item)) return item;
+    }
+    return document.body || document.documentElement || null;
+  },
+
+  _groupValidationErrors(items) {
+    const roots = new Set();
+    for (const item of (items || []).slice(0, 2)) {
+      const target = item && item.target;
+      if (!target) continue;
+      const wrapper = this._rangeWrapper(target);
+      if (wrapper) roots.add(wrapper);
+      const formItem = target.closest && target.closest(
+        '[class*="formily-item"], [class*="FormilyItem"], [class*="form-item"], [class*="FormItem"], [class*="field-item"], [class*="FieldItem"]'
+      );
+      if (formItem) roots.add(formItem);
+    }
+
+    const errors = [];
+    for (const root of roots) {
+      const cls = root.className && typeof root.className === 'string' ? root.className : '';
+      if (/(^|\s|_|-)(error|invalid|has-error|is-error)(\s|_|-|$)/i.test(cls)) {
+        errors.push('组件处于错误状态');
+      }
+      const nodes = Array.from(root.querySelectorAll('[class*="error"], [class*="Error"], [class*="invalid"], [role="alert"]'))
+        .filter(node => DOMUtils.isVisible(node));
+      for (const node of nodes) {
+        const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text) errors.push(text);
+      }
+    }
+    return Array.from(new Set(errors));
+  },
+
+  _closeVisiblePickers(target) {
+    const receiver = target || document.activeElement || document.body;
+    const receivers = [receiver, document, document.body].filter(Boolean);
+    for (const item of receivers) {
+      for (const type of ['keydown', 'keyup']) {
+        try {
+          item.dispatchEvent(new KeyboardEvent(type, {
+            key: 'Escape',
+            code: 'Escape',
+            keyCode: 27,
+            which: 27,
+            bubbles: true,
+            cancelable: true,
+          }));
+        } catch (_) {}
+      }
+    }
+    try {
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    } catch (_) {}
+    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) {
+      try {
+        document.body.dispatchEvent(new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        }));
+      } catch (_) {}
+    }
   },
 
   _fillDirect(target, str) {
@@ -132,6 +354,11 @@ var DateHandler = {
     try { target.focus(); } catch (_) {}
     await new Promise(r => setTimeout(r, 250));
 
+    if (await this._fillMonthRangeViaPicker(target, rangeValues)) {
+      DOMUtils.fireInputEvents(target);
+      return true;
+    }
+
     let clicked = 0;
     const clickedOptions = new Set();
     for (const value of rangeValues.slice(0, 2)) {
@@ -152,6 +379,202 @@ var DateHandler = {
     return clicked >= 2 && (this._matchesRangeValue(target, rangeValues) || clickedOptions.size >= 2);
   },
 
+  async _fillMonthRangeViaPicker(target, rangeValues) {
+    const parts = rangeValues
+      .slice(0, 2)
+      .map(value => this._dateParts(value));
+    if (parts.length < 2 || parts.some(item => !item)) return false;
+
+    let clicked = 0;
+    for (const [year, month] of parts) {
+      const panel = await this._moveMonthPickerToYear(parseInt(year, 10));
+      if (!panel) return false;
+
+      const option = this._monthOption(panel, parseInt(month, 10));
+      if (!option) return false;
+
+      this._clickOption(option);
+      clicked++;
+      await new Promise(r => setTimeout(r, 220));
+
+      if (clicked >= 2 && this._rangeTargetsMatchValues(target, rangeValues)) return true;
+      if (clicked === 1 && !this._visibleMonthPickerPanel()) {
+        const targets = this._rangeEndpointTargets(target);
+        const endTarget = targets[1];
+        if (endTarget) {
+          try { endTarget.click(); } catch (_) {}
+          try { endTarget.focus(); } catch (_) {}
+          await new Promise(r => setTimeout(r, 180));
+        }
+      }
+    }
+
+    return clicked >= 2 && this._rangeTargetsMatchValues(target, rangeValues);
+  },
+
+  async _moveMonthPickerToYear(targetYear) {
+    if (!Number.isFinite(targetYear)) return null;
+
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const panel = this._visibleMonthPickerPanel();
+      if (!panel) return null;
+
+      const currentYear = this._pickerDisplayedYear(panel);
+      if (!Number.isFinite(currentYear)) return null;
+      if (currentYear === targetYear) return panel;
+
+      const nav = this._pickerYearNavButtons(panel);
+      const button = currentYear > targetYear ? nav.prev : nav.next;
+      if (!button) return null;
+
+      this._clickOption(button);
+      await new Promise(r => setTimeout(r, 160));
+    }
+
+    return null;
+  },
+
+  _visibleMonthPickerPanel() {
+    return this._visibleDateDropdowns()
+      .filter(dropdown => this._looksLikeMonthPicker(dropdown))
+      .sort((a, b) => this._monthPickerRank(a) - this._monthPickerRank(b))[0] || null;
+  },
+
+  _looksLikeMonthPicker(dropdown) {
+    if (!dropdown) return false;
+    if (!Number.isFinite(this._pickerDisplayedYear(dropdown))) return false;
+    return this._monthOptions(dropdown).length >= 6;
+  },
+
+  _monthPickerRank(dropdown) {
+    const cls = dropdown.className && typeof dropdown.className === 'string' ? dropdown.className : '';
+    if (/date-range-picker-panel|picker-dropdown|picker-panel/i.test(cls)) return 0;
+    if (/dropdown/i.test(cls)) return 1;
+    return 2;
+  },
+
+  _pickerDisplayedYear(panel) {
+    const yearNode = Array.from(panel.querySelectorAll('[class*="header-btn"], [class*="header"], [aria-label], [title], span, button'))
+      .filter(item => DOMUtils.isVisible(item))
+      .find(item => /\b\d{4}\s*年\b/.test(this._optionText(item)));
+    const text = this._optionText(yearNode || panel);
+    const matched = text.match(/(\d{4})\s*年/);
+    return matched ? parseInt(matched[1], 10) : NaN;
+  },
+
+  _pickerYearNavButtons(panel) {
+    const raw = Array.from(panel.querySelectorAll('button, [role="button"], [class*="header-icon"], [class*="prev"], [class*="next"]'))
+      .filter(item => DOMUtils.isVisible(item))
+      .filter(item => !this._isDisabledOption(item))
+      .filter(item => {
+        const cls = item.className && typeof item.className === 'string' ? item.className : '';
+        return !/collapse|clear|close/i.test(cls);
+      });
+
+    const byClass = (pattern) => raw.find(item => {
+      const cls = item.className && typeof item.className === 'string' ? item.className : '';
+      const text = this._optionText(item);
+      return pattern.test(`${cls} ${text}`);
+    });
+    const sorted = raw
+      .filter(item => {
+        const rect = item.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      })
+      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+
+    return {
+      prev: byClass(/prev|previous|left|back|上一|前/i) || sorted[0] || null,
+      next: byClass(/next|right|forward|下一|后/i) || sorted[sorted.length - 1] || null,
+    };
+  },
+
+  _monthOptions(panel) {
+    const preferred = Array.from(panel.querySelectorAll(
+      '[class*="month-panel-cell"], [data-value], [title], [aria-label], [role="gridcell"]'
+    ))
+      .filter(item => DOMUtils.isVisible(item))
+      .filter(item => !this._isDisabledOption(item))
+      .filter(item => this._optionText(item));
+
+    const options = preferred.length ? preferred : this._dateOptions(panel);
+    return options.filter(item => this._monthFromOption(item) != null);
+  },
+
+  _monthOption(panel, month) {
+    const wanted = Math.min(Math.max(parseInt(month, 10), 1), 12);
+    const options = this._monthOptions(panel)
+      .map((item, index) => ({
+        item,
+        index,
+        month: this._monthFromOption(item),
+        textLength: this._optionText(item).length,
+      }))
+      .filter(entry => entry.month === wanted);
+    if (!options.length) return null;
+
+    options.sort((a, b) => {
+      const aRoot = this._isMonthCellRoot(a.item) ? 0 : 1;
+      const bRoot = this._isMonthCellRoot(b.item) ? 0 : 1;
+      return aRoot - bRoot || a.textLength - b.textLength || a.index - b.index;
+    });
+    return options[0].item;
+  },
+
+  _monthFromOption(item) {
+    const text = this._optionText(item);
+    const dataValue = item.getAttribute && item.getAttribute('data-value');
+    const raw = [dataValue, text].filter(Boolean).join(' ');
+    const full = raw.match(/\d{4}[-/.年]\s*(\d{1,2})(?:\s*月)?/);
+    const month = full || raw.match(/(^|[^\d])0?(\d{1,2})\s*月($|[^\d])/);
+    if (!month) return null;
+    const value = parseInt(month[1] && full ? month[1] : month[2], 10);
+    return value >= 1 && value <= 12 ? value : null;
+  },
+
+  _isMonthCellRoot(item) {
+    const cls = item.className && typeof item.className === 'string' ? item.className : '';
+    return /month-panel-cell/i.test(cls);
+  },
+
+  _clickOption(item) {
+    try { item.click(); return; } catch (_) {}
+    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) {
+      try {
+        item.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+      } catch (_) {}
+    }
+  },
+
+  _rangeEndpointTargets(target) {
+    const wrapper = this._rangeWrapper(target);
+    if (!wrapper) return [target].filter(Boolean);
+    return Array.from(wrapper.querySelectorAll(
+      'input:not([type="hidden"]), textarea, [contenteditable="true"], [role="textbox"], [role="searchbox"]'
+    ));
+  },
+
+  _rangeWrapper(target) {
+    if (!target || !target.closest) return null;
+    return target.closest(
+      '[class*="date-range-picker-wrapper"], [class*="picker-range"], [class*="range-picker"], [class*="ant-picker-range"], [class*="date-range-picker"]'
+    );
+  },
+
+  _rangeTargetsMatchValues(target, rangeValues) {
+    const targets = this._rangeEndpointTargets(target);
+    if (targets.length >= 2) {
+      return targets.slice(0, 2).every((item, index) => {
+        const current = this._targetValue(item);
+        if (!current) return false;
+        const normalized = this._normalizeOption(current);
+        const candidates = this._optionCandidates(rangeValues[index]).map(value => this._normalizeOption(value));
+        return candidates.some(candidate => candidate && normalized.includes(candidate));
+      });
+    }
+    return this._matchesRangeValue(target, rangeValues);
+  },
+
   _visibleDateDropdowns() {
     const selector = [
       '[class*="picker-panel"]',
@@ -163,7 +586,6 @@ var DateHandler = {
       '[class*="calendar"]',
       '[class*="Calendar"]',
       '[class*="ant-picker-dropdown"]',
-      '[class*="el-picker-panel"]',
       '[role="dialog"]',
       '[role="grid"]',
     ].join(',');

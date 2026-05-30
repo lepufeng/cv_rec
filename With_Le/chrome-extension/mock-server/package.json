@@ -1,9 +1,0 @@
-{
-  "name": "resume-autofill-mock-server",
-  "version": "1.0.0",
-  "description": "Mock backend for Resume Auto-fill Chrome extension",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  }
-}

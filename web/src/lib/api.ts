@@ -11,6 +11,7 @@ const ADMIN_STORAGE_KEY = "cvr_admin_token";
 
 export type AuthRole = "user" | "admin";
 export type ThinkingMode = "enabled" | "disabled";
+export type ModelNetworkMode = "direct" | "environment" | "proxy";
 
 export type ApiError = {
   code: string;
@@ -185,6 +186,8 @@ export type ResumeDetail = {
 export type ModelConfig = {
   provider: "glm" | "qwen" | "fake";
   model_thinking_mode: ThinkingMode;
+  model_network_mode: ModelNetworkMode;
+  model_proxy_url: string;
   glm_api_key: string;
   glm_base_url: string;
   glm_ocr_model: string;
@@ -202,6 +205,7 @@ export type ModelConfig = {
 export type ModelTestResponse = {
   ok: boolean;
   provider: string;
+  model_network_mode: ModelNetworkMode;
   chat_model: string;
   reasoning_model: string;
   latency_ms: number;

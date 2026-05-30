@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from docx import Document
 
+from app.core.exceptions import ModelError
 from tests.fixtures.sample_resume import SAMPLE_FILL_PLAN, SAMPLE_PARSED_RESUME
 
 
@@ -30,7 +31,7 @@ def _make_docx() -> bytes:
 def _form_payload(resume_id: str | None = None) -> dict:
     return {
         "resumeId": resume_id,
-        "url": "https://jobs.example.com/apply/123",
+        "url": "https://xiaopeng.jobs.feishu.cn/index/resume/apply/123",
         "fields": [
             {"fieldId": "name", "label": "姓名", "type": "text", "required": True},
             {"fieldId": "phone", "label": "手机", "type": "tel", "required": True},
@@ -83,7 +84,7 @@ async def test_plugin_match_cache_hit_remaps_refreshed_field_ids(app_client, mak
     def payload(prefix: str) -> dict:
         return {
             "resumeId": rid,
-            "url": "https://jobs.example.com/apply/123",
+            "url": "https://xiaopeng.jobs.feishu.cn/index/resume/apply/123",
             "fields": [
                 {"fieldId": f"{prefix}_name", "label": "姓名", "type": "text"},
                 {"fieldId": f"{prefix}_phone", "label": "手机", "type": "tel"},
@@ -224,7 +225,7 @@ async def test_plugin_match_returns_typed_fill_actions(app_client, make_user):
 
     payload = {
         "resumeId": rid,
-        "url": "https://jobs.example.com/apply/actions",
+        "url": "https://xiaopeng.jobs.feishu.cn/index/resume/apply/actions",
         "fields": [
             {"fieldId": "name", "label": "姓名", "type": "text"},
             {"fieldId": "degree", "label": "学历", "type": "select", "widget": "native-select"},
@@ -281,7 +282,7 @@ async def test_plugin_match_returns_resume_upload_action_for_file_field(app_clie
 
     payload = {
         "resumeId": rid,
-        "url": "https://jobs.example.com/apply/upload",
+        "url": "https://xiaopeng.jobs.feishu.cn/index/resume/apply/upload",
         "fields": [
             {"fieldId": "name", "label": "姓名", "type": "text"},
             {"fieldId": "resume_file", "label": "附件简历", "type": "file", "widget": "file-upload"},
@@ -343,6 +344,10 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
             SAMPLE_PARSED_RESUME["campus_experience"][0],
             {**SAMPLE_PARSED_RESUME["campus_experience"][0], "organization": "研究生会"},
         ],
+        "languages": [
+            {"language": "英语", "level": "六级", "score": "580"},
+            {"language": "日语", "level": "N2", "score": None},
+        ],
     }
     fake.queue_response(parsed)
     rid = (await client.post(
@@ -357,6 +362,7 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
         {"name": "实习经验", "currentCount": 1, "addButton": True},
         {"name": "employment-history", "currentCount": 1, "addButton": True},
         {"name": "社会实践", "currentCount": 1, "addButton": True},
+        {"name": "语言能力", "currentCount": 1, "addButton": True},
         {"name": "工作城市", "currentCount": 1, "addButton": True},
     ]
     fake.queue_response(SAMPLE_FILL_PLAN)
@@ -370,6 +376,7 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
         "实习经验": "add_1",
         "employment-history": "add_1",
         "社会实践": "add_1",
+        "语言能力": "add_1",
     }
     assert body["sectionActionDetails"] == [
         {
@@ -414,6 +421,89 @@ async def test_plugin_match_suggests_dynamic_section_actions(app_client, make_us
             "sectionKey": "campus_experience",
             "currentCount": 1,
             "targetCount": 2,
+            "addCount": 1,
+            "legacyAction": "add_1",
+        },
+        {
+            "sectionName": "语言能力",
+            "actionType": "add_repeat_items",
+            "sectionKey": "languages",
+            "currentCount": 1,
+            "targetCount": 2,
+            "addCount": 1,
+            "legacyAction": "add_1",
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_plugin_match_adds_empty_xiaopeng_resume_sections_from_resume_counts(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("plugin-empty-section-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    parsed = {
+        **SAMPLE_PARSED_RESUME,
+        "project_experience": [
+            {"name": "项目一", "role": "负责人", "start_date": "2024-01", "end_date": "2024-03", "achievements": [], "tech_stack": []},
+            {"name": "项目二", "role": "开发", "start_date": "2024-04", "end_date": "2024-06", "achievements": [], "tech_stack": []},
+        ],
+        "internship_experience": [
+            {"company": "小鹏汽车", "title": "运营实习生", "start_date": "2025-06", "end_date": "2025-09"},
+        ],
+        "work_experience": [],
+        "languages": [
+            {"language": "英语", "level": "六级", "score": "580"},
+        ],
+    }
+    fake.queue_response(parsed)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    payload = _form_payload(rid)
+    payload["sections"] = [
+        {"name": "实习经历", "currentCount": 0, "addButton": True},
+        {"name": "项目经历", "currentCount": 0, "addButton": True},
+        {"name": "工作经历", "currentCount": 0, "addButton": True},
+        {"name": "语言能力", "currentCount": 0, "addButton": True},
+    ]
+    fake.queue_response(SAMPLE_FILL_PLAN)
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["sectionActions"] == {
+        "实习经历": "add_1",
+        "项目经历": "add_2",
+        "语言能力": "add_1",
+    }
+    assert body["sectionActionDetails"] == [
+        {
+            "sectionName": "实习经历",
+            "actionType": "add_repeat_items",
+            "sectionKey": "internship_experience",
+            "currentCount": 0,
+            "targetCount": 1,
+            "addCount": 1,
+            "legacyAction": "add_1",
+        },
+        {
+            "sectionName": "项目经历",
+            "actionType": "add_repeat_items",
+            "sectionKey": "project_experience",
+            "currentCount": 0,
+            "targetCount": 2,
+            "addCount": 2,
+            "legacyAction": "add_2",
+        },
+        {
+            "sectionName": "语言能力",
+            "actionType": "add_repeat_items",
+            "sectionKey": "languages",
+            "currentCount": 0,
+            "targetCount": 1,
             "addCount": 1,
             "legacyAction": "add_1",
         },
@@ -550,6 +640,36 @@ async def test_plugin_match_uses_rules_fallback_when_model_schema_is_invalid(app
 
 
 @pytest.mark.asyncio
+async def test_plugin_match_uses_rules_fallback_when_model_http_fails(app_client, make_user):
+    client, fake = app_client
+    user = await make_user("plugin-http-fallback-user")
+    headers = {"Authorization": f"Bearer {user['token']}"}
+
+    fake.queue_response(SAMPLE_PARSED_RESUME)
+    rid = (await client.post(
+        "/api/v1/resumes", headers=headers,
+        files={"file": ("r.docx", _make_docx(), "application/octet-stream")},
+    )).json()["resume_id"]
+
+    fake.queue_exception(ModelError("HTTP error contacting model: ReadTimeout", code="MODEL_HTTP_ERROR"))
+    payload = _form_payload(rid)
+    payload["fields"].append(
+        {"fieldId": "self_intro", "label": "自我评价", "type": "textarea", "section": "自我评价"}
+    )
+
+    resp = await client.post("/api/v1/fill-plans/plugin-match", headers=headers, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["model_used"] == "fake-chat+http-fallback"
+    assert body["plan_id"].startswith("rules-fallback-")
+    assert body["mappings"]["name"] == "张三"
+    assert body["mappings"]["email"] == "zhangsan@example.com"
+    assert body["mappings"]["self_intro"] == "5年互联网后端开发经验"
+    assert "模型请求失败，已使用规则匹配兜底：HTTP error contacting model: ReadTimeout" in body["warnings"]
+
+
+@pytest.mark.asyncio
 async def test_rules_fallback_maps_repeated_project_fields_by_index(app_client, make_user):
     client, fake = app_client
     user = await make_user("repeat-project-fallback-user")
@@ -572,7 +692,7 @@ async def test_rules_fallback_maps_repeated_project_fields_by_index(app_client, 
                 "start_date": "2024-01",
                 "end_date": "2024-06",
                 "tech_stack": ["TypeScript", "FastAPI"],
-                "achievements": ["实现多招聘站点自动填写"],
+                "achievements": ["实现飞书招聘动态表单自动填写", "沉淀规则兜底与诊断日志"],
             },
         ],
     }
@@ -620,7 +740,7 @@ async def test_rules_fallback_maps_repeated_project_fields_by_index(app_client, 
         "p2_start": "2024-01",
         "p2_end": "2024-06",
         "p2_stack": "TypeScript、FastAPI",
-        "p2_result": "实现多招聘站点自动填写",
+        "p2_result": "实现飞书招聘动态表单自动填写\n沉淀规则兜底与诊断日志",
     }
     assert body["filled"]["p2_name"]["source"] == "project_experience[1].name"
     assert body["filled"]["p2_result"]["source"] == "project_experience[1].achievements"

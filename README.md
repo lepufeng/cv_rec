@@ -1,8 +1,8 @@
 # Resume Parsing Platform
 
-AI 智能简历填写产品的后端服务 + Web 前端。上传简历 → 多模态模型解析为结构化 JSON → 浏览器插件提交目标网页表单字段 → 平台返回逐字段填写方案。
+AI 智能简历填写产品的后端服务 + Web 前端 + Chrome 插件。上传简历 → 多模态模型解析为结构化 JSON → 插件扫描小鹏/飞书招聘页面 → 平台返回逐字段填写方案 → 插件执行受控 DOM 填写。
 
-> 不依赖预定义"标签库"。每次投递时由 LLM 实时理解目标网页，从结构化简历中匹配填入。新 ATS 站点零适配。
+> 当前版本聚焦小鹏招聘及其他飞书招聘系页面，不再承诺覆盖所有招聘网站。复杂字段仍由模型结合结构化简历和页面字段语义判断，确定性 DOM 规则集中服务 Feishu/Formily/UD 组件。
 
 ---
 
@@ -64,7 +64,7 @@ node --test With_Le/chrome-extension/tests/*.test.js
 2. 打开插件弹窗，点击“打开主页”进入 Web 前端注册或登录。
 3. 登录后进入 `/plugin`，复制“后端 API”“登录 token”和已解析简历的“简历 ID”。
 4. 回到插件弹窗保存配置。
-5. 打开任意招聘网站的简历填写页，点击“生成填表方案”。当前阶段会扫描页面字段并展示后端返回的方案预览，不执行真实 DOM 填写。
+5. 打开小鹏或飞书招聘系简历填写页，点击“开始自动填写”。插件会扫描页面字段、请求后端匹配方案，并执行受控 DOM 填写；非飞书招聘页面会直接停止并提示不支持。
 
 ## 完整调用示例
 
@@ -83,13 +83,13 @@ curl -X POST http://127.0.0.1:8000/api/v1/resumes \
   -F "file=@./your_resume.pdf" \
   -F "thinking_mode=disabled"
 
-# 请求填写方案
+# 请求填写方案。把示例里的 resumeId 替换为上传简历后返回的真实 ID。
 curl -X POST http://127.0.0.1:8000/api/v1/fill-plans \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @./examples/form_fields.json
 
-# 插件兼容方案接口（返回 mappings/skipped/sectionActions）
+# 插件兼容方案接口（返回 mappings/actions/skipped/sectionActions）
 curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -100,22 +100,16 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
 
 ## 项目文档
 
-> 当前文档入口见 [DOCS.md](./DOCS.md)。当前数据契约见 [SCHEMA.md](./SCHEMA.md)。历史 `HANDOFF.md` 与 `.kiro/specs` 只作背景参考，当前行为以代码和 `SCHEMA.md` 为准。
+> 当前文档入口见 [DOCS.md](./DOCS.md)。当前数据契约见 [SCHEMA.md](./SCHEMA.md)。旧的全站点调研、Kiro 规格和 mock 后端文档已从主仓库删除，避免继续牵引当前 MVP。
 
 | 文档 | 内容 |
 |---|---|
-| [DOCS.md](./DOCS.md) | 文档导航、当前/历史文档边界、修改文档同步规则 |
+| [DOCS.md](./DOCS.md) | 文档导航、当前文档边界、修改文档同步规则 |
 | [SCHEMA.md](./SCHEMA.md) | 当前 `ResumeData v1.6`、插件字段扫描、填表方案数据契约 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 系统架构、模块职责、扩展点、API 速查表 |
-| [PRODUCT_FLOW_PRD.md](./PRODUCT_FLOW_PRD.md) | 产品功能关系、数据流程图、PRD 原型、插件协议与自学习路线图 |
-| [PLUGIN_INTEGRATION_REVIEW.md](./PLUGIN_INTEGRATION_REVIEW.md) | 队友插件扫描 JSON 对接评审、兼容性结论与改造清单 |
-| [E2E_SELF_CHECKLIST.md](./E2E_SELF_CHECKLIST.md) | 端到端跑通自查表：后端、插件、填表、反馈、自学习 |
-| [ATS_FIELD_REVIEW.md](./ATS_FIELD_REVIEW.md) | 主流招聘/ATS 表单字段调研与 schema 复查清单 |
+| [FEISHU_SCOPE_REDUCTION_REVIEW.md](./FEISHU_SCOPE_REDUCTION_REVIEW.md) | 当前飞书招聘范围收缩、保留/删除边界 |
+| [PLUGIN_MVP_FIELD_REQUIREMENTS.md](./PLUGIN_MVP_FIELD_REQUIREMENTS.md) | 小鹏/飞书招聘插件字段扫描上报要求 |
 | [web/README.md](./web/README.md) | 前端本地开发、路由与构建说明 |
-| [HANDOFF.md](./HANDOFF.md) | 历史交接记录，部分 schema/API 信息可能已过期 |
-| [.kiro/specs/resume-parsing-platform/requirements.md](./.kiro/specs/resume-parsing-platform/requirements.md) | 需求文档（含 v2） |
-| [.kiro/specs/resume-parsing-platform/design.md](./.kiro/specs/resume-parsing-platform/design.md) | 完整技术设计（含 v2） |
-| [.kiro/specs/resume-parsing-platform/tasks.md](./.kiro/specs/resume-parsing-platform/tasks.md) | 3 天 MVP 实施计划 |
 
 ---
 
@@ -131,8 +125,9 @@ curl -X POST http://127.0.0.1:8000/api/v1/fill-plans/plugin-match \
 - ✅ GLM / Qwen 模型切换 + 运行时管理员配置
 - ✅ 管理员后台（模型配置 / 用户管理 / 成本统计）
 - ✅ React 前端（用户预览 / 上传 / 管理员后台）
-- ✅ 浏览器插件连接页 + 插件扫描/方案预览接口
-- ✅ 62 项后端自动化测试 + 插件 manifest / service worker 消息测试
+- ✅ 浏览器插件连接页 + 小鹏/飞书招聘页面扫描与受控填写
+- ✅ 插件运行时门控：非飞书招聘系页面直接停止
+- ✅ 后端自动化测试 + 插件 manifest / service worker / autofill smoke 测试
 
 未在 MVP 中：异步队列、对象存储、多模型路由降级、Redis 缓存、敏感字段加密、速率限制 — 见 ARCHITECTURE.md 第 10 节。
 

@@ -21,9 +21,9 @@ from urllib.parse import urlparse
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.models.base import ChatModel
+from app.adapters.models.base import ChatModel, ModelResponse
 from app.core.config import get_settings
-from app.core.exceptions import BusinessError, NotFoundError
+from app.core.exceptions import BusinessError, ModelError, NotFoundError
 from app.core.logging import get_logger
 from app.models.cost_log import CostLog
 from app.models.fill_plan_cache import FillPlanCache
@@ -129,13 +129,62 @@ class FillService:
             )
 
         # 3. Call LLM
-        plan, response = await self._invoke_model(
-            resume_data=resume.parsed_data,
-            form_fields=form_fields_dump,
-            user_overrides=request.user_overrides,
-        )
+        cacheable_plan = True
+        try:
+            plan, response = await self._invoke_model(
+                resume_data=resume.parsed_data,
+                form_fields=form_fields_dump,
+                user_overrides=request.user_overrides,
+            )
+        except ModelError as exc:
+            if not _is_transient_model_error(exc):
+                raise
+            cacheable_plan = False
+            model_id = _fallback_model_id(self.model)
+            log.warning(
+                "fill_model_http_error_using_rules_fallback",
+                model=model_id,
+                code=exc.code,
+                error=_model_error_message(exc),
+                field_count=len(form_fields_dump),
+            )
+            plan = _build_rules_fallback_plan(
+                resume.parsed_data,
+                form_fields_dump,
+                warning=f"模型请求失败，已使用规则匹配兜底：{_model_error_message(exc)}",
+                reasoning="模型请求失败，使用后端规则兜底匹配",
+            )
+            response = ModelResponse(
+                content=plan.model_dump_json(),
+                model_id=f"{model_id}+http-fallback",
+                input_tokens=0,
+                output_tokens=0,
+                cost_cny=Decimal("0"),
+                latency_ms=0,
+            )
         plan = _apply_deterministic_field_repairs(plan, resume.parsed_data, form_fields_dump)
         plan = self._ensure_field_coverage(plan, form_field_ids)
+
+        if not cacheable_plan:
+            await self.cost_repo.add(CostLog(
+                user_id=user_id,
+                stage="filling",
+                model_id=response.model_id,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                cost_cny=response.cost_cny,
+                latency_ms=response.latency_ms,
+                success=False,
+            ))
+            return FillPlanResponse(
+                plan_id=f"rules-fallback-{uuid.uuid4().hex}",
+                filled=plan.filled,
+                needs_user_input=plan.needs_user_input,
+                warnings=plan.warnings,
+                cache_hit=False,
+                model_used=response.model_id,
+                cost_cny=response.cost_cny,
+            )
 
         # 4. Persist cache row
         ttl_days = get_settings().fill_plan_cache_ttl_days
@@ -180,8 +229,6 @@ class FillService:
         form_fields: list[dict],
         user_overrides: dict[str, str],
     ) -> tuple[FillPlanLLMOutput, "ModelResponseLike"]:
-        from app.adapters.models.base import ModelResponse
-
         user_prompt = build_user_prompt(resume_data, form_fields, user_overrides)
         response: ModelResponse = await self.model.chat(
             system=SYSTEM_PROMPT,
@@ -354,8 +401,32 @@ def _extract_domain(url: str) -> str:
         return "unknown"
 
 
-def _build_rules_fallback_plan(resume_data: dict, form_fields: list[dict]) -> FillPlanLLMOutput:
-    """Conservative deterministic mapping when the model returns invalid JSON/schema."""
+def _is_transient_model_error(exc: ModelError) -> bool:
+    if exc.code == "MODEL_HTTP_ERROR":
+        return True
+    if exc.code != "MODEL_API_ERROR":
+        return False
+    status = exc.details.get("status")
+    return isinstance(status, int) and status in {408, 409, 429, 500, 502, 503, 504}
+
+
+def _fallback_model_id(model: ChatModel) -> str:
+    return str(getattr(model, "chat_model_id", None) or getattr(model, "model_id", None) or "model")
+
+
+def _model_error_message(exc: ModelError) -> str:
+    message = str(getattr(exc, "message", None) or exc).strip()
+    return message or exc.__class__.__name__
+
+
+def _build_rules_fallback_plan(
+    resume_data: dict,
+    form_fields: list[dict],
+    *,
+    warning: str = "模型输出校验失败，已使用规则匹配兜底",
+    reasoning: str = "模型输出未通过校验，使用后端规则兜底匹配",
+) -> FillPlanLLMOutput:
+    """Conservative deterministic mapping when the model cannot produce a valid plan."""
     filled: dict[str, FilledField] = {}
     needs_user_input: list[str] = []
 
@@ -371,14 +442,14 @@ def _build_rules_fallback_plan(resume_data: dict, form_fields: list[dict]) -> Fi
         filled[field_id] = FilledField(
             value=value,
             confidence=confidence,
-            reasoning="模型输出未通过校验，使用后端规则兜底匹配",
+            reasoning=reasoning,
             source=source,
         )
 
     return FillPlanLLMOutput(
         filled=filled,
         needs_user_input=list(dict.fromkeys(needs_user_input)),
-        warnings=["模型输出校验失败，已使用规则匹配兜底"],
+        warnings=[warning],
     )
 
 
@@ -486,20 +557,33 @@ def _apply_deterministic_field_repairs(
             continue
         phone_repair = _should_repair_phone_field(field)
         needs_repair = field_id in repaired.needs_user_input
-        if not phone_repair and not needs_repair:
-            continue
 
         match = _match_field_from_resume(field, resume_data)
         if match is None:
             continue
         value, source, confidence = match
+        existing = repaired.filled.get(field_id)
+        structured_repair = _should_repair_structured_field(field, existing, value, source)
+        semantic_repair = _should_repair_semantic_mismatch(field, existing, source)
+        explicit_empty = existing is not None and not _as_text(existing.value)
+        if needs_repair and explicit_empty and not phone_repair and not structured_repair and not semantic_repair:
+            continue
+        if not phone_repair and not needs_repair and not structured_repair and not semantic_repair:
+            continue
+
         repaired.filled[field_id] = FilledField(
             value=value,
             confidence=confidence,
             reasoning=(
                 "后端规则校正复合手机号字段"
-                if phone_repair else
-                "后端规则补全高置信字段"
+                if phone_repair else (
+                    "后端规则校正结构化重复区块字段"
+                    if structured_repair else (
+                        "后端语义护栏修正明显跨类字段"
+                        if semantic_repair else
+                        "后端规则补全高置信字段"
+                    )
+                )
             ),
             source=source,
         )
@@ -507,6 +591,76 @@ def _apply_deterministic_field_repairs(
             existing for existing in repaired.needs_user_input if existing != field_id
         ]
     return repaired
+
+
+def _should_repair_structured_field(
+    field: dict[str, Any],
+    existing: FilledField | None,
+    value: Any,
+    source: str,
+) -> bool:
+    section_key = _repeat_section_key(field)
+    if not section_key:
+        return False
+
+    has_repeat_context = _has_repeat_context(field)
+    if not has_repeat_context and not _is_multiline_experience_field(field, source):
+        return False
+
+    if existing is None:
+        return False
+
+    existing_source = _as_text(existing.source)
+    expected_prefix = f"{section_key}["
+    if existing_source and not existing_source.startswith(expected_prefix):
+        return True
+
+    if existing_source != source:
+        return True
+
+    return _as_text(existing.value) != _as_text(value)
+
+
+def _should_repair_semantic_mismatch(
+    field: dict[str, Any],
+    existing: FilledField | None,
+    corrected_source: str,
+) -> bool:
+    if existing is None:
+        return False
+    existing_source = _as_text(existing.source)
+    if not existing_source.startswith("skills"):
+        return False
+    if not _as_text(corrected_source).startswith("languages["):
+        return False
+    return _looks_like_foreign_language_field(_field_search_text(field))
+
+
+def _is_multiline_experience_field(field: dict[str, Any], source: str) -> bool:
+    source_text = _as_text(source)
+    if not (
+        re.match(r"^(project|internship|work|campus)_experience\[\d+\]\.", source_text)
+        and (
+            source_text.endswith(".achievements")
+            or source_text.endswith(".description")
+            or ".extra_sections[" in source_text
+        )
+    ):
+        return False
+
+    field_type = str(field.get("type") or "").casefold()
+    widget = str(field.get("widget") or "").casefold()
+    if field_type == "textarea" or widget in {"textarea", "contenteditable", "rich-text"}:
+        return True
+
+    text = _field_search_text(field)
+    return _contains_any(
+        text,
+        (
+            "描述", "内容", "职责", "成果", "业绩", "简介", "介绍",
+            "description", "responsibility", "responsibilities", "achievement", "summary",
+        ),
+    )
 
 
 def _should_repair_phone_field(field: dict[str, Any]) -> bool:
@@ -525,7 +679,7 @@ def _augment_fields_with_repeat_context(form_fields: list[dict]) -> list[dict]:
 
     The extension normally emits repeatIndex/repeatSection after dynamic cards
     are expanded. This backend pass is a conservative safety net for older or
-    partially-scanned ATS pages where the DOM has repeated cards but no explicit
+    partially-scanned Feishu-style pages where the DOM has repeated cards but no explicit
     repeat metadata.
     """
     fields = [_copy_field_tree(field) for field in form_fields]
@@ -587,7 +741,7 @@ def _infer_contiguous_repeat_runs(fields: list[dict]) -> None:
 def _infer_single_item_section_runs(fields: list[dict]) -> None:
     """Infer section context for one visible resume item.
 
-    Some ATS pages initially render exactly one education card. With no repeated
+    Some Feishu-style pages initially render exactly one education card. With no repeated
     sibling card, the contiguous-repeat inference above has nothing to compare
     against, but fields like "起止时间" still need the local education context
     to map to education[0].start_date/end_date during rules fallback.
@@ -753,6 +907,12 @@ def _match_field_from_resume(
     if field_type == "file" or _contains_any(text, ("附件", "上传", "简历文件", "resume file", "upload")):
         return None
 
+    language_match = _match_language_field(field, resume_data, text)
+    if language_match is not None:
+        return language_match
+    if _looks_like_foreign_language_field(text):
+        return None
+
     repeated_match = _match_repeated_item_field(field, resume_data)
     if repeated_match is not None:
         return repeated_match
@@ -779,7 +939,7 @@ def _match_field_from_resume(
         return _filled(value, "basic_info.gender", 0.86)
 
     skill_values = _skill_values(resume_data.get("skills"))
-    if _contains_any(text, ("技能", "skill", "技术栈", "tech stack")):
+    if _looks_like_skill_field(text):
         if field_type == "checkbox" and label:
             matched = _match_one_from_list(label, skill_values)
             if matched is None:
@@ -844,6 +1004,124 @@ def _match_phone_field(
         return _filled(_coerce_option_value(field, code), source, 0.86)
 
     return _filled(_coerce_option_value(field, phone), "basic_info.phone", 0.9)
+
+
+def _match_language_field(
+    field: dict[str, Any],
+    resume_data: dict[str, Any],
+    text: str,
+) -> tuple[Any, str, float] | None:
+    if not _looks_like_foreign_language_field(text):
+        return None
+
+    languages = resume_data.get("languages")
+    if not isinstance(languages, list) or not languages:
+        return None
+
+    index = _safe_repeat_index(field)
+    if index < 0 or index >= len(languages):
+        index = 0
+    item = _dict(languages[index])
+    if not item:
+        return None
+
+    key = _language_item_key_for_field(text, field)
+    value = _as_text(item.get(key))
+    if not value:
+        return None
+    return _filled(
+        _coerce_language_option_value(field, value, item),
+        f"languages[{index}].{key}",
+        0.84,
+    )
+
+
+def _language_item_key_for_field(text: str, field: dict[str, Any] | None = None) -> str:
+    local_text = _field_local_text(field) if field else text
+    decisive_text = local_text or text
+    if _contains_any(decisive_text, ("成绩", "分数", "score", "mark")):
+        return "score"
+    if _contains_any(
+        decisive_text,
+        (
+            "等级", "级别", "考试", "证书", "熟练", "水平", "能力",
+            "level", "proficiency", "exam", "test", "certificate",
+        ),
+    ):
+        return "level"
+    return "language"
+
+
+def _looks_like_skill_field(text: str) -> bool:
+    if _looks_like_foreign_language_field(text):
+        return False
+    return _contains_any(
+        text,
+        (
+            "技能", "技术栈", "技术能力", "专业技能", "软件工具",
+            "开发语言", "编程语言", "程序语言",
+            "skill", "tech stack", "technical skill", "programming language",
+        ),
+    )
+
+
+def _looks_like_foreign_language_field(text: str) -> bool:
+    if _contains_any(text, ("开发语言", "编程语言", "程序语言", "programming language")):
+        return False
+
+    if _contains_any(
+        text,
+        (
+            "外语", "英语", "英文", "日语", "日文", "德语", "法语", "俄语", "西班牙语",
+            "雅思", "托福", "四六级", "四级", "六级", "cet", "ielts", "toefl",
+            "foreign language", "english", "japanese", "german", "french", "spanish",
+        ),
+    ):
+        return True
+
+    return (
+        _contains_any(text, ("语言", "language"))
+        and _contains_any(
+            text,
+            (
+                "等级", "级别", "考试", "证书", "熟练", "水平", "能力",
+                "level", "proficiency", "exam", "test", "certificate", "ability",
+            ),
+        )
+    )
+
+
+def _coerce_language_option_value(field: dict[str, Any], value: str, item: dict[str, Any]) -> Any:
+    value_text = _as_text(value)
+    if not value_text:
+        return value
+
+    aliases = _language_value_aliases(value_text, item)
+    for option in _option_sources(field):
+        if isinstance(option, dict):
+            label = _as_text(option.get("label"))
+            option_value = _as_text(option.get("value")) or label
+        else:
+            label = _as_text(option)
+            option_value = label
+        haystack = f"{label} {option_value}".casefold()
+        if any(alias.casefold() in haystack for alias in aliases if alias):
+            return option_value
+    return _coerce_option_value(field, value_text)
+
+
+def _language_value_aliases(value: str, item: dict[str, Any]) -> list[str]:
+    language = _as_text(item.get("language"))
+    raw = _as_text(value)
+    aliases = [raw]
+    if language and raw:
+        aliases.extend([f"{language}{raw}", f"{language} {raw}"])
+    normalized = raw.replace(" ", "").casefold()
+    if "六级" in raw or normalized in {"cet6", "cet-6", "cet_6"}:
+        aliases.extend(["英语六级", "大学英语六级", "CET-6", "CET6", "CET 6"])
+    if "四级" in raw or normalized in {"cet4", "cet-4", "cet_4"}:
+        aliases.extend(["英语四级", "大学英语四级", "CET-4", "CET4", "CET 4"])
+    return list(dict.fromkeys(alias for alias in aliases if alias))
 
 
 def _phone_country_code_field(field: dict[str, Any], text: str) -> bool:
@@ -1020,18 +1298,45 @@ def _match_repeated_item_field(
 
 def _repeat_section_key(field: dict[str, Any]) -> str | None:
     has_repeat_marker = field.get("repeatIndex") is not None or field.get("repeat_index") is not None
-    text = " ".join(
+    section_parts = [
         str(value)
         for value in (
             field.get("repeatSection"),
             field.get("repeat_section"),
             field.get("section"),
-            field.get("label"),
         )
         if value
-    ).casefold()
+    ]
+    section_path = field.get("sectionPath") or field.get("section_path")
+    if isinstance(section_path, list):
+        section_parts.extend(str(part) for part in section_path if part)
+
+    section_key = _repeat_section_key_from_text(" ".join(section_parts), has_repeat_marker)
+    if section_key:
+        return section_key
+
+    label_text = " ".join(
+        str(value)
+        for value in (
+            field.get("label"),
+            field.get("subLabel"),
+            field.get("sub_label"),
+            field.get("placeholder"),
+            field.get("name"),
+            field.get("ariaLabel"),
+            field.get("aria_label"),
+        )
+        if value
+    )
+    return _repeat_section_key_from_text(label_text, has_repeat_marker)
+
+
+def _repeat_section_key_from_text(text: str, has_repeat_marker: bool) -> str | None:
+    text = text.casefold()
     if not text:
         return None
+    if "实习" in text or "intern" in text:
+        return "internship_experience"
     if "项目" in text or "project" in text:
         return "project_experience"
     if (
@@ -1041,8 +1346,6 @@ def _repeat_section_key(field: dict[str, Any]) -> str | None:
         "degree" in text or "major" in text
     ):
         return "education"
-    if "实习" in text or "intern" in text:
-        return "internship_experience"
     if (
         "工作经历" in text or "工作经验" in text or "工作履历" in text or
         "任职经历" in text or "职业经历" in text or "就业经历" in text or
@@ -1055,6 +1358,8 @@ def _repeat_section_key(field: dict[str, Any]) -> str | None:
         return "work_experience"
     if "校园" in text or "社团" in text or "学生干部" in text or "社会实践" in text or "实践经历" in text or "campus" in text:
         return "campus_experience"
+    if _looks_like_foreign_language_field(text):
+        return "languages"
     return None
 
 
@@ -1117,6 +1422,7 @@ def _repeated_item_key_for_field(
             (("开始", "入职", "start"), "start_date"),
             (("结束", "离职", "end"), "end_date"),
             (("技术", "工具", "环境", "tech", "stack"), "tech_stack"),
+            (("描述", "简介", "介绍", "背景", "description"), "achievements"),
             (("成果", "业绩", "职责", "内容", "工作内容", "主要工作", "achievement"), "achievements"),
         ]
     elif section_key == "campus_experience":
@@ -1130,6 +1436,8 @@ def _repeated_item_key_for_field(
             (("成果", "职责", "内容", "achievement"), "achievements"),
             (("标签", "tag"), "tags"),
         ]
+    elif section_key == "languages":
+        return _language_item_key_for_field(text, field)
     else:
         return None
 
@@ -1199,11 +1507,13 @@ def _value_from_repeated_item(item: dict[str, Any], key: str) -> Any:
     if key == "ranking" and isinstance(value, dict):
         return value.get("raw") or value.get("rank")
     if value:
+        if key in {"achievements", "description"} and isinstance(value, (list, dict)):
+            return _multiline_list_text(value)
         return value
     if key == "description":
-        return _as_text(item.get("achievements"))
+        return _multiline_list_text(item.get("achievements"))
     if key == "achievements":
-        return item.get("description") or item.get("achievements")
+        return _multiline_list_text(item.get("achievements")) or item.get("description")
     if key == "date_range":
         return _date_range_value(item)
     return None
@@ -1243,6 +1553,17 @@ def _field_search_text(field: dict[str, Any]) -> str:
     return " ".join(parts).casefold()
 
 
+def _field_local_text(field: dict[str, Any] | None) -> str:
+    if not field:
+        return ""
+    parts: list[str] = []
+    for key in ("label", "placeholder", "name", "ariaLabel", "aria_label", "subLabel", "sub_label"):
+        value = field.get(key)
+        if value:
+            parts.append(str(value))
+    return " ".join(parts).casefold()
+
+
 def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
     return any(term.casefold() in text for term in terms)
 
@@ -1271,6 +1592,19 @@ def _as_text(value: Any) -> str:
     if isinstance(value, dict):
         return "、".join(item for item in (_as_text(v) for v in value.values()) if item)
     return str(value).strip()
+
+
+def _multiline_list_text(value: Any) -> str:
+    """Format resume bullet-like values for multi-line recruiting textareas."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return "\n".join(item for item in (_as_text(v) for v in value) if item)
+    if isinstance(value, dict):
+        return "\n".join(item for item in (_as_text(v) for v in value.values()) if item)
+    return _as_text(value)
 
 
 def _skill_values(value: Any) -> list[str]:

@@ -42,6 +42,8 @@ class OpenAICompatClient:
         chat_model: str,
         vision_model: str,
         thinking_mode: str = "disabled",
+        network_mode: str = "direct",
+        proxy_url: str = "",
         timeout_seconds: float = 180.0,
         max_tokens: int = 8192,
     ) -> None:
@@ -53,6 +55,8 @@ class OpenAICompatClient:
         self._chat_model = chat_model
         self._vision_model = vision_model
         self._thinking_mode = _normalize_thinking_mode(thinking_mode)
+        self._network_mode = _normalize_network_mode(network_mode)
+        self._proxy_url = proxy_url.strip()
         self._timeout = httpx.Timeout(timeout_seconds)
         self._max_tokens = max_tokens
 
@@ -72,9 +76,28 @@ class OpenAICompatClient:
     def thinking_mode(self) -> str:
         return self._thinking_mode
 
+    @property
+    def network_mode(self) -> str:
+        return self._network_mode
+
+    @property
+    def proxy_url(self) -> str:
+        return self._proxy_url
+
     def set_thinking_mode(self, mode: str | None) -> None:
         if mode:
             self._thinking_mode = _normalize_thinking_mode(mode)
+
+    def _http_client(self) -> httpx.AsyncClient:
+        if self._network_mode == "proxy":
+            return httpx.AsyncClient(
+                timeout=self._timeout,
+                proxy=self._proxy_url or None,
+                trust_env=False,
+            )
+        if self._network_mode == "environment":
+            return httpx.AsyncClient(timeout=self._timeout, trust_env=True)
+        return httpx.AsyncClient(timeout=self._timeout, trust_env=False)
 
     # ---------- chat ----------
     async def chat(
@@ -147,28 +170,32 @@ class OpenAICompatClient:
                 attempt=attempt,
                 max_attempts=_MAX_HTTP_ATTEMPTS,
                 endpoint_host=endpoint_host,
+                network_mode=self._network_mode,
                 file_ext=Path(filename).suffix.lower().lstrip("."),
                 file_bytes=len(content),
             )
             try:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                async with self._http_client() as client:
                     resp = await client.post(url, json=payload, headers=headers)
             except httpx.HTTPError as exc:
                 last_http_error = exc
+                error = _http_error_summary(exc)
                 attempt_latency_ms = int((time.perf_counter() - attempt_start) * 1000)
                 log.warning(
                     "ocr_http_error",
                     model=self._ocr_model,
                     attempt=attempt,
                     latency_ms=attempt_latency_ms,
-                    error=str(exc)[:200],
+                    error=error[:200],
+                    error_type=exc.__class__.__name__,
                 )
                 if attempt < _MAX_HTTP_ATTEMPTS:
                     await asyncio.sleep(0.5 * attempt)
                     continue
                 raise ModelError(
-                    f"HTTP error contacting OCR model: {exc!s}",
+                    f"HTTP error contacting OCR model: {error}",
                     code="MODEL_HTTP_ERROR",
+                    details={"error_type": exc.__class__.__name__},
                 ) from exc
 
             attempt_latency_ms = int((time.perf_counter() - attempt_start) * 1000)
@@ -185,9 +212,11 @@ class OpenAICompatClient:
             break
 
         if resp is None:
+            error = _http_error_summary(last_http_error)
             raise ModelError(
-                f"HTTP error contacting OCR model: {last_http_error!s}",
+                f"HTTP error contacting OCR model: {error}",
                 code="MODEL_HTTP_ERROR",
+                details={"error_type": last_http_error.__class__.__name__ if last_http_error else None},
             )
 
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -271,33 +300,38 @@ class OpenAICompatClient:
                 temperature=temperature,
                 max_tokens=self._max_tokens,
                 thinking_mode=self._thinking_mode,
+                network_mode=self._network_mode,
                 **message_stats,
             )
             try:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                async with self._http_client() as client:
                     resp = await client.post(url, json=payload, headers=headers)
             except httpx.HTTPError as exc:
                 last_http_error = exc
+                error = _http_error_summary(exc)
                 attempt_latency_ms = int((time.perf_counter() - attempt_start) * 1000)
                 log.warning(
                     "model_http_error",
                     model=model_id,
                     attempt=attempt,
                     latency_ms=attempt_latency_ms,
-                    error=str(exc)[:200],
+                    error=error[:200],
+                    error_type=exc.__class__.__name__,
                 )
                 if attempt < _MAX_HTTP_ATTEMPTS:
                     log.warning(
                         "model_http_retry",
                         model=model_id,
                         attempt=attempt,
-                        error=str(exc)[:200],
+                        error=error[:200],
+                        error_type=exc.__class__.__name__,
                     )
                     await asyncio.sleep(0.5 * attempt)
                     continue
                 raise ModelError(
-                    f"HTTP error contacting model: {exc!s}",
+                    f"HTTP error contacting model: {error}",
                     code="MODEL_HTTP_ERROR",
+                    details={"error_type": exc.__class__.__name__},
                 ) from exc
 
             attempt_latency_ms = int((time.perf_counter() - attempt_start) * 1000)
@@ -320,9 +354,11 @@ class OpenAICompatClient:
             break
 
         if resp is None:
+            error = _http_error_summary(last_http_error)
             raise ModelError(
-                f"HTTP error contacting model: {last_http_error!s}",
+                f"HTTP error contacting model: {error}",
                 code="MODEL_HTTP_ERROR",
+                details={"error_type": last_http_error.__class__.__name__ if last_http_error else None},
             )
 
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -425,6 +461,20 @@ def _normalize_thinking_mode(mode: str) -> str:
     )
 
 
+def _normalize_network_mode(mode: str | None) -> str:
+    normalized = (mode or "direct").strip().lower()
+    if normalized in {"direct", "none", "off", "no_proxy", "no-proxy"}:
+        return "direct"
+    if normalized in {"environment", "env", "system"}:
+        return "environment"
+    if normalized in {"proxy", "custom"}:
+        return "proxy"
+    raise ModelError(
+        "Unsupported model network mode. Use 'direct', 'environment', or 'proxy'.",
+        code="MODEL_NETWORK_MODE_INVALID",
+    )
+
+
 def _should_disable_thinking(base_url: str, model_id: str, thinking_mode: str) -> bool:
     """Disable forced Thinking for GLM models used for strict JSON output."""
     if _normalize_thinking_mode(thinking_mode) != "disabled":
@@ -433,6 +483,18 @@ def _should_disable_thinking(base_url: str, model_id: str, thinking_mode: str) -
         return False
     model = model_id.lower()
     return model.startswith("glm-5") or model.startswith("glm-4.7")
+
+
+def _http_error_summary(exc: httpx.HTTPError | None) -> str:
+    if exc is None:
+        return "unknown HTTP error"
+    message = str(exc).strip()
+    error_type = exc.__class__.__name__
+    if not message:
+        return error_type
+    if error_type in message:
+        return message
+    return f"{error_type}: {message}"
 
 
 def _as_document_data_url(filename: str, content: bytes) -> str:

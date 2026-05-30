@@ -49,6 +49,8 @@ test('popup primary flow starts real fill while scan remains preview-only', () =
   assert.match(popupJs, /out\.visible = !!f\.visible/);
   assert.match(popupJs, /out\.isSearchableSelect = !!f\.isSearchableSelect/);
   assert.match(popupJs, /out\.optionObjects = f\.optionObjects/);
+  assert.match(popupJs, /SectionManager\.collectSectionInfo/);
+  assert.match(popupJs, /动态板块/);
 
   const fillHandler = popupJs.slice(
     popupJs.indexOf("fillBtn.addEventListener('click'"),

@@ -56,12 +56,15 @@ async def test_admin_can_view_and_update_model_config(app_client, make_admin):
     assert r.status_code == 200
     initial = r.json()
     assert "provider" in initial
+    assert initial["model_network_mode"] == "direct"
 
     r = await client.patch(
         "/api/v1/admin/config/model",
         headers=h,
         json={
             "provider": "qwen",
+            "model_network_mode": "proxy",
+            "model_proxy_url": "http://127.0.0.1:7890",
             "qwen_api_key": "sk-test-1234567890abcdef",
             "qwen_reasoning_model": "qwen-max",
         },
@@ -69,6 +72,8 @@ async def test_admin_can_view_and_update_model_config(app_client, make_admin):
     assert r.status_code == 200
     body = r.json()
     assert body["provider"] == "qwen"
+    assert body["model_network_mode"] == "proxy"
+    assert body["model_proxy_url"] == "http://127.0.0.1:7890"
     assert body["qwen_reasoning_model"] == "qwen-max"
     assert "****" in body["qwen_api_key"]
     assert body["qwen_api_key"] != "sk-test-1234567890abcdef"

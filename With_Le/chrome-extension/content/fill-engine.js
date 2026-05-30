@@ -5,12 +5,19 @@ var FillEngine = {
   handlers: [TextHandler, SelectHandler, DateHandler, ChoiceHandler, UploadHandler],
 
   skipped: [],
+  fillRecords: [],
+  dateGroupsForValidation: [],
 
   reset() {
     this.skipped = [];
+    this.fillRecords = [];
+    this.dateGroupsForValidation = [];
   },
 
   async fillAll(mappings, fields) {
+    this.skipped = [];
+    this.fillRecords = [];
+    this.dateGroupsForValidation = [];
     const entries = this._orderedEntries(mappings, fields);
     const fieldsById = new Map((fields || []).map(field => [field.fieldId, field]));
     const valueById = new Map(entries);
@@ -45,9 +52,20 @@ var FillEngine = {
       }
 
       const field = knownField || { fieldId, type: this._detectType(el) };
+      const beforeValue = this._readElementValue(el, field);
       const safety = this._safeToFill(el, field, value);
       if (!safety.ok) {
         if (safety.alreadyFilled) {
+          this.fillRecords.push(this._fillRecord(
+            fieldId,
+            field,
+            el,
+            value,
+            beforeValue,
+            beforeValue,
+            'already_filled',
+            { reason: safety.reason }
+          ));
           filled++;
           continue;
         }
@@ -93,10 +111,21 @@ var FillEngine = {
         continue;
       }
 
+      this.fillRecords.push(this._fillRecord(
+        fieldId,
+        field,
+        el,
+        value,
+        beforeValue,
+        this._readElementValue(el, field),
+        'filled'
+      ));
       filled++;
     }
 
-    return { filled, skipped: this.skipped };
+    await this._validateFilledDateGroups();
+
+    return { filled, skipped: this.skipped, fillRecords: this.fillRecords, filledRecords: this.fillRecords };
   },
 
   async _tryFillDateGroup(fieldId, knownField, fields, valueById, handledFieldIds) {
@@ -111,18 +140,61 @@ var FillEngine = {
       const el = this._findElement(field.fieldId);
       if (!el) return null;
       const safety = this._safeToFill(el, field, value);
-      if (!safety.ok) return null;
-      items.push({ fieldId: field.fieldId, field, el, value });
+      if (!safety.ok && !safety.alreadyFilled) return null;
+      items.push({ fieldId: field.fieldId, field, el, value, alreadyFilled: !!safety.alreadyFilled });
     }
 
+    const beforeValues = items.map(item => this._readElementValue(item.el, item.field));
     const success = await DateHandler.fillGroup(items);
+    const afterValues = items.map(item => this._readElementValue(item.el, item.field));
     groupFields.forEach(field => handledFieldIds.add(field.fieldId));
-    if (success) return { filled: groupFields.length };
+    const reason = this._dateGroupFailureReason(items);
+    this.fillRecords.push(this._dateGroupFillRecord(items, beforeValues, afterValues, success, reason));
+    if (success) {
+      this.dateGroupsForValidation.push({ items });
+      return { filled: groupFields.length };
+    }
 
     for (const item of items) {
-      this.skipped.push(this._skipRecord(item.fieldId, item.field, item.el, item.value, '设置值失败'));
+      this.skipped.push(this._skipRecord(item.fieldId, item.field, item.el, item.value, reason || '设置值失败'));
     }
     return { filled: 0 };
+  },
+
+  async _validateFilledDateGroups() {
+    if (!this.dateGroupsForValidation.length) return;
+    if (!this._shouldPostValidateDateGroups()) return;
+    if (typeof DateHandler === 'undefined' || typeof DateHandler.validateFilledGroup !== 'function') return;
+
+    for (const group of this.dateGroupsForValidation) {
+      const items = group.items || [];
+      const beforeValues = items.map(item => this._readElementValue(item.el, item.field));
+      const result = await DateHandler.validateFilledGroup(items);
+      const afterValues = items.map(item => this._readElementValue(item.el, item.field));
+      this.fillRecords.push(this._dateGroupValidationRecord(items, beforeValues, afterValues, result));
+    }
+  },
+
+  _shouldPostValidateDateGroups() {
+    const host = String((typeof location !== 'undefined' && location.hostname) || '').toLowerCase();
+    return /(^|\.)xiaopeng\./.test(host) || /(^|\.)xpeng\./.test(host);
+  },
+
+  _dateGroupFailureReason(items) {
+    if (!Array.isArray(items) || items.length === 0) return '';
+    const missing = [];
+    for (const item of items) {
+      const target = typeof DateHandler !== 'undefined' && DateHandler._editableTarget
+        ? DateHandler._editableTarget(item.el)
+        : item.el;
+      const current = this._currentFillValue(target, item.field);
+      if (current && !this._isPlaceholderLikeValue(current)) continue;
+      const index = this._intFieldProp(item.field, 'groupIndex');
+      if (index === 0) missing.push('开始');
+      else if (index === 1) missing.push('结束');
+      else missing.push(`第 ${index + 1} 项`);
+    }
+    return missing.length ? `日期范围未完整填入：${missing.join('、')}为空` : '';
   },
 
   _dateGroupFields(fieldId, field, fields, valueById, handledFieldIds) {
@@ -131,15 +203,30 @@ var FillEngine = {
     const groupSize = this._intFieldProp(field, 'groupSize');
     if (groupIndex !== 0 || groupSize !== 2) return null;
 
-    let candidates = [];
-    if (field.groupId) {
-      candidates = fields.filter(item => item && item.groupId === field.groupId);
+    const groupCandidates = field.groupId
+      ? fields.filter(item => item && item.groupId === field.groupId)
+      : [];
+    const container = this._dateGroupContainer(field);
+    const containerCandidates = container
+      ? fields.filter(item => {
+        const el = item && this._findElement(item.fieldId);
+        return el && container.contains(el);
+      })
+      : [];
+
+    let candidates = groupCandidates;
+    let usingContainerCandidates = false;
+    if (containerCandidates.length >= 2) {
+      candidates = containerCandidates;
+      usingContainerCandidates = true;
     }
 
     if (candidates.length < 2) {
+      if (field.widget === 'date-range') return null;
       const start = fields.findIndex(item => item && item.fieldId === fieldId);
       if (start < 0) return null;
-      candidates = fields.slice(start, start + groupSize);
+      candidates = this._adjacentDateFallbackFields(fields, start, field, groupSize);
+      if (!candidates) return null;
     }
 
     const label = this._normalizeGroupLabel(field.label || field.placeholder || field.subLabel);
@@ -149,7 +236,7 @@ var FillEngine = {
       .filter(item => !handledFieldIds.has(item.fieldId))
       .filter(item => this._isDateGroupField(item))
       .filter(item => {
-        if (item.groupId && field.groupId) return item.groupId === field.groupId;
+        if (!usingContainerCandidates && item.groupId && field.groupId) return item.groupId === field.groupId;
         if (this._intFieldProp(item, 'groupSize') !== groupSize) return false;
         const itemLabel = this._normalizeGroupLabel(item.label || item.placeholder || item.subLabel);
         return !label || !itemLabel || itemLabel === label;
@@ -167,6 +254,47 @@ var FillEngine = {
     if (!grouped.some(entry => entry.groupIndex === 1)) return null;
 
     return grouped.slice(0, groupSize).map(entry => entry.item);
+  },
+
+  _adjacentDateFallbackFields(fields, start, field, groupSize) {
+    const candidates = fields.slice(start, start + groupSize);
+    if (candidates.length < groupSize) return null;
+    if (!candidates.every(item => item && item.fieldId && this._isDateGroupField(item))) return null;
+    const indexes = candidates.map(item => this._intFieldProp(item, 'groupIndex'));
+    if (indexes[0] !== 0 || indexes[1] !== 1) return null;
+    if (!candidates.every(item => this._intFieldProp(item, 'groupSize') === groupSize)) return null;
+
+    const baseLabel = this._normalizeGroupLabel(field.label || field.placeholder || field.subLabel);
+    const sameLabel = candidates.every(item => {
+      const itemLabel = this._normalizeGroupLabel(item.label || item.placeholder || item.subLabel);
+      return !baseLabel || !itemLabel || itemLabel === baseLabel;
+    });
+    if (!sameLabel) return null;
+
+    const repeatKeys = ['repeatSection', 'repeatIndex', 'repeatGroupId'];
+    const sameRepeatScope = candidates.every(item => repeatKeys.every(key => {
+      const base = field && field[key];
+      const other = item && item[key];
+      return base === undefined || base === null || other === undefined || other === null || base === other;
+    }));
+    return sameRepeatScope ? candidates : null;
+  },
+
+  _dateGroupContainer(field) {
+    if (!field || !field.fieldId) return null;
+    const el = this._findElement(field.fieldId);
+    if (!el) return null;
+    if (typeof FieldScanner !== 'undefined' && FieldScanner._findDateRangeContainer) {
+      const container = FieldScanner._findDateRangeContainer(el);
+      if (container) return container;
+    }
+    if (typeof DateHandler !== 'undefined' && DateHandler._rangeWrapper) {
+      const wrapper = DateHandler._rangeWrapper(el);
+      if (wrapper) return wrapper;
+    }
+    return el.closest && el.closest(
+      '[class*="date-range-picker-wrapper"], [class*="picker-range"], [class*="range-picker"], [class*="ant-picker-range"], [class*="date-range-picker"]'
+    );
   },
 
   _isDateGroupField(field) {
@@ -285,6 +413,17 @@ var FillEngine = {
       return (el.textContent || '').replace(/\s+/g, ' ').trim();
     }
     return typeof el.value === 'string' ? el.value.trim() : '';
+  },
+
+  _readElementValue(el, field) {
+    const target = typeof DateHandler !== 'undefined' && DateHandler._editableTarget
+      ? DateHandler._editableTarget(el)
+      : el;
+    const liveField = field ? { ...field } : field;
+    if (liveField && Object.prototype.hasOwnProperty.call(liveField, 'currentValue')) {
+      delete liveField.currentValue;
+    }
+    return this._currentFillValue(target, liveField);
   },
 
   _isPlaceholderLikeValue(value) {
@@ -437,6 +576,104 @@ var FillEngine = {
     if (field && field.required != null) record.required = !!field.required;
     record.attemptedValuePreview = this._valuePreview(value, field || { type });
     return record;
+  },
+
+  _fillRecord(fieldId, field, el, value, beforeValue, afterValue, status, extra) {
+    const record = this._skipRecord(fieldId, field, el, value, '');
+    delete record.reason;
+    record.status = status || 'filled';
+    record.beforeValue = this._valuePreview(beforeValue, field);
+    record.afterValue = this._valuePreview(afterValue, field);
+    record.element = this._elementSignature(el);
+    if (extra && typeof extra === 'object') {
+      Object.assign(record, extra);
+    }
+    return record;
+  },
+
+  _dateGroupFillRecord(items, beforeValues, afterValues, success, reason) {
+    const first = items[0] || {};
+    const firstField = first.field || {};
+    const record = {
+      kind: 'date_group',
+      status: success ? 'filled' : 'failed',
+      label: firstField.label || firstField.placeholder || firstField.subLabel || '日期范围',
+      fieldIds: items.map(item => item.fieldId),
+      groupValues: items.map(item => this._valuePreview(item.value, item.field)),
+      beforeValues: beforeValues.map((value, index) => this._valuePreview(value, items[index] && items[index].field)),
+      afterValues: afterValues.map((value, index) => this._valuePreview(value, items[index] && items[index].field)),
+      items: items.map((item, index) => this._dateGroupItemRecord(item, beforeValues[index], afterValues[index])),
+    };
+    if (reason) record.reason = reason;
+    this._copyFieldProp(record, firstField, 'section');
+    this._copyFieldProp(record, firstField, 'repeatSection');
+    this._copyFieldProp(record, firstField, 'repeatIndex');
+    this._copyFieldProp(record, firstField, 'repeatSize');
+    this._copyFieldProp(record, firstField, 'groupSize');
+    const wrapper = first.el && this._dateGroupContainer(firstField);
+    if (wrapper) record.container = this._elementSignature(wrapper);
+    return record;
+  },
+
+  _dateGroupValidationRecord(items, beforeValues, afterValues, result) {
+    const first = items[0] || {};
+    const firstField = first.field || {};
+    const changed = beforeValues.some((value, index) => String(value || '') !== String(afterValues[index] || ''));
+    const record = {
+      kind: 'date_group_validation',
+      status: result && result.ok && !changed ? 'validated' : 'failed',
+      label: firstField.label || firstField.placeholder || firstField.subLabel || '日期范围',
+      fieldIds: items.map(item => item.fieldId),
+      beforeValues: beforeValues.map((value, index) => this._valuePreview(value, items[index] && items[index].field)),
+      afterValues: afterValues.map((value, index) => this._valuePreview(value, items[index] && items[index].field)),
+      clickedFieldId: result && result.clickedFieldId || '',
+      clickedFieldIds: result && Array.isArray(result.clickedFieldIds) ? result.clickedFieldIds : [],
+      blankClickCount: result && Number.isFinite(result.blankClickCount) ? result.blankClickCount : 0,
+      dropdownOpenAfter: !!(result && result.dropdownOpenAfter),
+    };
+    if (changed) record.reason = '日期校验点击后字段值发生变化';
+    else if (result && result.reason) record.reason = result.reason;
+    this._copyFieldProp(record, firstField, 'section');
+    this._copyFieldProp(record, firstField, 'repeatSection');
+    this._copyFieldProp(record, firstField, 'repeatIndex');
+    this._copyFieldProp(record, firstField, 'repeatSize');
+    this._copyFieldProp(record, firstField, 'groupSize');
+    return record;
+  },
+
+  _dateGroupItemRecord(item, beforeValue, afterValue) {
+    const field = item.field || {};
+    const record = {
+      fieldId: item.fieldId,
+      attemptedValuePreview: this._valuePreview(item.value, field),
+      beforeValue: this._valuePreview(beforeValue, field),
+      afterValue: this._valuePreview(afterValue, field),
+      element: this._elementSignature(item.el),
+    };
+    this._copyFieldProp(record, field, 'label');
+    this._copyFieldProp(record, field, 'type');
+    this._copyFieldProp(record, field, 'widget');
+    this._copyFieldProp(record, field, 'section');
+    this._copyFieldProp(record, field, 'repeatSection');
+    this._copyFieldProp(record, field, 'repeatIndex');
+    this._copyFieldProp(record, field, 'repeatSize');
+    this._copyFieldProp(record, field, 'groupIndex');
+    this._copyFieldProp(record, field, 'groupSize');
+    this._copyFieldProp(record, field, 'subLabel');
+    this._copyFieldProp(record, field, 'placeholder');
+    if (field.required != null) record.required = !!field.required;
+    return record;
+  },
+
+  _elementSignature(el) {
+    if (!el) return '';
+    const parts = [(el.tagName || '').toLowerCase()];
+    if (el.id) parts.push(`#${el.id}`);
+    const className = typeof el.className === 'string' ? el.className.trim() : '';
+    if (className) parts.push(`.${className.split(/\s+/).slice(0, 5).join('.')}`);
+    const name = el.getAttribute && el.getAttribute('name');
+    if (name) parts.push(`[name="${name}"]`);
+    return parts.join('').slice(0, 160);
   },
 
   _copyFieldProp(record, field, key) {

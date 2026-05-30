@@ -7,17 +7,15 @@ const extensionRoot = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(extensionRoot, 'test-form.html'), 'utf8');
 const testingDoc = fs.readFileSync(path.join(extensionRoot, 'TESTING.md'), 'utf8');
 
-test('local test form covers Moka, Feishu and Beisen ATS markers', () => {
-  assert.match(html, /Moka \/ Feishu \/ Beisen/);
-  assert.match(html, /moka-form-section/);
-  assert.match(html, /data-moka-field/);
+test('local test form covers Feishu recruiting markers', () => {
+  assert.match(html, /Feishu Recruiting Form Test/);
   assert.match(html, /feishu-form-section/);
   assert.match(html, /data-form-field-i18n-name/);
-  assert.match(html, /beisen-section/);
-  assert.match(html, /beisen-resume-item/);
+  assert.match(html, /applyFormModuleWrapper/);
+  assert.match(html, /ud__select/);
 });
 
-test('local test form covers multi-ATS dynamic project flow', () => {
+test('local test form covers Feishu dynamic project flow', () => {
   assert.match(html, /项目经历/);
   assert.match(html, /id="project-list"/);
   assert.match(html, /class="[^"]*project-card/);
@@ -38,8 +36,8 @@ test('local test form covers custom controls and final submit safety', () => {
   assert.match(html, /ERROR: final submit was clicked/);
 });
 
-test('local ATS test instructions cover expected safety checks', () => {
-  assert.match(testingDoc, /Moka, Feishu and Beisen/);
+test('local Feishu test instructions cover expected safety checks', () => {
+  assert.match(testingDoc, /Xiaopeng \/ Feishu Recruiting/);
   assert.match(testingDoc, /python3 -m http\.server 8090/);
   assert.match(testingDoc, /must not click `提交投递`/);
   assert.match(testingDoc, /复制诊断报告/);

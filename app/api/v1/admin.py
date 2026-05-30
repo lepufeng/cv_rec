@@ -33,6 +33,8 @@ async def get_model_config(_: AdminUser, cfg_svc: ConfigSvc) -> ModelConfigPaylo
     return ModelConfigPayload(
         provider=cfg.provider,  # type: ignore[arg-type]
         model_thinking_mode=cfg.model_thinking_mode,  # type: ignore[arg-type]
+        model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
+        model_proxy_url=cfg.model_proxy_url,
         glm_api_key=_mask(cfg.glm_api_key),
         glm_base_url=cfg.glm_base_url,
         glm_ocr_model=cfg.glm_ocr_model,
@@ -59,6 +61,10 @@ async def patch_model_config(
         updates["model_provider"] = payload.provider
     if payload.model_thinking_mode is not None:
         updates["model_thinking_mode"] = payload.model_thinking_mode
+    if payload.model_network_mode is not None:
+        updates["model_network_mode"] = payload.model_network_mode
+    if payload.model_proxy_url is not None:
+        updates["model_proxy_url"] = payload.model_proxy_url
     for f in (
         "glm_api_key", "glm_base_url", "glm_ocr_model", "glm_vision_model", "glm_chat_model",
         "glm_reasoning_model",
@@ -73,6 +79,8 @@ async def patch_model_config(
     return ModelConfigPayload(
         provider=cfg.provider,  # type: ignore[arg-type]
         model_thinking_mode=cfg.model_thinking_mode,  # type: ignore[arg-type]
+        model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
+        model_proxy_url=cfg.model_proxy_url,
         glm_api_key=_mask(cfg.glm_api_key),
         glm_base_url=cfg.glm_base_url,
         glm_ocr_model=cfg.glm_ocr_model,

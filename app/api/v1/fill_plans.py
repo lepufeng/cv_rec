@@ -94,6 +94,7 @@ def _build_section_action_details(sections: list[dict[str, Any]], resume_data: d
         "internship_experience": _list_len(resume_data.get("internship_experience")),
         "work_experience": _list_len(resume_data.get("work_experience")),
         "campus_experience": _list_len(resume_data.get("campus_experience")),
+        "languages": _list_len(resume_data.get("languages")),
     }
 
     for section in sections:
@@ -104,7 +105,7 @@ def _build_section_action_details(sections: list[dict[str, Any]], resume_data: d
         if not key:
             continue
         target_count = target_counts.get(key, 0)
-        if target_count <= 1:
+        if target_count <= 0:
             continue
         current_count = _safe_positive_int(section.get("currentCount"), default=1)
         add_count = target_count - current_count
@@ -157,4 +158,6 @@ def _section_key(name: str) -> str | None:
         return "work_experience"
     if "校园" in text or "社团" in text or "学生干部" in text or "社会实践" in text or "实践经历" in text or "campus" in text:
         return "campus_experience"
+    if "语言" in text or "外语" in text or "英语" in text or "language" in text or "english" in text:
+        return "languages"
     return None

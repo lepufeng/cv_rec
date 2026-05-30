@@ -44,6 +44,8 @@ def get_model() -> OpenAICompatClient:
         glm_chat_model=settings.glm_chat_model,
         glm_vision_model=settings.glm_vision_model,
         thinking_mode=settings.model_thinking_mode,
+        network_mode=settings.model_network_mode,
+        proxy_url=settings.model_proxy_url,
         qwen_api_key=settings.qwen_api_key,
         qwen_base_url=settings.qwen_base_url,
         qwen_ocr_model=settings.qwen_ocr_model,
@@ -62,6 +64,8 @@ def build_model_from_config(cfg, *, thinking_mode: str | None = None) -> OpenAIC
         glm_chat_model=cfg.glm_chat_model,
         glm_vision_model=cfg.glm_vision_model,
         thinking_mode=thinking_mode or cfg.model_thinking_mode,
+        network_mode=cfg.model_network_mode,
+        proxy_url=cfg.model_proxy_url,
         qwen_api_key=cfg.qwen_api_key,
         qwen_base_url=cfg.qwen_base_url,
         qwen_ocr_model=cfg.qwen_ocr_model,
@@ -86,6 +90,8 @@ def build_reasoning_model_from_config(cfg, *, thinking_mode: str | None = None) 
         glm_chat_model=cfg.glm_reasoning_model or cfg.glm_chat_model,
         glm_vision_model=cfg.glm_vision_model,
         thinking_mode=thinking_mode or cfg.model_thinking_mode,
+        network_mode=cfg.model_network_mode,
+        proxy_url=cfg.model_proxy_url,
         qwen_api_key=cfg.qwen_api_key,
         qwen_base_url=cfg.qwen_base_url,
         qwen_ocr_model=cfg.qwen_ocr_model,
@@ -108,6 +114,8 @@ def _build(
     qwen_ocr_model: str,
     qwen_chat_model: str,
     qwen_vision_model: str,
+    network_mode: str = "direct",
+    proxy_url: str = "",
 ) -> OpenAICompatClient:
     if provider == "glm":
         return OpenAICompatClient(
@@ -117,6 +125,8 @@ def _build(
             chat_model=glm_chat_model,
             vision_model=glm_vision_model,
             thinking_mode=thinking_mode,
+            network_mode=network_mode,
+            proxy_url=proxy_url,
         )
     if provider == "qwen":
         return OpenAICompatClient(
@@ -126,6 +136,8 @@ def _build(
             chat_model=qwen_chat_model,
             vision_model=qwen_vision_model,
             thinking_mode=thinking_mode,
+            network_mode=network_mode,
+            proxy_url=proxy_url,
         )
     if provider == "fake":
         from tests.fakes.fake_model import FakeModel

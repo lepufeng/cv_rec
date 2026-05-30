@@ -13,6 +13,9 @@ test('content direct fill force-refreshes before and after dynamic expansion', (
   const content = read('content/content.js');
 
   assert.match(content, /requestMatch\(initialFields, resume, sectionInfo, true\)/);
+  assert.match(content, /isSupportedRecruitingPage\(probeFields\)/);
+  assert.match(content, /unsupported_site/);
+  assert.match(content, /当前版本仅支持小鹏及飞书招聘系页面/);
   assert.match(content, /pageReport\.sectionActionResults = await SectionManager\.executeActions\(sectionActions\)/);
   assert.match(content, /requestMatch\(expandedFields, resume, expandedSectionInfo, true\)/);
   assert.match(content, /payload: pagePayload\(fields, forceRefresh\)/);
@@ -36,6 +39,13 @@ test('content records a fill report for real-page diagnostics', () => {
   assert.match(content, /initialFieldCount/);
   assert.match(content, /expandedFieldCount/);
   assert.match(content, /sectionActionResults/);
+  assert.match(content, /sections: sectionInfo\.map/);
+  assert.match(content, /initialReadRecords: fieldReadRecords\(initialFields\)/);
+  assert.match(content, /expandedReadRecords/);
+  assert.match(content, /mappingRecords\(mappings, activeFields\)/);
+  assert.match(content, /fillRecords/);
+  assert.match(content, /finalReadRecords = fieldReadRecords\(FieldScanner\.scan\(\)\)/);
+  assert.match(content, /个动态板块/);
   assert.match(content, /backendSkippedCount/);
   assert.match(content, /runtimeSkippedCount/);
   assert.match(content, /resumeAutofillLastReport/);
@@ -54,11 +64,8 @@ test('scanner emits repeat metadata for expanded experience cards', () => {
   assert.match(scanner, /repeatIndex/);
   assert.match(scanner, /repeatSize/);
   assert.match(scanner, /repeatSection/);
-  assert.match(scanner, /data-moka-field/);
-  assert.match(scanner, /data-beisen-field/);
+  assert.match(scanner, /data-form-field-i18n-name/);
   assert.match(scanner, /atsx-form-item/);
-  assert.match(scanner, /\.send_title/);
-  assert.match(scanner, /\.info_box/);
   assert.match(scanner, /data-field-list-item/);
   assert.match(scanner, /optionObjects/);
   assert.match(scanner, /_extractOptionObjects\(ctrl\)/);
@@ -109,7 +116,11 @@ test('diagnostic report preserves field context for skipped fields', () => {
   assert.match(content, /fieldReportRecord\(fieldId, field, reason\)/);
   assert.match(content, /copyFieldProp\(record, field, 'repeatIndex'\)/);
   assert.match(content, /copyFieldProp\(record, field, 'widget'\)/);
+  assert.match(content, /fieldReadRecords\(fields\)/);
+  assert.match(content, /reportValuePreview\(field\.currentValue, field\)/);
+  assert.match(content, /reportValuePreview\(value, field\)/);
   assert.match(popup, /skipContextText\(item\)/);
+  assert.match(popup, /日志: 读取/);
   assert.match(popup, /attemptedValuePreview/);
   assert.match(annotator, /_contextText\(item\)/);
 });
@@ -196,12 +207,7 @@ test('section manager counts repeat cards instead of ordinary form items', () =>
   assert.match(manager, /_deriveSectionNameFromAddText/);
   assert.match(manager, /if \(!this\._isVisible\(h\)\) return/);
   assert.match(manager, /data-field-list-item/);
-  assert.match(manager, /moka/);
-  assert.match(manager, /beisen/);
   assert.match(manager, /atsx/);
-  assert.match(manager, /\.send_title/);
-  assert.match(manager, /\.info_list/);
-  assert.match(manager, /\.experience_box/);
   assert.match(manager, /employment/);
   assert.match(manager, /_normalizeText\(text\)/);
 });

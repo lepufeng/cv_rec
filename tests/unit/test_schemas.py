@@ -105,8 +105,8 @@ def test_form_field_repeater_recursive():
 def test_form_field_accepts_plugin_scan_naming_and_keeps_metadata():
     req = FillPlanRequest.model_validate({
         "id": "scan_1",
-        "url": "https://join.qq.com/resumeedit.html",
-        "title": "简历编辑 | 腾讯校招",
+        "url": "https://xiaopeng.jobs.feishu.cn/index/resume/apply",
+        "title": "小鹏招聘 | 简历填写",
         "fieldCount": 2,
         "fields": [
             {
@@ -117,7 +117,7 @@ def test_form_field_accepts_plugin_scan_naming_and_keeps_metadata():
                 "maxLength": 25,
                 "enumerable": False,
                 "section": "基本信息",
-                "frameUrl": "https://join.qq.com/resumeedit.html",
+                "frameUrl": "https://xiaopeng.jobs.feishu.cn/index/resume/apply",
             },
             {
                 "fieldId": "auto_phone",
@@ -134,7 +134,7 @@ def test_form_field_accepts_plugin_scan_naming_and_keeps_metadata():
             },
         ],
     })
-    assert req.url == "https://join.qq.com/resumeedit.html"
+    assert req.url == "https://xiaopeng.jobs.feishu.cn/index/resume/apply"
     assert len(req.fields) == 2
     assert req.fields[0].fieldId == "auto_name"
     assert req.fields[0].maxLength == 25
@@ -151,7 +151,7 @@ def test_form_field_accepts_plugin_scan_naming_and_keeps_metadata():
 def test_fill_plan_request_still_accepts_legacy_platform_naming():
     req = FillPlanRequest.model_validate({
         "resume_id": "resume_1",
-        "site_url": "https://jobs.example.com",
+        "site_url": "https://xiaopeng.jobs.feishu.cn/index/resume/apply",
         "form_fields": [
             {
                 "id": "name",
@@ -162,7 +162,7 @@ def test_fill_plan_request_still_accepts_legacy_platform_naming():
         ],
     })
     assert req.resumeId == "resume_1"
-    assert req.url == "https://jobs.example.com"
+    assert req.url == "https://xiaopeng.jobs.feishu.cn/index/resume/apply"
     assert req.fields[0].fieldId == "name"
     assert req.fields[0].maxLength == 20
 
@@ -170,6 +170,11 @@ def test_fill_plan_request_still_accepts_legacy_platform_naming():
 def test_filled_field_confidence_bounds():
     f = FilledField(value="x", confidence=0.5, reasoning="r", source="s")
     assert 0 <= f.confidence <= 1
+
+
+def test_filled_field_allows_checkbox_string_lists():
+    f = FilledField(value=["没有工作经历"], confidence=0.8, reasoning="r", source="work_experience")
+    assert f.value == ["没有工作经历"]
 
 
 def test_fill_plan_llm_output_defaults():

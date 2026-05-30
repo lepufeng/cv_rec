@@ -50,6 +50,8 @@ class Settings(BaseSettings):
         description="Which model adapter to use as primary.",
     )
     model_thinking_mode: Literal["enabled", "disabled"] = "disabled"
+    model_network_mode: Literal["direct", "environment", "proxy"] = "direct"
+    model_proxy_url: str = ""
 
     # GLM (Zhipu AI / z.ai)
     glm_api_key: str = ""

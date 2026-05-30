@@ -8,6 +8,7 @@ import {
 } from "@/lib/api";
 
 const PROVIDERS: ModelConfig["provider"][] = ["glm", "qwen", "fake"];
+const NETWORK_MODES: ModelConfig["model_network_mode"][] = ["direct", "environment", "proxy"];
 
 export default function AdminModelConfig() {
   const [cfg, setCfg] = useState<ModelConfig | null>(null);
@@ -131,6 +132,42 @@ export default function AdminModelConfig() {
               </span>
             </span>
           </label>
+        </Card>
+
+        <Card
+          title="模型网络"
+          description="仅影响后端访问 GLM/Qwen；不影响浏览器访问招聘网站或插件连接本地后端"
+        >
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {NETWORK_MODES.map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => update("model_network_mode", mode)}
+                  className={`btn ${
+                    merged.model_network_mode === mode
+                      ? "bg-accent text-white"
+                      : "btn-secondary"
+                  }`}
+                >
+                  {NETWORK_MODE_LABEL[mode]}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs leading-5 text-ink-500">
+              直连会忽略 HTTP_PROXY / HTTPS_PROXY 等环境代理；指定代理只给模型请求使用。
+            </p>
+            {merged.model_network_mode === "proxy" && (
+              <Field label="模型代理 URL" placeholder="例如 http://127.0.0.1:7890">
+                <input
+                  className="input"
+                  value={merged.model_proxy_url || ""}
+                  onChange={(e) => update("model_proxy_url", e.target.value)}
+                  placeholder="http://127.0.0.1:7890"
+                />
+              </Field>
+            )}
+          </div>
         </Card>
 
         <Card
@@ -282,6 +319,11 @@ export default function AdminModelConfig() {
                   {providerDisplayName(testResult.provider)}
                 </code>
               </Field>
+              <Field label="网络模式">
+                <code className="text-ink-700">
+                  {networkModeDisplayName(testResult.model_network_mode)}
+                </code>
+              </Field>
               <Field label="对话模型">
                 <code className="text-ink-700">{testResult.chat_model}</code>
               </Field>
@@ -322,11 +364,24 @@ const PROVIDER_LABEL: Record<ModelConfig["provider"], string> = {
   fake: "Fake（测试）",
 };
 
+const NETWORK_MODE_LABEL: Record<ModelConfig["model_network_mode"], string> = {
+  direct: "直连",
+  environment: "环境代理",
+  proxy: "指定代理",
+};
+
 function providerDisplayName(provider: string) {
   if (provider === "glm" || provider === "qwen" || provider === "fake") {
     return PROVIDER_LABEL[provider];
   }
   return provider;
+}
+
+function networkModeDisplayName(mode: string) {
+  if (mode === "direct" || mode === "environment" || mode === "proxy") {
+    return NETWORK_MODE_LABEL[mode];
+  }
+  return mode;
 }
 
 function Field({

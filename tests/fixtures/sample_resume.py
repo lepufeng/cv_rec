@@ -50,8 +50,8 @@ SAMPLE_PARSED_RESUME = {
     ],
     "internship_experience": [
         {
-            "company": "腾讯",
-            "department": "云开发平台部",
+            "company": "小鹏汽车",
+            "department": "智能平台部",
             "title": "后端开发实习生",
             "start_date": "2020-06",
             "end_date": "2020-09",

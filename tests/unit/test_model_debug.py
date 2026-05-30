@@ -16,9 +16,9 @@ def test_invalid_fill_plan_output_is_captured_for_debug(monkeypatch, tmp_path):
         raw = json.dumps({
             "filled": {
                 "language": {
-                    "value": ["英语", "普通话"],
+                    "value": {"language": "英语"},
                     "confidence": 0.9,
-                    "reasoning": "模型错误地返回了字符串数组",
+                    "reasoning": "模型错误地返回了对象",
                     "source": "certifications",
                 },
             },

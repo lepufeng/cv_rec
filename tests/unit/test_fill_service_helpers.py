@@ -9,7 +9,7 @@ from app.services.fill_service import (
     _extract_domain,
     _match_field_from_resume,
 )
-from app.schemas.fill_plan import FillPlanLLMOutput
+from app.schemas.fill_plan import FilledField, FillPlanLLMOutput
 
 
 def test_structure_hash_stable_under_reorder():
@@ -31,7 +31,7 @@ def test_structure_hash_changes_with_field_change():
 
 
 def test_extract_domain():
-    assert _extract_domain("https://jobs.example.com/apply") == "jobs.example.com"
+    assert _extract_domain("https://xiaopeng.jobs.feishu.cn/index/resume/apply") == "xiaopeng.jobs.feishu.cn"
     assert _extract_domain("not-a-url") == "unknown"
 
 
@@ -60,7 +60,7 @@ def test_repeated_project_fields_match_by_repeat_index():
                 "start_date": "2024-01",
                 "end_date": "2024-06",
                 "tech_stack": ["TypeScript", "FastAPI"],
-                "achievements": ["实现多招聘站点自动填写"],
+                "achievements": ["实现飞书招聘动态表单自动填写"],
             },
         ],
     }
@@ -114,7 +114,7 @@ def test_repeated_project_fields_match_by_repeat_index():
         0.82,
     )
     assert _match_field_from_resume(fields["project_result_2"], resume) == (
-        "实现多招聘站点自动填写",
+        "实现飞书招聘动态表单自动填写",
         "project_experience[1].achievements",
         0.82,
     )
@@ -185,7 +185,7 @@ def test_repeated_education_and_internship_fields_match_by_index():
         ],
         "internship_experience": [
             {"company": "旧实习", "title": "助理", "department": "测试部"},
-            {"company": "腾讯", "title": "后端开发实习生", "department": "云开发平台部"},
+            {"company": "小鹏汽车", "title": "后端开发实习生", "department": "智能平台部"},
         ],
     }
 
@@ -200,11 +200,259 @@ def test_repeated_education_and_internship_fields_match_by_index():
     assert _match_field_from_resume(
         {"label": "实习公司", "repeatSection": "实习经历", "repeatIndex": 1},
         resume,
-    ) == ("腾讯", "internship_experience[1].company", 0.82)
+    ) == ("小鹏汽车", "internship_experience[1].company", 0.82)
     assert _match_field_from_resume(
         {"label": "实习岗位", "repeatSection": "实习经历", "repeatIndex": 1},
         resume,
     ) == ("后端开发实习生", "internship_experience[1].title", 0.82)
+
+
+def test_internship_section_context_wins_over_project_description_label():
+    resume = {
+        "internship_experience": [
+            {
+                "company": "香港城市大学（东莞）",
+                "title": "实习助理",
+                "achievements": ["整理交换项目申请材料", "协助官网上线前测试"],
+            },
+        ],
+        "project_experience": [
+            {
+                "name": "情绪识别项目",
+                "description": "项目描述不应填入实习区块",
+            },
+        ],
+    }
+
+    assert _match_field_from_resume(
+        {"label": "项目描述", "repeatSection": "实习经历", "repeatIndex": 0},
+        resume,
+    ) == (
+        "整理交换项目申请材料\n协助官网上线前测试",
+        "internship_experience[0].achievements",
+        0.82,
+    )
+
+
+def test_deterministic_repairs_correct_cached_cross_section_repeat_match():
+    resume = {
+        "internship_experience": [
+            {
+                "company": "香港城市大学（东莞）",
+                "title": "实习助理",
+                "achievements": ["整理交换项目申请材料", "协助官网上线前测试"],
+            },
+        ],
+        "project_experience": [
+            {
+                "name": "情绪识别项目",
+                "description": "项目描述不应填入实习区块",
+            },
+        ],
+    }
+    cached_plan = FillPlanLLMOutput(
+        filled={
+            "internship_description": FilledField(
+                value="项目描述不应填入实习区块",
+                confidence=0.82,
+                reasoning="旧缓存中的错误兜底匹配",
+                source="project_experience[0].description",
+            ),
+        },
+    )
+
+    repaired = _apply_deterministic_field_repairs(
+        cached_plan,
+        resume,
+        [
+            {
+                "fieldId": "internship_description",
+                "label": "项目描述",
+                "repeatSection": "实习经历",
+                "repeatIndex": 0,
+            },
+        ],
+    )
+
+    assert repaired.filled["internship_description"].value == "整理交换项目申请材料\n协助官网上线前测试"
+    assert repaired.filled["internship_description"].source == "internship_experience[0].achievements"
+
+
+def test_deterministic_repairs_normalize_single_experience_description_without_repeat_marker():
+    resume = {
+        "project_experience": [
+            {
+                "name": "智能投递助手",
+                "achievements": [
+                    "实现字段扫描。",
+                    "沉淀自动填写诊断。",
+                ],
+            },
+        ],
+    }
+    cached_plan = FillPlanLLMOutput(
+        filled={
+            "project_description": FilledField(
+                value="实现字段扫描。、沉淀自动填写诊断。",
+                confidence=0.82,
+                reasoning="旧缓存把 bullet 连成一行",
+                source="project_experience[0].achievements",
+            ),
+        },
+    )
+
+    repaired = _apply_deterministic_field_repairs(
+        cached_plan,
+        resume,
+        [
+            {
+                "fieldId": "project_description",
+                "label": "项目描述",
+                "section": "项目经历",
+                "type": "textarea",
+            },
+        ],
+    )
+
+    assert repaired.filled["project_description"].value == "实现字段扫描。\n沉淀自动填写诊断。"
+
+
+def test_repeated_experience_description_bullets_use_newlines():
+    resume = {
+        "project_experience": [
+            {
+                "name": "智能投递助手",
+                "achievements": [
+                    "构建字段扫描与映射链路。",
+                    "覆盖飞书招聘动态表单。",
+                ],
+            },
+        ],
+        "internship_experience": [
+            {
+                "company": "小鹏汽车",
+                "title": "后端开发实习生",
+                "achievements": [
+                    "负责接口联调与异常排查。",
+                    "沉淀自动化测试用例。",
+                ],
+            },
+        ],
+    }
+
+    assert _match_field_from_resume(
+        {"label": "项目成果", "type": "textarea", "repeatSection": "项目经历", "repeatIndex": 0},
+        resume,
+    ) == (
+        "构建字段扫描与映射链路。\n覆盖飞书招聘动态表单。",
+        "project_experience[0].achievements",
+        0.82,
+    )
+    assert _match_field_from_resume(
+        {"label": "工作内容", "type": "textarea", "repeatSection": "实习经历", "repeatIndex": 0},
+        resume,
+    ) == (
+        "负责接口联调与异常排查。\n沉淀自动化测试用例。",
+        "internship_experience[0].achievements",
+        0.82,
+    )
+
+
+def test_foreign_language_level_does_not_use_skills_context():
+    resume = {
+        "skills": {
+            "programming_languages": ["Python", "SQL", "R"],
+            "tools": ["Microsoft Office", "Tableau"],
+        },
+        "languages": [
+            {"language": "英语", "level": "六级", "score": "580"},
+        ],
+    }
+
+    assert _match_field_from_resume(
+        {
+            "label": "外语考试/等级",
+            "section": "技能/证书/语言",
+            "type": "select",
+        },
+        resume,
+    ) == ("六级", "languages[0].level", 0.84)
+    assert _match_field_from_resume(
+        {
+            "label": "外语考试/等级",
+            "section": "技能/证书/语言",
+            "type": "select",
+            "optionObjects": [
+                {"label": "大学英语四级", "value": "CET4"},
+                {"label": "大学英语六级", "value": "CET6"},
+            ],
+        },
+        resume,
+    ) == ("CET6", "languages[0].level", 0.84)
+
+
+def test_deterministic_repairs_skill_value_in_foreign_language_level_field():
+    resume = {
+        "skills": {
+            "programming_languages": ["Python", "SQL", "R"],
+            "tools": ["Microsoft Office", "Tableau"],
+        },
+        "languages": [
+            {"language": "英语", "level": "六级", "score": "580"},
+        ],
+    }
+    model_plan = FillPlanLLMOutput(
+        filled={
+            "foreign_level": FilledField(
+                value="Python、SQL、R、Microsoft Office、Tableau",
+                confidence=0.74,
+                reasoning="模型误把技能区块上下文当成外语等级",
+                source="skills",
+            ),
+        },
+    )
+
+    repaired = _apply_deterministic_field_repairs(
+        model_plan,
+        resume,
+        [
+            {
+                "fieldId": "foreign_level",
+                "label": "外语考试/等级",
+                "section": "技能/证书/语言",
+                "type": "select",
+            },
+        ],
+    )
+
+    assert repaired.filled["foreign_level"].value == "六级"
+    assert repaired.filled["foreign_level"].source == "languages[0].level"
+    assert repaired.filled["foreign_level"].reasoning == "后端语义护栏修正明显跨类字段"
+
+
+def test_repeated_language_fields_match_by_index():
+    resume = {
+        "languages": [
+            {"language": "英语", "level": "六级", "score": "580"},
+            {"language": "日语", "level": "N2", "score": None},
+        ],
+        "skills": {
+            "programming_languages": ["Python"],
+        },
+    }
+
+    assert _match_field_from_resume(
+        {"label": "语言", "repeatSection": "语言能力", "repeatIndex": 1},
+        resume,
+    ) == ("日语", "languages[1].language", 0.84)
+    assert _match_field_from_resume(
+        {"label": "熟练程度", "repeatSection": "语言能力", "repeatIndex": 1},
+        resume,
+    ) == ("N2", "languages[1].level", 0.84)
+    assert _match_field_from_resume(
+        {"label": "开发语言", "section": "技能", "type": "text"},
+        resume,
+    ) == ("Python", "skills", 0.74)
 
 
 def test_repeated_fields_can_infer_section_from_label_and_repeat_index():

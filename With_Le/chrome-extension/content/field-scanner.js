@@ -7,10 +7,9 @@ var FieldScanner = {
   // ARIA wrappers worth treating as controls. Includes:
   //   - explicit selectable widgets: combobox / listbox / textbox / searchbox / spinbutton
   //   - popup-trigger elements that open a list-style picker. Standard
-  //     `aria-haspopup="listbox"` covers most modern libs; `="list"` is the
-  //     legacy Element UI flavour (Tencent join.qq.com's 个人证件 type
-  //     selector and 国家/地区 picker both use it). `="tree"` covers
-  //     tree-select and cascader. We deliberately don't include
+  //     `aria-haspopup="listbox"` covers Feishu/UD list pickers; `="list"`
+  //     covers legacy list popups; `="tree"` covers tree-select and cascader.
+  //     We deliberately don't include
   //     `aria-haspopup="true|menu|dialog"` because those cover page-level
   //     account/menu buttons that aren't form controls.
   _ARIA_SELECTOR:
@@ -18,8 +17,7 @@ var FieldScanner = {
 
   // Selectors for "pseudo radio / pick item" — clickable items grouped under
   // a parent that together act as a select control even though they aren't
-  // real <input>s. Common on Element-UI-like or fully custom SPA forms (e.g.
-  // Tencent Recruit's gender / yes-no buttons).
+  // real <input>s. Feishu/UD pages use this pattern for radio-like choices.
   _PSEUDO_ITEM_SELECTOR: [
     '[role="radio"]',
     '[class*="radio-item"]', '[class*="radioItem"]',
@@ -30,10 +28,9 @@ var FieldScanner = {
     '[class*="select-item"]', '[class*="selectItem"]',
     '[class*="choice-item"]', '[class*="choiceItem"]',
     // Design systems wrap each radio/checkbox option in a <label>. The
-    // wrapper class pattern differs across design systems — Ant Design uses
-    // hyphens ("ant-radio-wrapper"), Feishu UD uses BEM double-underscores
-    // ("ud__radio__wrapper"), Element UI uses single hyphens, etc. Match
-    // any flavour that has the substring "radio" or "checkbox" plus "wrap".
+    // wrapper class pattern differs across design systems. Feishu UD uses BEM
+    // double-underscores ("ud__radio__wrapper"); keep the common wrapper forms
+    // so Feishu-like custom components remain detectable.
     'label[class*="radio-wrapper"]', 'label[class*="radioWrapper"]',
     'label[class*="radio__wrapper"]', 'label[class*="radio_wrapper"]',
     'label[class*="checkbox-wrapper"]', 'label[class*="checkboxWrapper"]',
@@ -99,7 +96,7 @@ var FieldScanner = {
 
   _TITLE_SELECTOR: [
     'h1', 'h2', 'h3', 'h4', 'h5', 'legend',
-    '.send_title',
+    '.applyFormModuleWrapper-title', '[class*="applyFormModuleWrapper-title"]',
     '[class*="section-title"]', '[class*="sectionTitle"]',
     '[class*="step-title"]', '[class*="stepTitle"]',
     '[class*="card-title"]', '[class*="cardTitle"]',
@@ -113,8 +110,6 @@ var FieldScanner = {
     '[class*="sub-title"]', '[class*="subTitle"]',
     '[class*="header-title"]', '[class*="headerTitle"]',
     '[class*="atsx-title"]', '[class*="atsxTitle"]',
-    '[class*="moka-title"]', '[class*="mokaTitle"]',
-    '[class*="beisen-title"]', '[class*="beisenTitle"]',
     '[data-section-title]',
   ].join(','),
 
@@ -159,6 +154,8 @@ var FieldScanner = {
 
   _DATE_HINT_CLASS: /(date-?picker|date-?range|calendar|time-?picker|year-?picker|month-?picker)/i,
   _DATE_RANGE_HINT_CLASS: /(date-?range|range-?picker|rangepicker)/i,
+  _DATE_RANGE_CONTAINER_CLASS:
+    /(date[-_]?range|range[-_]?picker|rangepicker|picker[-_]?range|calendar[-_]?range)/i,
 
   // Last-resort date detection: when no structural signal (HTML5 type / icon
   // / class hint) fires, check the resolved label for date keywords. Labels
@@ -186,10 +183,6 @@ var FieldScanner = {
     'data-display-name',
     'data-label-text',
     'data-field-label',
-    'data-moka-label',
-    'data-moka-field',
-    'data-beisen-label',
-    'data-beisen-field',
   ],
 
   _CASCADER_HINT_CLASS: /(cascader|cascade|tree-?select)/i,
@@ -279,8 +272,8 @@ var FieldScanner = {
       .filter(el => this._isVisible(el) || this._isHiddenFileInputInVisibleUpload(el));
 
     // ARIA wrappers are kept even when they contain a real <input>/<select>
-    // inside. Modern SPA select widgets (Ant Design, Feishu UD's atsx-select,
-    // etc.) use this pattern: an outer <div role="combobox"> with all the
+    // inside. Feishu UD's atsx-select uses this pattern: an outer
+    // <div role="combobox"> with all the
     // semantic ARIA props, plus an internal hidden search <input> that only
     // shows up while the user types. We want the outer wrapper as the
     // canonical control; the dedup step below drops the nested input.
@@ -528,7 +521,9 @@ var FieldScanner = {
     }
 
     const hasDateIcon = this._hasNearbyIcon(el, this._DATE_ICON_SELECTOR);
-    if (this._matchesAny(neighborhood, this._DATE_RANGE_HINT_CLASS)) return 'date-range';
+    if (this._findDateRangeContainer(el) || this._matchesAny(neighborhood, this._DATE_RANGE_HINT_CLASS)) {
+      return 'date-range';
+    }
     if (hasDateIcon) return 'date-picker';
     if (this._matchesAny(neighborhood, this._DATE_HINT_CLASS)) return 'date-picker';
 
@@ -549,8 +544,7 @@ var FieldScanner = {
     }
 
     // Select-wrapper detection (deeper than ICON_SEARCH_RADIUS): some design
-    // systems (Feishu UD's <div class="ud__select">, Ant Design's
-    // <div class="ant-select">, Element UI's <div class="el-select">) wrap
+    // systems (Feishu UD's <div class="ud__select"> and similar wrappers) wrap
     // the actual <input> several layers deep with no ARIA/role hints, no
     // readonly, no visible arrow icon. The wrapper class is the only signal
     // that this is a dropdown, not a plain text field. We walk up to 8
@@ -582,7 +576,7 @@ var FieldScanner = {
 
   // Walk up to 8 ancestor levels searching for a class token that looks
   // like a select-widget BEM block name. Matches `ud__select`, `ant-select`,
-  // `el-select`, `multi-select`, etc. Rejects `selected`, `select-icon`,
+  // `multi-select`, etc. Rejects `selected`, `select-icon`,
   // `select__arrow`, `select--open` because those are state/element/modifier
   // classes, not the block itself.
   _SELECT_WRAPPER_DEPTH: 8,
@@ -805,6 +799,9 @@ var FieldScanner = {
       if (uploadLabel) return this._cleanLabel(uploadLabel);
     }
 
+    const itemLabel = this._labelFromFormItem(el);
+    if (itemLabel) return itemLabel;
+
     if (segLabel) return this._cleanLabel(segLabel);
 
     // Fallback: derive from placeholder (strip "请输入/请选择/请填写" prefix).
@@ -827,18 +824,67 @@ var FieldScanner = {
   },
 
   _cleanLabel(text) {
-    return (text || '')
+    let cleaned = (text || '')
       .replace(/\s+/g, ' ')
       .replace(/^[\s*＊：:。.\-—|]+/, '')
       .replace(/[\s*＊：:。.\-—|]+$/, '')
       .trim();
+    for (let i = 0; i < 3; i++) {
+      const next = cleaned
+        .replace(/(?:请填写完整(?:时间|日期)|请(?:输入|填写|选择)(?:正确的)?(?:内容|信息|日期|时间|选项)|(?:字段)?必填|不能为空|不可为空|格式错误|校验失败|required)$/i, '')
+        .replace(/[\s*＊：:。.\-—|]+$/, '')
+        .trim();
+      if (next === cleaned) break;
+      cleaned = next;
+    }
+    return cleaned;
+  },
+
+  _labelFromFormItem(el) {
+    const item = this._findFormItemRoot(el);
+    if (!item) return '';
+
+    const selector = [
+      'label',
+      '[class*="label"]', '[class*="Label"]',
+      '[class*="subtitle"]', '[class*="Subtitle"]',
+      '[class*="title"]', '[class*="Title"]',
+      '[data-label]', '[data-field-label]',
+    ].join(',');
+
+    const candidates = [];
+    for (const node of Array.from(item.querySelectorAll(selector))) {
+      if (node === el || node.contains(el)) continue;
+      if (this._isBlacklistedLabelNode(node)) continue;
+      const attrLabel = node.getAttribute && (node.getAttribute('data-label') || node.getAttribute('data-field-label'));
+      const raw = (attrLabel || node.textContent || '').replace(/\s+/g, ' ').trim();
+      const label = this._cleanLabel(raw);
+      if (!label || label.length > this.MAX_LABEL_LEN) continue;
+      candidates.push(label);
+    }
+    if (candidates.length) return candidates[0];
+
+    const directText = Array.from(item.childNodes || [])
+      .filter(node => node.nodeType === Node.TEXT_NODE)
+      .map(node => (node.nodeValue || '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join(' ');
+    const label = this._cleanLabel(directText);
+    return label && label.length <= this.MAX_LABEL_LEN ? label : '';
+  },
+
+  _isBlacklistedLabelNode(node) {
+    if (!node || !node.matches) return false;
+    if (node.matches(this._LABEL_BLACKLIST_ANCESTOR)) return true;
+    const className = this._attrText(node, 'class');
+    return /error|feedback|help|extra|explain|message|tip|hint/i.test(className);
   },
 
   _isRequired(el) {
     if (el.required) return true;
     if (el.getAttribute && el.getAttribute('aria-required') === 'true') return true;
     const item = el.closest && el.closest(
-      '[class*="form-item"], [class*="formItem"], .info_box, .infoBox, [class*="info-row"], [class*="infoItem"], [class*="field"], .form-group, dl, tr, li'
+      '[class*="form-item"], [class*="formItem"], [class*="formily-item"], [class*="formilyItem"], [class*="field"], .form-group, dl, tr, li'
     );
     if (!item) return false;
     const scope = this._requiredScope(item);
@@ -862,8 +908,9 @@ var FieldScanner = {
 
   _looksLikeFormItemRoot(el) {
     const cls = (el && el.className && typeof el.className === 'string') ? el.className : '';
-    return /(^|\s)(?:el-|ant-|atsx-|moka-|beisen-|b-)?form-item(?:\s|$)/i.test(cls) ||
-      /(^|\s)(?:formItem|info-row|infoItem|form-group|field)(?:\s|$)/i.test(cls);
+    if (/(^|\s)(?:[a-z0-9]+[-_]+)?formily-item(?:\s|$)/i.test(cls)) return true;
+    return /(^|\s)(?:ant-|atsx-|b-)?form-item(?:\s|$)/i.test(cls) ||
+      /(^|\s)(?:formItem|form-group|field)(?:\s|$)/i.test(cls);
   },
 
   _extractOptions(el) {
@@ -1081,7 +1128,7 @@ var FieldScanner = {
 
   // ----------------------------------------------------- form-item grouping
   //
-  // Many SPAs put 2+ controls inside a single form-item (e.g. ATS pages wrap
+  // Many SPAs put 2+ controls inside a single form-item (e.g. Feishu pages wrap
   // "手机号码" as a country-code input + phone-number input; identity fields
   // often wrap a type picker + a number input). Segment-based label
   // resolution gives only the first control a meaningful label and leaves
@@ -1093,21 +1140,13 @@ var FieldScanner = {
   //   - derives a subLabel from each control's placeholder so multiple
   //     siblings can be told apart
   _ITEM_GROUP_SELECTORS: [
-    '.el-form-item', '.ant-form-item',
+    '.ant-form-item',
     '[class*="form-item"]', '[class*="formItem"]',
     '[class*="formily-item"]', '[class*="formilyItem"]',
     '[class*="form-row"]', '[class*="formRow"]',
     '[class*="form-line"]', '[class*="formLine"]',
     '[class*="atsx-form-item"]', '[class*="atsxFormItem"]',
-    '[class*="moka-form-item"]', '[class*="mokaFormItem"]',
-    '[class*="moka-field"]', '[class*="mokaField"]',
-    '[class*="beisen-form-item"]', '[class*="beisenFormItem"]',
-    '[class*="beisen-field"]', '[class*="beisenField"]',
     '[class*="b-form-item"]',
-    '.info_box', '.infoBox',
-    '[class*="info-row"]', '[class*="infoRow"]',
-    '[class*="info-item"]', '[class*="infoItem"]',
-    '[class*="info-line"]', '[class*="infoLine"]',
     '.field', '.form-group',
     'tr', 'dl',
   ],
@@ -1116,14 +1155,23 @@ var FieldScanner = {
   MAX_REPEAT_ITEM_CONTROLS: 30,
 
   _REPEAT_SECTION_REGEX:
-    /项目|教育|学历|院校|求学|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|学生干部|社会实践|实践经历|project|education|school|intern|internship|work experience|work history|employment history|professional experience|campus|experience/i,
+    /项目|教育|学历|院校|求学|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|学生干部|社会实践|实践经历|语言|外语|英语|project|education|school|intern|internship|work experience|work history|employment history|professional experience|campus|experience|language|english/i,
 
   _REPEAT_ITEM_HINT_REGEX:
-    /card|entry|record|block|module|panel|resume|experience|history|employment|career|project|education|intern|campus|work|moka|beisen|atsx|feishu|经历|履历|项目|教育|实习|校园/i,
+    /card|entry|record|block|module|panel|resume|experience|history|employment|career|project|education|intern|campus|work|atsx|feishu|经历|履历|项目|教育|实习|校园/i,
   _REPEAT_FIELD_LABEL_HINT_REGEX:
     /项目|学校|院校|学历|学位|专业|院系|公司|职位|岗位|角色|起止|开始|结束|描述|成果|职责|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|社会实践|project|school|university|degree|major|company|position|role|start|end|description|achievement|intern|internship|work experience|work history|employment history|campus/i,
 
   _findItemContainer(el) {
+    const dateRangeContainer = this._findDateRangeContainer(el);
+    if (dateRangeContainer) return dateRangeContainer;
+
+    const itemRoot = this._findFormItemRoot(el);
+    if (itemRoot) {
+      const count = this._countControlsIn(itemRoot);
+      if (count >= 2 && count <= this.MAX_GROUP_PROPAGATE) return itemRoot;
+    }
+
     for (const sel of this._ITEM_GROUP_SELECTORS) {
       const c = el.closest && el.closest(sel);
       if (c) return c;
@@ -1136,6 +1184,40 @@ var FieldScanner = {
       const count = this._countControlsIn(cur);
       if (count >= 2 && count <= this.MAX_GROUP_PROPAGATE) return cur;
       if (count > this.MAX_GROUP_PROPAGATE) break;
+      cur = cur.parentElement;
+      depth++;
+    }
+    return null;
+  },
+
+  _findDateRangeContainer(el) {
+    let cur = el && el.parentElement;
+    let depth = 0;
+    let best = null;
+    while (cur && cur !== document.body && depth < 8) {
+      const className = this._attrText(cur, 'class');
+      if (this._DATE_RANGE_CONTAINER_CLASS.test(className)) {
+        const count = this._countDateRangeInputs(cur);
+        if (count >= 2 && count <= 3) best = cur;
+      }
+      cur = cur.parentElement;
+      depth++;
+    }
+    return best;
+  },
+
+  _countDateRangeInputs(container) {
+    if (!container || !container.querySelectorAll) return 0;
+    return Array.from(container.querySelectorAll('input:not([type="hidden"]), [role="textbox"], [role="searchbox"]'))
+      .filter(node => this._isVisible(node))
+      .length;
+  },
+
+  _findFormItemRoot(el) {
+    let cur = el && el.parentElement;
+    let depth = 0;
+    while (cur && cur !== document.body && depth < 10) {
+      if (this._looksLikeFormItemRoot(cur)) return cur;
       cur = cur.parentElement;
       depth++;
     }
@@ -1186,9 +1268,9 @@ var FieldScanner = {
         const f = fields[fi];
         // Treat label as missing if it's literally identical to the
         // placeholder — that's the "placeholder leaked into the segment"
-        // pattern (e.g. Tencent's second 起止时间 input grabs "选择日期"
-        // from the placeholder render, but the real label is the group
-        // primary). Real per-field labels never equal their placeholder.
+        // pattern where the second date input grabs "选择日期" from the
+        // placeholder render, but the real label is the group primary. Real
+        // per-field labels never equal their placeholder.
         const placeholderLeak =
           !!f.label && !!f.placeholder &&
           this._cleanLabel(f.label) === this._cleanLabel(f.placeholder);
@@ -1210,8 +1292,9 @@ var FieldScanner = {
         if (labelChanged && f.widget === 'text-input' && f.label) {
           if (this._DATE_LABEL_REGEX.test(f.label) &&
               !this._DATE_LABEL_NEGATIVE.test(f.label)) {
-            f.widget = 'date-picker';
-            f.type = this._typeFromWidget('date-picker');
+            const el = this._elementMap.get(f.fieldId);
+            f.widget = el && this._findDateRangeContainer(el) ? 'date-range' : 'date-picker';
+            f.type = this._typeFromWidget(f.widget);
           }
         }
       });
@@ -1454,6 +1537,7 @@ var FieldScanner = {
     const normalized = String(text || '').toLowerCase();
     if (/项目|project/.test(normalized)) return '项目经历';
     if (/实习|intern/.test(normalized)) return '实习经历';
+    if (/语言|外语|英语|language|english/.test(normalized)) return '语言能力';
     if (/教育|学历|学位|学校|院校|专业|院系|education|school|university|degree|major/.test(normalized)) {
       return '教育经历';
     }

@@ -8,6 +8,7 @@ def test_build_section_actions_supports_common_ats_section_names():
         "work_experience": [{}, {}, {}],
         "internship_experience": [{}, {}, {}],
         "campus_experience": [{}, {}],
+        "languages": [{}, {}],
     }
     sections = [
         {"name": "项目经验", "currentCount": 1, "addButton": True},
@@ -15,6 +16,7 @@ def test_build_section_actions_supports_common_ats_section_names():
         {"name": "工作履历", "currentCount": 1, "addButton": True},
         {"name": "实习经验", "currentCount": 2, "addButton": True},
         {"name": "社会实践", "currentCount": 1, "addButton": True},
+        {"name": "语言能力", "currentCount": 1, "addButton": True},
         {"name": "工作城市", "currentCount": 1, "addButton": True},
         {"name": "employment-history", "currentCount": 3, "addButton": True},
     ]
@@ -25,6 +27,7 @@ def test_build_section_actions_supports_common_ats_section_names():
         "工作履历": "add_2",
         "实习经验": "add_1",
         "社会实践": "add_1",
+        "语言能力": "add_1",
     }
 
 
@@ -40,6 +43,13 @@ def test_build_section_actions_counts_empty_repeat_sections_from_zero():
     sections = [{"name": "项目经历", "currentCount": 0, "addButton": True}]
 
     assert _build_section_actions(sections, resume_data) == {"项目经历": "add_3"}
+
+
+def test_build_section_actions_adds_single_resume_item_to_empty_section():
+    resume_data = {"internship_experience": [{"company": "小鹏汽车"}]}
+    sections = [{"name": "实习经历", "currentCount": 0, "addButton": True}]
+
+    assert _build_section_actions(sections, resume_data) == {"实习经历": "add_1"}
 
 
 def test_build_section_action_details_preserve_counts_and_section_key():

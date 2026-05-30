@@ -13,7 +13,7 @@
 4. 如果新字段会参与招聘表单填写，同步更新填表 prompt：`app/prompts/fill_form.py`。
 5. 同步更新前端类型与展示：`web/src/lib/api.ts` 以及相关页面。
 6. 同步更新测试与 fixture：`tests/fixtures/`、`tests/unit/test_schemas.py`。
-7. 同步更新本文，以及受影响的 `README.md`、`ARCHITECTURE.md`、`PRODUCT_FLOW_PRD.md`、`E2E_SELF_CHECKLIST.md`。
+7. 同步更新本文，以及受影响的 `README.md`、`ARCHITECTURE.md`、`FEISHU_SCOPE_REDUCTION_REVIEW.md`。
 
 产品原则固定为：**少量高频稳定字段 + AI 动态语义抽取**。固定 schema 只承接招聘/学生简历中高频、稳定、跨表单复用价值高的信息；长尾内容进入 `facts` / `extra_sections`，并在填表时与固定字段一起参与语义匹配。只有当某类信息足够常见、语义稳定、且比动态 fact 更利于自动填表和人工修正时，才晋升为固定字段。
 
@@ -262,7 +262,7 @@
   ],
   "internship_experience": [
     {
-      "company": "腾讯",
+      "company": "小鹏汽车",
       "department": "数据平台部",
       "title": "数据分析实习生",
       "start_date": "2026-01",

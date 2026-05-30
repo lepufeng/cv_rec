@@ -7,14 +7,14 @@ var SectionManager = {
   depth: 0,
 
   HEADING_SELECTOR:
-    'h2, h3, h4, fieldset legend, .send_title, [class*="section-title"], [class*="sectionTitle"], [class*="step-title"], [class*="stepTitle"], [class*="module-title"], [class*="moduleTitle"], [class*="block-title"], [class*="blockTitle"], [class*="atsx-title"], [class*="atsxTitle"], [class*="moka-title"], [class*="mokaTitle"], [class*="beisen-title"], [class*="beisenTitle"], [data-section-title]',
+    'h2, h3, h4, fieldset legend, .applyFormModuleWrapper-title, [class*="applyFormModuleWrapper-title"], [class*="section-title"], [class*="sectionTitle"], [class*="step-title"], [class*="stepTitle"], [class*="module-title"], [class*="moduleTitle"], [class*="block-title"], [class*="blockTitle"], [class*="atsx-title"], [class*="atsxTitle"], [data-section-title]',
   BUTTON_SELECTOR:
     'button, [role="button"], a[href="#"], a:not([href]), span[class*="btn"], div[class*="btn"], span[class*="button"], div[class*="button"]',
   ADD_TEXT_REGEX: /^\+$|添加|新增|继续添加|增加|\badd\b|\bnew\b/i,
   REPEAT_SECTION_REGEX:
-    /项目|教育|学历|院校|求学|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|学生干部|社会实践|实践经历|project|education|school|intern|internship|work experience|work history|employment history|professional experience|campus|experience/i,
+    /项目|教育|学历|院校|求学|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园|社团|学生干部|社会实践|实践经历|语言|外语|英语|project|education|school|intern|internship|work experience|work history|employment history|professional experience|campus|experience|language|english/i,
   REPEAT_ITEM_SELECTOR:
-    '.info_list, .infoList, [class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="history"], [class*="History"], [class*="employment"], [class*="Employment"], [class*="career"], [class*="Career"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="moka"], [class*="Moka"], [class*="beisen"], [class*="Beisen"], [class*="atsx"], [class*="Atsx"], [data-field-list-item], [data-form-list-item], [data-list-item], [data-repeat-item]',
+    '[class*="card"], [class*="Card"], [class*="entry"], [class*="Entry"], [class*="record"], [class*="Record"], [class*="block"], [class*="Block"], [class*="module"], [class*="Module"], [class*="panel"], [class*="Panel"], [class*="experience"], [class*="Experience"], [class*="history"], [class*="History"], [class*="employment"], [class*="Employment"], [class*="career"], [class*="Career"], [class*="project"], [class*="Project"], [class*="education"], [class*="Education"], [class*="intern"], [class*="Intern"], [class*="campus"], [class*="Campus"], [class*="atsx"], [class*="Atsx"], [data-field-list-item], [data-form-list-item], [data-list-item], [data-repeat-item]',
   SECTION_ATTRS: [
     'data-section-title',
     'data-form-field-i18n-name',
@@ -235,14 +235,16 @@ var SectionManager = {
   },
 
   _sectionContainerForHeading(heading) {
+    const moduleWrapper = this._applyFormModuleWrapper(heading);
+    if (moduleWrapper) return moduleWrapper;
+
     const parent = heading.parentElement;
     return heading.closest('fieldset') ||
-      (parent && parent.closest('.send_box, .send_content, .experience_box')) ||
+      (parent && parent.closest('[class*="applyFormModuleWrapper"]')) ||
       (parent && parent.closest('[class*="section"]')) ||
       (parent && parent.closest('[class*="module"]')) ||
+      (parent && parent.closest('[class*="Module"]')) ||
       (parent && parent.closest('[class*="block"]')) ||
-      (parent && parent.closest('[class*="moka"]')) ||
-      (parent && parent.closest('[class*="beisen"]')) ||
       (parent && parent.closest('[class*="atsx"]')) ||
       (parent && parent.closest('[data-form-field-i18n-name]')) ||
       parent;
@@ -336,7 +338,7 @@ var SectionManager = {
       .replace(/\s+/g, ' ')
       .trim();
     const matched = cleaned.match(
-      /项目经历|项目经验|项目|教育经历|教育背景|求学经历|教育|学历|院校|实习经历|实习经验|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园经历|校园|社团经历|社团|社会实践|实践经历|project experience|project|education|school experience|school|internship experience|internship|intern|work experience|work history|employment history|professional experience|career history|campus experience|campus/i
+      /项目经历|项目经验|项目|教育经历|教育背景|求学经历|教育|学历|院校|实习经历|实习经验|实习|工作经历|工作经验|工作履历|任职经历|职业经历|就业经历|校园经历|校园|社团经历|社团|社会实践|实践经历|语言能力|语言|外语|英语|project experience|project|education|school experience|school|internship experience|internship|intern|work experience|work history|employment history|professional experience|career history|campus experience|campus|language ability|language|english/i
     );
     return matched ? matched[0] : cleaned;
   },
@@ -350,8 +352,11 @@ var SectionManager = {
   },
 
   _buttonSectionContainer(btn) {
+    const moduleWrapper = this._applyFormModuleWrapper(btn);
+    if (moduleWrapper) return moduleWrapper;
+
     const parent = btn && btn.parentElement;
-    return parent && parent.closest('.send_box, .send_content, .experience_box, [class*="section"], [class*="module"], [class*="block"], [class*="moka"], [class*="beisen"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
+    return parent && parent.closest('[class*="section"], [class*="module"], [class*="Module"], [class*="block"], [class*="atsx"], [data-form-field-i18n-name], [data-section-title], [data-section], [data-module], [data-name], fieldset') ||
       btn.parentElement;
   },
 
@@ -404,7 +409,34 @@ var SectionManager = {
       const matched = this._deriveSectionNameFromAddText(text);
       return matched || text;
     }
-    return '';
+    return this._moduleTitleFromContainer(container);
+  },
+
+  _applyFormModuleWrapper(el) {
+    let cur = el;
+    while (cur && cur !== document.body) {
+      const cls = cur.getAttribute && (cur.getAttribute('class') || '');
+      if (this._isApplyFormModuleRoot(cls)) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  },
+
+  _isApplyFormModuleRoot(cls) {
+    if (!cls) return false;
+    if (!/applyFormModuleWrapper/.test(cls)) return false;
+    return !/applyFormModuleWrapper-(left|right|title|text|desc|no-experience)\b/.test(cls);
+  },
+
+  _moduleTitleFromContainer(container) {
+    if (!container || !container.querySelector) return '';
+    const title = Array.from(container.querySelectorAll(this.HEADING_SELECTOR)).find(node => {
+      if (!this._isVisible(node)) return false;
+      if (node.closest && node.closest(this.BUTTON_SELECTOR)) return false;
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      return text && text.length <= 50;
+    });
+    return title ? (title.textContent || '').replace(/\s+/g, ' ').trim() : '';
   },
 
   async _clearEmptySectionToggle(sectionName) {

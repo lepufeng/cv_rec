@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 ModelProvider = Literal["glm", "qwen", "fake"]
 ThinkingMode = Literal["enabled", "disabled"]
+ModelNetworkMode = Literal["direct", "environment", "proxy"]
 
 
 class ModelConfigPayload(BaseModel):
@@ -19,6 +20,8 @@ class ModelConfigPayload(BaseModel):
 
     provider: ModelProvider
     model_thinking_mode: ThinkingMode = "disabled"
+    model_network_mode: ModelNetworkMode = "direct"
+    model_proxy_url: str = ""
     glm_api_key: str = ""
     glm_base_url: str = ""
     glm_ocr_model: str = ""
@@ -38,6 +41,8 @@ class ModelConfigUpdate(BaseModel):
 
     provider: ModelProvider | None = None
     model_thinking_mode: ThinkingMode | None = None
+    model_network_mode: ModelNetworkMode | None = None
+    model_proxy_url: str | None = None
     glm_api_key: str | None = None
     glm_base_url: str | None = None
     glm_ocr_model: str | None = None
@@ -61,6 +66,7 @@ class ModelTestRequest(BaseModel):
 class ModelTestResponse(BaseModel):
     ok: bool
     provider: str
+    model_network_mode: ModelNetworkMode = "direct"
     chat_model: str
     reasoning_model: str = ""
     latency_ms: int = 0

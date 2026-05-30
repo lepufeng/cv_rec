@@ -118,6 +118,7 @@ class AdminService:
             return ModelTestResponse(
                 ok=True,
                 provider="fake",
+                model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
                 chat_model="fake-chat",
                 reasoning_model="fake-reasoning",
                 latency_ms=0,
@@ -130,6 +131,7 @@ class AdminService:
             return ModelTestResponse(
                 ok=False,
                 provider=cfg.provider,
+                model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
                 chat_model="",
                 reasoning_model="",
                 error=f"build failed: {exc}",
@@ -147,6 +149,7 @@ class AdminService:
             return ModelTestResponse(
                 ok=False,
                 provider=cfg.provider,
+                model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
                 chat_model=client.chat_model_id,
                 reasoning_model=reasoning_client.chat_model_id,
                 latency_ms=int((time.perf_counter() - start) * 1000),
@@ -167,6 +170,7 @@ class AdminService:
                 return ModelTestResponse(
                     ok=False,
                     provider=cfg.provider,
+                    model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
                     chat_model=response.model_id,
                     reasoning_model=reasoning_client.chat_model_id,
                     latency_ms=int((time.perf_counter() - start) * 1000),
@@ -176,6 +180,7 @@ class AdminService:
         return ModelTestResponse(
             ok=True,
             provider=cfg.provider,
+            model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
             chat_model=response.model_id,
             reasoning_model=reasoning_model,
             latency_ms=response.latency_ms,

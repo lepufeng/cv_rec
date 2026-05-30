@@ -1,19 +1,21 @@
 var running = false;
+var UNSUPPORTED_SITE_MESSAGE = '当前版本仅支持小鹏及飞书招聘系页面';
+
+// Expose a global trigger so the popup can call us in every frame via
+// chrome.scripting.executeScript (works even when chrome.tabs.sendMessage
+// can't reach the right frame). Rebind on every injection so a reloaded
+// extension does not keep calling a stale starter from the previous script.
+window.__resumeAutofillStart = function (resumeId) {
+  if (running) return;
+  startFill(resumeId);
+};
+
+window.__resumeAutofillPing = function () {
+  return true;
+};
 
 if (!window.__resumeAutofillLoaded) {
   window.__resumeAutofillLoaded = true;
-
-  // Expose a global trigger so the popup can call us in every frame via
-  // chrome.scripting.executeScript (works even when chrome.tabs.sendMessage
-  // can't reach the right frame).
-  window.__resumeAutofillStart = function (resumeId) {
-    if (running) return;
-    startFill(resumeId);
-  };
-
-  window.__resumeAutofillPing = function () {
-    return true;
-  };
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message && message.type === 'PING') {
@@ -21,7 +23,7 @@ if (!window.__resumeAutofillLoaded) {
       return true;
     }
     if (message && message.type === MSG.START_FILL && !running) {
-      startFill(message.resumeId);
+      window.__resumeAutofillStart(message.resumeId);
       sendResponse({ received: true });
       return true;
     }
@@ -68,6 +70,19 @@ async function startFill(resumeId) {
       running = false;
       return;
     }
+    if (!isSupportedRecruitingPage(probeFields)) {
+      report.completedAt = new Date().toISOString();
+      report.stopReason = 'unsupported_site';
+      persistLastReport(report);
+      sendProgress(UNSUPPORTED_SITE_MESSAGE);
+      chrome.runtime.sendMessage({
+        type: MSG.FILL_ERROR,
+        error: UNSUPPORTED_SITE_MESSAGE,
+        report,
+      });
+      running = false;
+      return;
+    }
 
     sendProgress(`正在获取简历数据... (${location.host})`);
     const resume = await requestResume(resumeId);
@@ -86,6 +101,16 @@ async function startFill(resumeId) {
         page: page + 1,
         initialFieldCount: initialFields.length,
         sectionCount: sectionInfo.length,
+        sections: sectionInfo.map(section => ({
+          name: section.name,
+          currentCount: section.currentCount || 0,
+          addButton: !!section.addButton,
+        })),
+        initialReadRecords: fieldReadRecords(initialFields),
+        expandedReadRecords: [],
+        mappingRecords: [],
+        fillRecords: [],
+        finalReadRecords: [],
         sectionActions: {},
         sectionActionDetails: [],
         sectionActionResults: [],
@@ -100,7 +125,7 @@ async function startFill(resumeId) {
       report.pages.push(pageReport);
 
       // 2. First match to get safe mappings and dynamic section actions.
-      sendProgress(`正在匹配字段... (${initialFields.length} 个字段)`);
+      sendProgress(`正在匹配字段... (${initialFields.length} 个字段，${sectionInfo.length} 个动态板块)`);
       const firstMatch = await requestMatch(initialFields, resume, sectionInfo, true);
 
       let mappings = mappingsFromMatch(firstMatch);
@@ -109,10 +134,10 @@ async function startFill(resumeId) {
       pageReport.mappingCount = Object.keys(mappings).length;
       pageReport.backendSkippedCount = matchSkipped.length;
 
-      // 3. Execute section expansions. ATS pages such as Moka, Feishu and
-      // Beisen often render only one project/education card first. If the
-      // backend asks us to add cards, expand the DOM, then re-scan and
-      // re-match the full page so repeated groups can be mapped in order.
+      // 3. Execute section expansions. Feishu recruiting pages often render
+      // only one project/education card first. If the backend asks us to add
+      // cards, expand the DOM, then re-scan and re-match the full page so
+      // repeated groups can be mapped in order.
       const sectionActions = sectionActionsFromMatch(firstMatch);
       if (Object.keys(sectionActions).length > 0) {
         pageReport.sectionActions = sectionActions;
@@ -125,6 +150,7 @@ async function startFill(resumeId) {
 
         const expandedFields = FieldScanner.scan();
         pageReport.expandedFieldCount = expandedFields.length;
+        pageReport.expandedReadRecords = fieldReadRecords(expandedFields);
         if (expandedFields.length > 0) {
           const expandedSectionInfo = SectionManager.collectSectionInfo();
           sendProgress(`板块已展开，正在重新匹配 ${expandedFields.length} 个字段...`);
@@ -140,14 +166,17 @@ async function startFill(resumeId) {
       // 4. Fill all mappings for the current visible page. We never click the
       // final submit button; file inputs only receive the user's stored resume
       // file when the backend returns an explicit upload_file action.
+      pageReport.mappingRecords = mappingRecords(mappings, activeFields);
       sendProgress(`正在填写... (第 ${page + 1} 页)`);
-      const { filled, skipped } = await FillEngine.fillAll(mappings, activeFields);
+      const { filled, skipped, fillRecords } = await FillEngine.fillAll(mappings, activeFields);
       const backendSkipped = describeSkippedFields(matchSkipped, activeFields, mappings);
 
       totalFilled += filled;
       totalSkipped = totalSkipped.concat(backendSkipped, skipped);
       pageReport.filledCount = filled;
       pageReport.runtimeSkippedCount = skipped.length;
+      pageReport.fillRecords = Array.isArray(fillRecords) ? fillRecords.slice(0, 120) : [];
+      pageReport.finalReadRecords = fieldReadRecords(FieldScanner.scan());
 
       if (NavigationDetector.isSubmitOnly()) {
         pageReport.stopReason = 'submit_only';
@@ -191,6 +220,36 @@ async function startFill(resumeId) {
   } finally {
     running = false;
   }
+}
+
+function isSupportedRecruitingPage(fields) {
+  const host = String(location.hostname || '').toLowerCase();
+  if (/(^|\.)xiaopeng\./.test(host) || /(^|\.)xpeng\./.test(host)) return true;
+  if (/(^|\.)jobs\.feishu\.cn$/.test(host)) return true;
+  if (host === 'jobs.bytedance.com' || host.endsWith('.jobs.bytedance.com')) return true;
+  return hasFeishuRecruitingDom(fields);
+}
+
+function hasFeishuRecruitingDom(fields) {
+  const selector = [
+    '[data-form-field-i18n-name]',
+    '[data-form-field-id]',
+    '[class*="ud-formily"]',
+    '[class*="formily-item"]',
+    '[class*="applyFormModuleWrapper"]',
+    '[class*="throne-biz-date-range-picker"]',
+    '.ud__select',
+    '.ud__input',
+  ].join(',');
+  if (document.querySelector(selector)) return true;
+  return Array.isArray(fields) && fields.some(field =>
+    field && /formily|ud__|throne-biz|applyFormModuleWrapper/i.test([
+      field.widget,
+      field.section,
+      field.repeatSection,
+      field.source,
+    ].filter(Boolean).join(' '))
+  );
 }
 
 function requestResume(resumeId) {
@@ -293,6 +352,48 @@ function sectionActionsFromMatch(match) {
   return match && match.sectionActions ? match.sectionActions : {};
 }
 
+function fieldReadRecords(fields) {
+  if (!Array.isArray(fields) || fields.length === 0) return [];
+  return fields.slice(0, 120).map(field => {
+    const record = {
+      fieldId: field.fieldId,
+      label: field.label || field.placeholder || field.subLabel || field.fieldId,
+    };
+    copyFieldProp(record, field, 'type');
+    copyFieldProp(record, field, 'widget');
+    copyFieldProp(record, field, 'section');
+    copyFieldProp(record, field, 'repeatSection');
+    copyFieldProp(record, field, 'repeatIndex');
+    copyFieldProp(record, field, 'repeatSize');
+    copyFieldProp(record, field, 'groupIndex');
+    copyFieldProp(record, field, 'groupSize');
+    copyFieldProp(record, field, 'groupId');
+    copyFieldProp(record, field, 'subLabel');
+    copyFieldProp(record, field, 'placeholder');
+    copyFieldProp(record, field, 'name');
+    if (field.required != null) record.required = !!field.required;
+    if (field.readonly != null) record.readonly = !!field.readonly;
+    if (field.visible != null) record.visible = !!field.visible;
+    if (field.currentValue !== undefined && field.currentValue !== null && field.currentValue !== '') {
+      record.currentValuePreview = reportValuePreview(field.currentValue, field);
+    }
+    return record;
+  });
+}
+
+function mappingRecords(mappings, fields) {
+  const entries = Object.entries(mappings || {});
+  if (entries.length === 0) return [];
+  const fieldsById = new Map((fields || []).map(field => [field.fieldId, field]));
+  return entries.slice(0, 120).map(([fieldId, value]) => {
+    const field = fieldsById.get(fieldId) || { fieldId };
+    const record = fieldReportRecord(fieldId, field, '后端返回匹配值');
+    record.mappedValuePreview = reportValuePreview(value, field);
+    delete record.reason;
+    return record;
+  });
+}
+
 function describeSkippedFields(fieldIds, fields, mappings) {
   if (!Array.isArray(fieldIds) || fieldIds.length === 0) return [];
   const mappedIds = new Set(Object.keys(mappings || {}));
@@ -334,6 +435,14 @@ function copyFieldProp(record, field, key) {
   const value = field && field[key];
   if (value === undefined || value === null || value === '') return;
   record[key] = value;
+}
+
+function reportValuePreview(value, field) {
+  if (field && field.type === 'file') return '[文件路径已隐藏]';
+  if (value === undefined) return '';
+  if (value === null) return 'null';
+  const raw = Array.isArray(value) ? value.join(', ') : String(value);
+  return raw.length > 120 ? `${raw.slice(0, 117)}...` : raw;
 }
 
 function persistLastReport(report) {

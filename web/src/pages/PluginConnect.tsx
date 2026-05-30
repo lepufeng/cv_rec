@@ -57,7 +57,7 @@ export default function PluginConnect() {
     <div>
       <PageHeader
         title="连接插件"
-        description="把网页账户与浏览器插件关联后，可在招聘网站生成自动填写方案。"
+        description="把网页账户与浏览器插件关联后，可在小鹏及飞书招聘系页面执行自动填写。"
       />
 
       {error && (
@@ -95,7 +95,7 @@ export default function PluginConnect() {
               <li>1. 注册或登录网页账户。</li>
               <li>2. 上传简历并等待解析完成。</li>
               <li>3. 在插件中保存 API、token 与简历 ID。</li>
-              <li>4. 打开招聘网站填写页，生成填写方案预览。</li>
+              <li>4. 打开小鹏或飞书招聘系填写页，点击插件开始自动填写。</li>
             </ol>
           </Card>
         </section>

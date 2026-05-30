@@ -1,6 +1,6 @@
 """Check parsed resume quality against the original file.
 
-This script audits section 3 of E2E_SELF_CHECKLIST.md. It intentionally uses
+This script supports the local Feishu recruiting fill workflow. It intentionally uses
 lightweight heuristics: enough to catch regressions in common resume fields
 without turning the checker into another parser.
 """

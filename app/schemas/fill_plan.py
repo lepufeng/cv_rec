@@ -200,7 +200,7 @@ class FilledField(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    value: str | list[dict] | None
+    value: str | list[str] | list[dict] | None
     confidence: float = Field(ge=0.0, le=1.0)
     reasoning: str = ""
     source: str = ""

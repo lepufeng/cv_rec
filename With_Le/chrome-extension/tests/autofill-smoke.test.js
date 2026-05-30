@@ -86,7 +86,7 @@ async function installMockChromeRuntime(page) {
         start: '2024-04',
         end: '2024-06',
         stack: 'Playwright',
-        result: '覆盖多 ATS 页面',
+        result: '覆盖飞书招聘页面',
       },
       {
         name: '项目三',
@@ -243,7 +243,7 @@ async function installMockChromeRuntime(page) {
   });
 }
 
-test('local ATS smoke fills dynamic projects and stops before final submit', async t => {
+test('local Feishu smoke fills dynamic projects and stops before final submit', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
     t.skip('Playwright is not installed in this environment');
@@ -281,7 +281,7 @@ test('local ATS smoke fills dynamic projects and stops before final submit', asy
           start: '2024-04',
           end: '2024-06',
           stack: 'Playwright',
-          result: '覆盖多 ATS 页面',
+          result: '覆盖飞书招聘页面',
         },
         {
           name: '项目三',
@@ -517,17 +517,17 @@ test('scanner includes hidden file inputs with upload labels', async t => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.setContent(`
       <main>
-        <section class="moka-form-section">
+        <section class="feishu-form-section" data-form-field-i18n-name="简历附件">
           <h2>简历附件</h2>
-          <div class="moka-upload">
+          <div class="ud__upload">
             <p>将简历拖拽至此处</p>
             <button type="button">上传文件</button>
             <input id="resume-upload" type="file" style="display:none">
           </div>
         </section>
-        <section class="beisen-section">
+        <section class="feishu-form-section" data-form-field-i18n-name="个人照片">
           <h2>个人照片</h2>
-          <div class="beisen-upload">
+          <div class="ud__upload">
             <button type="button">点击上传</button>
             <input id="photo-upload" type="file" style="display:none">
           </div>
@@ -877,7 +877,7 @@ test('section manager expands generic plus buttons from data-named containers', 
   }
 });
 
-test('scanner handles Tencent-style Element UI resume form labels and add buttons', async t => {
+test('section manager detects Feishu apply form empty module wrappers', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
     t.skip('Playwright is not installed in this environment');
@@ -896,77 +896,65 @@ test('scanner handles Tencent-style Element UI resume form labels and add button
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.setContent(`
-      <main>
-        <section class="resume-module basic-module">
-          <h2>基础信息</h2>
-          <div class="el-form-item is-required">
-            <label class="el-form-item__label">姓名*</label>
-            <div class="el-form-item__content"><div class="el-input"><input class="el-input__inner" placeholder="请输入姓名"></div></div>
-          </div>
-          <div class="el-form-item is-required">
-            <label class="el-form-item__label">性别*</label>
-            <div class="el-form-item__content">
-              <label class="el-radio" role="radio"><span class="el-radio__label">男</span><input class="el-radio__original" type="radio" name="gender" value="男"></label>
-              <label class="el-radio" role="radio"><span class="el-radio__label">女</span><input class="el-radio__original" type="radio" name="gender" value="女"></label>
+      <form>
+        <div class="applyFormModuleWrapper__d8a302">
+          <div class="applyFormModuleWrapper-left">
+            <div class="applyFormModuleWrapper-title">
+              <span class="applyFormModuleWrapper-text sofiaBold">教育经历</span>
             </div>
           </div>
-          <div class="el-form-item is-required">
-            <label class="el-form-item__label">证件信息</label>
-            <div class="el-form-item__content">
-              <span class="el-dropdown-link" role="button" aria-haspopup="list">请选择</span>
-              <div class="el-input"><input class="el-input__inner" placeholder="请填写您的证件号码"></div>
+          <div class="applyFormModuleWrapper-right">
+            <div class="apply-form-array-card__1d6856">
+              <label>学校名称<input data-form-field-i18n-name="学校名称" type="text"></label>
+              <label>学历<input data-form-field-i18n-name="学历" type="text"></label>
+              <label>专业<input data-form-field-i18n-name="专业" type="text"></label>
             </div>
+            <button type="button" class="ud__button ud__button--text">添加</button>
           </div>
-          <div class="el-form-item is-required">
-            <label class="el-form-item__label">期望工作城市*</label>
-            <div class="el-select"><input class="el-input__inner" placeholder="请选择期望工作城市（至多三个）"></div>
-          </div>
-        </section>
+        </div>
 
-        <section class="resume-module project-module">
-          <h2>项目经历</h2>
-          <div id="project-list">
-            <div class="project-experience-card">
-              <div class="el-form-item">
-                <label class="el-form-item__label">项目名称</label>
-                <div class="el-form-item__content"><input class="el-input__inner" placeholder="请输入项目名称（含校园实践）"></div>
-              </div>
-              <div class="el-form-item">
-                <label class="el-form-item__label">项目角色</label>
-                <div class="el-form-item__content"><input class="el-input__inner" placeholder="请输入在项目中担任的角色"></div>
-              </div>
-              <div class="el-form-item">
-                <label class="el-form-item__label">项目时间</label>
-                <div class="el-form-item__content">
-                  <input class="el-input__inner" placeholder="选择日期">
-                  <input class="el-input__inner" placeholder="选择日期">
-                </div>
-              </div>
-              <div class="el-form-item">
-                <label class="el-form-item__label">项目描述</label>
-                <textarea class="el-textarea__inner" placeholder="请输入描述内容"></textarea>
-              </div>
-            </div>
+        <div class="applyFormModuleWrapper-empty applyFormModuleWrapper__d8a302" data-module-key="internship">
+          <div class="applyFormModuleWrapper-left">
+            <div class="applyFormModuleWrapper-title"><span class="applyFormModuleWrapper-text sofiaBold">实习经历</span></div>
           </div>
-          <button id="add_btn" class="el-button el-button--text" type="button">添加项目经历</button>
-        </section>
+          <div class="applyFormModuleWrapper-right">
+            <button type="button" class="ud__button ud__button--text apply-form-array-card-add-float-right__1d6856">添加</button>
+          </div>
+        </div>
 
-        <section class="resume-module internship-module">
-          <h2>实习经历</h2>
-          <div class="internship-experience-card">
-            <div class="el-form-item"><label class="el-form-item__label">实习公司</label><input class="el-input__inner" placeholder="请输入实习公司"></div>
-            <div class="el-form-item"><label class="el-form-item__label">职位</label><input class="el-input__inner" placeholder="请输入职位"></div>
+        <div class="applyFormModuleWrapper-empty applyFormModuleWrapper__d8a302" data-module-key="project">
+          <div class="applyFormModuleWrapper-left">
+            <div class="applyFormModuleWrapper-title"><span class="applyFormModuleWrapper-text sofiaBold">项目经历</span></div>
           </div>
-          <button id="add_btn" class="el-button el-button--text" type="button">添加实习经历</button>
-        </section>
-      </main>
+          <div class="applyFormModuleWrapper-right">
+            <button type="button" class="ud__button ud__button--text apply-form-array-card-add-float-right__1d6856">添加</button>
+          </div>
+        </div>
+
+        <div class="applyFormModuleWrapper-empty applyFormModuleWrapper__d8a302" data-module-key="language">
+          <div class="applyFormModuleWrapper-left">
+            <div class="applyFormModuleWrapper-title"><span class="applyFormModuleWrapper-text sofiaBold">语言能力</span></div>
+          </div>
+          <div class="applyFormModuleWrapper-right">
+            <button type="button" class="ud__button ud__button--text apply-form-array-card-add-float-right__1d6856">添加</button>
+          </div>
+        </div>
+      </form>
       <script>
-        document.querySelectorAll('button').forEach(button => {
-          button.addEventListener('click', () => {
-            if (!button.textContent.includes('项目')) return;
-            const item = document.querySelector('.project-experience-card').cloneNode(true);
-            item.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
-            document.getElementById('project-list').appendChild(item);
+        document.querySelectorAll('[data-module-key]').forEach(module => {
+          module.querySelector('button').addEventListener('click', () => {
+            const key = module.getAttribute('data-module-key');
+            const card = document.createElement('div');
+            card.className = 'apply-form-array-card__1d6856';
+            if (key === 'internship') {
+              card.innerHTML = '<label>实习公司<input type="text"></label><label>实习岗位<input type="text"></label>';
+            } else if (key === 'project') {
+              card.innerHTML = '<label>项目名称<input type="text"></label><label>项目描述<textarea></textarea></label>';
+            } else {
+              card.innerHTML = '<label>语言<input type="text"></label><label>熟练程度<input type="text"></label>';
+            }
+            module.classList.remove('applyFormModuleWrapper-empty');
+            module.querySelector('.applyFormModuleWrapper-right').insertBefore(card, module.querySelector('button'));
           });
         });
       </script>
@@ -974,78 +962,86 @@ test('scanner handles Tencent-style Element UI resume form labels and add button
     await injectExtensionScripts(page);
 
     const result = await page.evaluate(async () => {
-      FieldScanner._resetMap();
-      const fields = FieldScanner.scan();
       SectionManager.reset();
       const before = SectionManager.collectSectionInfo();
-      const actionResults = await SectionManager.executeActions({ '项目经历': 'add_1' });
+      const internshipTarget = SectionManager._findAddTarget('实习经历');
+      const projectTarget = SectionManager._findAddTarget('项目经历');
+      const languageTarget = SectionManager._findAddTarget('语言能力');
+      const actionResults = await SectionManager.executeActions({
+        '实习经历': 'add_1',
+        '项目经历': 'add_1',
+        '语言能力': 'add_1',
+      });
       await new Promise(resolve => setTimeout(resolve, 100));
-      const afterFields = FieldScanner.scan();
       const after = SectionManager.collectSectionInfo();
-
-      const byLabel = label => fields.find(field => field.label === label);
+      const fields = FieldScanner.scan();
       return {
-        labels: fields.map(field => field.label).filter(Boolean),
-        name: byLabel('姓名'),
-        gender: byLabel('性别'),
-        idFields: fields.filter(field => field.label === '证件信息').map(field => ({
-          label: field.label,
-          subLabel: field.subLabel,
-          groupIndex: field.groupIndex,
-          widget: field.widget,
-          type: field.type,
-        })),
-        city: byLabel('期望工作城市'),
-        projectFields: afterFields.filter(field => field.repeatSection === '项目经历').map(field => ({
-          label: field.label,
-          widget: field.widget,
-          repeatIndex: field.repeatIndex,
-          repeatSize: field.repeatSize,
-          groupIndex: field.groupIndex,
-        })),
         before,
         after,
         actionResults,
-        projectCardCount: document.querySelectorAll('.project-experience-card').length,
+        targetTexts: {
+          internship: internshipTarget && internshipTarget.container && internshipTarget.container.textContent.replace(/\s+/g, ' ').trim(),
+          project: projectTarget && projectTarget.container && projectTarget.container.textContent.replace(/\s+/g, ' ').trim(),
+          language: languageTarget && languageTarget.container && languageTarget.container.textContent.replace(/\s+/g, ' ').trim(),
+        },
+        fieldSections: fields.map(field => ({ label: field.label, section: field.section })),
       };
     });
 
-    assert.equal(result.name.type, 'text');
-    assert.equal(result.name.required, true);
-    assert.equal(result.gender.widget, 'pseudo-radio');
-    assert.deepEqual(result.gender.options, ['男', '女']);
-    assert.equal(result.idFields.length, 2);
-    assert.deepEqual(result.idFields.map(field => field.groupIndex), [0, 1]);
-    assert.equal(result.idFields[0].widget, 'aria-combobox');
-    assert.equal(result.idFields[1].subLabel, '证件号码');
-    assert.equal(result.city.label, '期望工作城市');
-    assert.equal(result.city.widget, 'search-select');
+    assert.deepEqual(result.before.find(section => section.name === '教育经历'), {
+      name: '教育经历',
+      currentCount: 1,
+      addButton: true,
+    });
+    assert.deepEqual(result.before.find(section => section.name === '实习经历'), {
+      name: '实习经历',
+      currentCount: 0,
+      addButton: true,
+    });
     assert.deepEqual(result.before.find(section => section.name === '项目经历'), {
       name: '项目经历',
+      currentCount: 0,
+      addButton: true,
+    });
+    assert.deepEqual(result.before.find(section => section.name === '语言能力'), {
+      name: '语言能力',
+      currentCount: 0,
+      addButton: true,
+    });
+    assert.match(result.targetTexts.internship, /^实习经历/);
+    assert.match(result.targetTexts.project, /^项目经历/);
+    assert.match(result.targetTexts.language, /^语言能力/);
+    assert.deepEqual(result.after.find(section => section.name === '实习经历'), {
+      name: '实习经历',
       currentCount: 1,
       addButton: true,
     });
     assert.deepEqual(result.after.find(section => section.name === '项目经历'), {
       name: '项目经历',
-      currentCount: 2,
+      currentCount: 1,
       addButton: true,
     });
-    assert.equal(result.projectCardCount, 2);
+    assert.deepEqual(result.after.find(section => section.name === '语言能力'), {
+      name: '语言能力',
+      currentCount: 1,
+      addButton: true,
+    });
     assert.deepEqual(result.actionResults.map(item => ({
       sectionName: item.sectionName,
       requested: item.requested,
       attempted: item.attempted,
       added: item.added,
+      beforeCount: item.beforeCount,
+      afterCount: item.afterCount,
       status: item.status,
     })), [
-      { sectionName: '项目经历', requested: 1, attempted: 1, added: 1, status: 'completed' },
+      { sectionName: '实习经历', requested: 1, attempted: 1, added: 1, beforeCount: 0, afterCount: 1, status: 'completed' },
+      { sectionName: '项目经历', requested: 1, attempted: 1, added: 1, beforeCount: 0, afterCount: 1, status: 'completed' },
+      { sectionName: '语言能力', requested: 1, attempted: 1, added: 1, beforeCount: 0, afterCount: 1, status: 'completed' },
     ]);
-    assert.deepEqual(
-      [...new Set(result.projectFields.map(field => field.repeatIndex))].sort((a, b) => a - b),
-      [0, 1],
-    );
-    assert.equal(result.projectFields.every(field => field.repeatSize === 2), true);
-    assert.equal(result.projectFields.some(field => field.label === '项目时间' && field.groupIndex === 1), true);
+    assert.equal(result.fieldSections.some(field => field.label === '实习公司' && field.section === '实习经历'), true);
+    assert.equal(result.fieldSections.some(field => field.label === '项目名称' && field.section === '项目经历'), true);
+    assert.equal(result.fieldSections.some(field => field.label === '语言' && field.section === '语言能力'), true);
   } finally {
     await browser.close();
   }
@@ -1199,136 +1195,6 @@ test('scanner and fill engine handle open shadow DOM controls', async t => {
   }
 });
 
-test('section manager handles live Tencent-style send_title resume modules', async t => {
-  const playwright = loadPlaywright();
-  if (!playwright) {
-    t.skip('Playwright is not installed in this environment');
-    return;
-  }
-
-  let browser;
-  try {
-    browser = await playwright.chromium.launch({ headless: true });
-  } catch (err) {
-    const message = err && err.message ? err.message.split('\n')[0] : String(err);
-    t.skip(`Chromium could not launch: ${message}`);
-    return;
-  }
-
-  try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    await page.setContent(`
-      <ul class="send_list">
-        <li class="send_box">
-          <div class="send_title">项目经历</div>
-          <div class="send_content">
-            <div id="project-experience" class="experience_box">
-              <div class="info_list">
-                <div class="experience_title project_scorll_0">项目经历-1 <button type="button" class="el-button el-button--text">删除经历</button></div>
-                <div class="info_box"><div class="subtitle must">项目名称*</div><div class="input_box"><div class="el-input"><input class="el-input__inner" placeholder="请输入项目名称（含校园实践）"></div></div></div>
-                <div class="info_box"><div class="subtitle must">在项目中担任的角色*</div><div class="input_box"><div class="el-input"><input class="el-input__inner" placeholder="请输入在项目中担任的角色"></div></div></div>
-                <div class="info_box">
-                  <div class="subtitle must">起止时间*</div>
-                  <div class="input_box"><input class="el-input__inner" placeholder="选择日期"><input class="el-input__inner" placeholder="选择日期"></div>
-                </div>
-                <div class="info_box"><div class="subtitle">描述*</div><textarea class="el-textarea__inner" placeholder="请输入描述内容"></textarea></div>
-              </div>
-              <div class="info_box"><button id="add-project" class="el-button el-button--text" type="button">添加项目经历</button></div>
-            </div>
-          </div>
-        </li>
-      </ul>
-      <button id="final-submit" class="el-button el-button--primary" type="button">提交简历</button>
-      <script>
-        document.getElementById('add-project').addEventListener('click', () => {
-          const list = document.querySelector('#project-experience');
-          const item = list.querySelector('.info_list').cloneNode(true);
-          const next = list.querySelectorAll('.info_list').length + 1;
-          item.querySelector('.experience_title').textContent = '项目经历-' + next + ' 删除经历';
-          item.querySelectorAll('input, textarea').forEach(el => { el.value = ''; });
-          list.insertBefore(item, document.getElementById('add-project').closest('.info_box'));
-        });
-      </script>
-    `);
-    await injectExtensionScripts(page);
-
-    const result = await page.evaluate(async () => {
-      FieldScanner._resetMap();
-      SectionManager.reset();
-      const before = SectionManager.collectSectionInfo();
-      const actionResults = await SectionManager.executeActions({ '项目经历': 'add_2' });
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const after = SectionManager.collectSectionInfo();
-      const fields = FieldScanner.scan();
-      const projectFields = fields.filter(field => field.repeatSection === '项目经历');
-      const projectName = fields.find(field => field.label === '项目名称');
-      const projectDates = fields.filter(field => field.label === '起止时间');
-      return {
-        before,
-        after,
-        actionResults,
-        projectCardCount: document.querySelectorAll('#project-experience .info_list').length,
-        projectName,
-        projectDates: projectDates.map(field => ({
-          label: field.label,
-          type: field.type,
-          widget: field.widget,
-          required: field.required,
-          groupIndex: field.groupIndex,
-          repeatIndex: field.repeatIndex,
-          repeatSize: field.repeatSize,
-          repeatSection: field.repeatSection,
-          section: field.section,
-        })),
-        repeatIndexes: [...new Set(projectFields.map(field => field.repeatIndex).filter(Number.isInteger))]
-          .sort((a, b) => a - b),
-        submitOnly: NavigationDetector.isSubmitOnly(),
-      };
-    });
-
-    assert.deepEqual(result.before.find(section => section.name === '项目经历'), {
-      name: '项目经历',
-      currentCount: 1,
-      addButton: true,
-    });
-    assert.deepEqual(result.after.find(section => section.name === '项目经历'), {
-      name: '项目经历',
-      currentCount: 3,
-      addButton: true,
-    });
-    assert.deepEqual(result.actionResults.map(item => ({
-      sectionName: item.sectionName,
-      requested: item.requested,
-      attempted: item.attempted,
-      added: item.added,
-      beforeCount: item.beforeCount,
-      afterCount: item.afterCount,
-      status: item.status,
-    })), [
-      {
-        sectionName: '项目经历',
-        requested: 2,
-        attempted: 2,
-        added: 2,
-        beforeCount: 1,
-        afterCount: 3,
-        status: 'completed',
-      },
-    ]);
-    assert.equal(result.projectCardCount, 3);
-    assert.equal(result.projectName.section, '项目经历');
-    assert.equal(result.projectName.required, true);
-    assert.deepEqual(result.repeatIndexes, [0, 1, 2]);
-    assert.equal(result.projectDates.length, 6);
-    assert.equal(result.projectDates.every(field => field.widget === 'date-picker'), true);
-    assert.equal(result.projectDates.every(field => field.repeatSize === 3), true);
-    assert.equal(result.projectDates.some(field => field.groupIndex === 1), true);
-    assert.equal(result.submitOnly, true);
-  } finally {
-    await browser.close();
-  }
-});
-
 test('section manager observes sibling repeat lists when add button sits in an action bar', async t => {
   const playwright = loadPlaywright();
   if (!playwright) {
@@ -1445,19 +1311,19 @@ test('section manager clears checked empty-section toggles before adding experie
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.setContent(`
-      <section class="beisen-section">
+      <section class="feishu-form-section" data-form-field-i18n-name="项目经历">
         <h2>项目经历</h2>
-        <label id="no-project-wrap" class="beisen-checkbox is-checked">
+        <label id="no-project-wrap" class="ud__checkbox is-checked">
           <input id="no-project" type="checkbox" checked>
           无项目经历
         </label>
         <div id="project-list" style="display:none">
-          <div class="beisen-resume-item project-card">
+          <div class="apply-form-array-card project-card" data-field-list-item>
             <label>项目名称<input type="text"></label>
             <label>项目成果<textarea></textarea></label>
           </div>
         </div>
-        <button id="add-project" class="beisen-add" type="button" style="display:none">添加项目经历</button>
+        <button id="add-project" class="ud__button" type="button" style="display:none">添加项目经历</button>
       </section>
       <script>
         const noProject = document.getElementById('no-project');
@@ -1549,14 +1415,14 @@ test('section manager reports zero count when empty toggle hides an unmounted li
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.setContent(`
-      <section class="moka-form-section">
+      <section class="feishu-form-section" data-form-field-i18n-name="项目经历">
         <h2>项目经历</h2>
-        <label id="no-project-wrap" class="moka-checkbox checked">
+        <label id="no-project-wrap" class="ud__checkbox checked">
           <input id="no-project" type="checkbox" checked>
           无项目经历
         </label>
         <div id="project-list"></div>
-        <button id="add-project" class="moka-add-btn" type="button" style="display:none">添加项目经历</button>
+        <button id="add-project" class="ud__button" type="button" style="display:none">添加项目经历</button>
       </section>
       <script>
         const noProject = document.getElementById('no-project');
@@ -1566,7 +1432,8 @@ test('section manager reports zero count when empty toggle hides an unmounted li
         });
         document.getElementById('add-project').addEventListener('click', () => {
           const item = document.createElement('div');
-          item.className = 'moka-experience-card project-card';
+          item.className = 'apply-form-array-card project-card';
+          item.setAttribute('data-field-list-item', '');
           item.innerHTML = '<label>项目名称<input type="text"></label><label>项目成果<textarea></textarea></label>';
           document.getElementById('project-list').appendChild(item);
         });
@@ -2645,9 +2512,9 @@ test('fill engine fills grouped date range inputs in one picker interaction', as
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.setContent(`
-      <div class="info_box">
-        <div class="subtitle must">起止时间*</div>
-        <div class="input_box">
+      <div class="ud-formily-item">
+        <div class="ud-formily-item-label"><label>起止时间*</label></div>
+        <div class="ud-formily-item-control-content-component">
           <div class="ant-picker ant-picker-range date-range-picker">
             <input id="range-start" class="ant-picker-input" type="text" readonly placeholder="开始时间">
             <span class="ant-picker-separator">~</span>
@@ -2725,6 +2592,795 @@ test('fill engine fills grouped date range inputs in one picker interaction', as
       { type: 'date', widget: 'date-range', groupIndex: 0, groupSize: 2, readonly: true },
       { type: 'date', widget: 'date-range', groupIndex: 1, groupSize: 2, readonly: true },
     ]);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('fill engine pairs date ranges by wrapper when field order or group ids are unreliable', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <div class="card">
+        <div class="ud-formily-item"><label>起止时间</label>
+          <div class="throne-biz-date-range-picker-wrapper">
+            <input id="range-a-start" readonly><span>~</span><input id="range-a-end" readonly>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ud-formily-item"><label>起止时间</label>
+          <div class="throne-biz-date-range-picker-wrapper">
+            <input id="range-b-start" readonly><span>~</span><input id="range-b-end" readonly>
+          </div>
+        </div>
+      </div>
+      <script>
+        window.clickedRangeOptions = [];
+        let activeWrapper = null;
+        let activeClicks = [];
+        function openPicker(event) {
+          activeWrapper = event.target.closest('.throne-biz-date-range-picker-wrapper');
+          activeClicks = [];
+          document.querySelector('.ant-picker-dropdown')?.remove();
+          const dropdown = document.createElement('div');
+          dropdown.className = 'ant-picker-dropdown';
+          dropdown.innerHTML = [
+            '<div class="ant-picker-panel">',
+              '<div class="ant-picker-cell" data-value="2025-01" title="2025-01">2025年1月</div>',
+              '<div class="ant-picker-cell" data-value="2025-02" title="2025-02">2025年2月</div>',
+              '<div class="ant-picker-cell" data-value="2024-01" title="2024-01">2024年1月</div>',
+              '<div class="ant-picker-cell" data-value="2024-02" title="2024-02">2024年2月</div>',
+            '</div>',
+          ].join('');
+          dropdown.querySelectorAll('[data-value]').forEach(option => {
+            option.addEventListener('click', event => {
+              const value = option.getAttribute('data-value');
+              activeClicks.push(value);
+              window.clickedRangeOptions.push(value);
+              if (activeClicks.length >= 2 && activeWrapper) {
+                const inputs = activeWrapper.querySelectorAll('input');
+                inputs[0].value = activeClicks[0];
+                inputs[1].value = activeClicks[1];
+                inputs.forEach(input => {
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                dropdown.remove();
+              }
+              event.stopPropagation();
+            });
+          });
+          document.body.appendChild(dropdown);
+        }
+        document.querySelectorAll('.throne-biz-date-range-picker-wrapper input')
+          .forEach(input => input.addEventListener('click', openPicker));
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const scanned = FieldScanner.scan()
+        .filter(field => field.label === '起止时间')
+        .sort((a, b) => a.groupId === b.groupId
+          ? a.groupIndex - b.groupIndex
+          : String(a.groupId).localeCompare(String(b.groupId)));
+      const fields = [scanned[0], scanned[2], scanned[1], scanned[3]]
+        .map(field => {
+          const copy = { ...field };
+          copy.widget = 'date-picker';
+          return copy;
+        });
+      fields[0].groupId = 'bad-cross-wrapper-group';
+      fields[3].groupId = 'bad-cross-wrapper-group';
+      const mappings = {
+        [scanned[0].fieldId]: '2025-01',
+        [scanned[1].fieldId]: '2025-02',
+        [scanned[2].fieldId]: '2024-01',
+        [scanned[3].fieldId]: '2024-02',
+      };
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll(mappings, fields);
+      return {
+        fill,
+        a: [
+          document.getElementById('range-a-start').value,
+          document.getElementById('range-a-end').value,
+        ],
+        b: [
+          document.getElementById('range-b-start').value,
+          document.getElementById('range-b-end').value,
+        ],
+        clickedRangeOptions: window.clickedRangeOptions,
+      };
+    });
+
+    assert.equal(result.fill.filled, 4);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.deepEqual(result.a, ['2025-01', '2025-02']);
+    assert.deepEqual(result.b, ['2024-01', '2024-02']);
+    assert.deepEqual(result.clickedRangeOptions, ['2025-01', '2025-02', '2024-01', '2024-02']);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('fill engine does not pair adjacent date starts as a range fallback', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <input id="range-a-start">
+      <input id="range-b-start">
+      <input id="range-a-end">
+      <input id="range-b-end">
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(() => {
+      const fields = [
+        { fieldId: 'range-a-start', label: '起止时间', type: 'date', widget: 'date-picker', groupIndex: 0, groupSize: 2, repeatSection: '项目经历', repeatIndex: 0 },
+        { fieldId: 'range-b-start', label: '起止时间', type: 'date', widget: 'date-picker', groupIndex: 0, groupSize: 2, repeatSection: '项目经历', repeatIndex: 1 },
+        { fieldId: 'range-a-end', label: '起止时间', type: 'date', widget: 'date-picker', groupIndex: 1, groupSize: 2, repeatSection: '项目经历', repeatIndex: 0 },
+        { fieldId: 'range-b-end', label: '起止时间', type: 'date', widget: 'date-picker', groupIndex: 1, groupSize: 2, repeatSection: '项目经历', repeatIndex: 1 },
+      ];
+      const mappings = new Map(fields.map((field, index) => [field.fieldId, `2025-0${index + 1}`]));
+      const group = FillEngine._dateGroupFields('range-a-start', fields[0], fields, mappings, new Set());
+      return group && group.map(field => field.fieldId);
+    });
+
+    assert.equal(result, null);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('date handler fills Feishu month range picker with year navigation', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <div id="formily-item" class="ud-formily-item ud-formily-item-layout-vertical ud-formily-item-error">
+        <div class="ud-formily-item-label"><label>起止时间*</label></div>
+        <div class="ud-formily-item-control">
+          <div class="ud-formily-item-control-content-component">
+            <div class="throne-biz-date-range-picker-wrapper throne-biz-date-range-picker-error">
+              <div class="throne-biz-date-range-picker-input">
+                <div class="ud__input"><label class="ud__input-input-wrap"><input id="range-start" class="ud__native-input"></label></div>
+              </div>
+              <div class="throne-biz-date-range-picker-seperator">~</div>
+              <div class="throne-biz-date-range-picker-input throne-biz-date-range-picker-hasValue">
+                <div class="ud__input"><label class="ud__input-input-wrap"><input id="range-end" class="ud__native-input" value="2027-06"></label></div>
+              </div>
+            </div>
+          </div>
+          <div id="range-extra" class="ud-formily-item-extra">请填写完整时间</div>
+        </div>
+      </div>
+      <script>
+        window.clickedRangeOptions = [];
+        window.clickedYearNav = [];
+        window.validationCommitCount = 0;
+        let currentYear = 2026;
+        let phase = 0;
+
+        function renderPicker() {
+          let dropdown = document.querySelector('.ud__dropdown');
+          if (!dropdown) {
+            dropdown = document.createElement('div');
+            dropdown.className = 'ud__dropdown ud__dropdown-placement-bottomLeft';
+            document.body.appendChild(dropdown);
+          }
+          const months = Array.from({ length: 12 }, (_, index) => {
+            const value = String(index + 1).padStart(2, '0');
+            return '<div class="ud__picker__cell ud__picker-month-panel-cell"><div class="ud__picker__cell__inner">' + value + '月</div></div>';
+          }).join('');
+          dropdown.innerHTML = [
+            '<div class="throne-biz-date-range-picker-panel">',
+              '<div class="ud__picker-panel-header">',
+                '<span class="ud__picker-panel-header-btn">' + currentYear + '年</span>',
+                '<button type="button" class="ud__button ud__picker-panel-header-icon ud__picker-panel-header-collapse"></button>',
+                '<button type="button" class="ud__button ud__picker-panel-header-icon" data-nav="prev"></button>',
+                '<button type="button" class="ud__button ud__picker-panel-header-icon" data-nav="next"></button>',
+              '</div>',
+              '<div class="ud__picker-panel-body-content notranslate">' + months + '</div>',
+            '</div>',
+          ].join('');
+          dropdown.querySelector('[data-nav="prev"]').addEventListener('click', event => {
+            currentYear -= 1;
+            window.clickedYearNav.push(currentYear);
+            renderPicker();
+            event.stopPropagation();
+          });
+          dropdown.querySelector('[data-nav="next"]').addEventListener('click', event => {
+            currentYear += 1;
+            window.clickedYearNav.push(currentYear);
+            renderPicker();
+            event.stopPropagation();
+          });
+          dropdown.querySelectorAll('.ud__picker-month-panel-cell').forEach((cell, index) => {
+            cell.addEventListener('click', event => {
+              const value = currentYear + '-' + String(index + 1).padStart(2, '0');
+              window.clickedRangeOptions.push(value);
+              const start = document.getElementById('range-start');
+              const end = document.getElementById('range-end');
+              const target = phase === 0 ? start : end;
+              target.value = value;
+              target.dispatchEvent(new Event('input', { bubbles: true }));
+              target.dispatchEvent(new Event('change', { bubbles: true }));
+              phase = phase === 0 ? 1 : 0;
+              if (start.value && end.value) {
+                window.validationCommitCount += 1;
+                document.getElementById('formily-item').classList.remove('ud-formily-item-error');
+                document.querySelector('.throne-biz-date-range-picker-wrapper').classList.remove('throne-biz-date-range-picker-error');
+                document.getElementById('range-extra').textContent = '';
+              }
+              event.stopPropagation();
+            });
+          });
+        }
+
+        function openPicker() {
+          renderPicker();
+          const start = document.getElementById('range-start');
+          const end = document.getElementById('range-end');
+          if (start.value && end.value) {
+            window.validationCommitCount += 1;
+            document.getElementById('formily-item').classList.remove('ud-formily-item-error');
+            document.querySelector('.throne-biz-date-range-picker-wrapper').classList.remove('throne-biz-date-range-picker-error');
+            document.getElementById('range-extra').textContent = '';
+          }
+        }
+        document.getElementById('range-start').addEventListener('click', openPicker);
+        document.getElementById('range-end').addEventListener('click', openPicker);
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan()
+        .filter(field => field.label === '起止时间')
+        .sort((a, b) => a.groupIndex - b.groupIndex);
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        [fields[0].fieldId]: '2025-09',
+        [fields[1].fieldId]: '2027-06',
+      }, fields);
+      return {
+        fill,
+        startValue: document.getElementById('range-start').value,
+        endValue: document.getElementById('range-end').value,
+        clickedRangeOptions: window.clickedRangeOptions,
+        clickedYearNav: window.clickedYearNav,
+        validationCommitCount: window.validationCommitCount,
+        validationText: document.getElementById('range-extra').textContent,
+        hasRangeError: document.querySelector('.throne-biz-date-range-picker-wrapper')
+          .classList.contains('throne-biz-date-range-picker-error'),
+      };
+    });
+
+    assert.equal(result.fill.filled, 2);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.equal(result.startValue, '2025-09');
+    assert.equal(result.endValue, '2027-06');
+    assert.deepEqual(result.clickedRangeOptions, ['2025-09', '2027-06']);
+    assert.deepEqual(result.clickedYearNav, [2025, 2026, 2027]);
+    assert.equal(result.validationCommitCount > 0, true);
+    assert.equal(result.validationText, '');
+    assert.equal(result.hasRangeError, false);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('date handler does not leave a previous range picker active between groups', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <div class="card" data-index="0">
+        <label>起止时间</label>
+        <div class="throne-biz-date-range-picker-wrapper">
+          <input id="a-start" readonly><span>~</span><input id="a-end" readonly>
+        </div>
+      </div>
+      <div class="card" data-index="1">
+        <label>起止时间</label>
+        <div class="throne-biz-date-range-picker-wrapper">
+          <input id="b-start" readonly><span>~</span><input id="b-end" readonly>
+        </div>
+      </div>
+      <script>
+        let pickerOpen = false;
+        let activeWrapper = null;
+        let activePhase = 0;
+        function inputIndex(input) {
+          return [...input.closest('.throne-biz-date-range-picker-wrapper').querySelectorAll('input')].indexOf(input);
+        }
+        function renderPicker() {
+          let dropdown = document.querySelector('.ud__dropdown');
+          if (!dropdown) {
+            dropdown = document.createElement('div');
+            dropdown.className = 'ud__dropdown';
+            document.body.appendChild(dropdown);
+          }
+          dropdown.innerHTML = ['2024-01', '2024-02', '2025-01', '2025-02'].map(value =>
+            '<button type="button" data-value="' + value + '">' + value + '</button>'
+          ).join('');
+          dropdown.querySelectorAll('[data-value]').forEach(button => {
+            button.addEventListener('click', event => {
+              const inputs = activeWrapper.querySelectorAll('input');
+              inputs[activePhase].value = button.getAttribute('data-value');
+              inputs[activePhase].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[activePhase].dispatchEvent(new Event('change', { bubbles: true }));
+              if (activePhase === 0) {
+                activePhase = 1;
+              } else {
+                pickerOpen = false;
+                dropdown.remove();
+              }
+              event.stopPropagation();
+            });
+          });
+        }
+        function openPicker(event) {
+          if (pickerOpen && activeWrapper && activePhase === 1) {
+            renderPicker();
+            event.stopPropagation();
+            return;
+          }
+          activeWrapper = event.target.closest('.throne-biz-date-range-picker-wrapper');
+          activePhase = inputIndex(event.target) === 1 ? 1 : 0;
+          pickerOpen = true;
+          renderPicker();
+          event.stopPropagation();
+        }
+        document.querySelectorAll('.throne-biz-date-range-picker-wrapper input')
+          .forEach(input => input.addEventListener('click', openPicker));
+      </script>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan()
+        .filter(field => field.label === '起止时间')
+        .sort((a, b) => a.groupId === b.groupId
+          ? a.groupIndex - b.groupIndex
+          : String(a.groupId).localeCompare(String(b.groupId)));
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        [fields[0].fieldId]: '2024-01',
+        [fields[1].fieldId]: '2024-02',
+        [fields[2].fieldId]: '2025-01',
+        [fields[3].fieldId]: '2025-02',
+      }, fields);
+      return {
+        fill,
+        a: [document.getElementById('a-start').value, document.getElementById('a-end').value],
+        b: [document.getElementById('b-start').value, document.getElementById('b-end').value],
+      };
+    });
+
+    assert.equal(result.fill.filled, 4);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.deepEqual(result.a, ['2024-01', '2024-02']);
+    assert.deepEqual(result.b, ['2025-01', '2025-02']);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('fill engine clicks both range fields and blank area on Xiaopeng pages to clear validation', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const url = 'https://xiaopeng.jobs.feishu.cn/campus/apply';
+    await page.route(url, route => route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `
+      <div id="range-a" class="throne-biz-date-range-picker-wrapper throne-biz-date-range-picker-error">
+        <input id="a-start"><span>~</span><input id="a-end">
+      </div>
+      <div id="range-b" class="throne-biz-date-range-picker-wrapper throne-biz-date-range-picker-error">
+        <input id="b-start"><span>~</span><input id="b-end">
+      </div>
+      <script>
+        window.validationClicks = [];
+        window.blankClicks = 0;
+        window.touchedRanges = new Set();
+        window.validationPhase = false;
+        for (const id of ['a-start', 'a-end', 'b-start', 'b-end']) {
+          document.getElementById(id).addEventListener('click', event => {
+            const wrapper = event.target.closest('.throne-biz-date-range-picker-wrapper');
+            window.validationPhase = true;
+            window.validationClicks.push(id);
+            window.touchedRanges.add(wrapper.id);
+          });
+        }
+        document.body.addEventListener('click', event => {
+          if (event.target.closest && event.target.closest('.throne-biz-date-range-picker-wrapper')) return;
+          if (!window.validationPhase) return;
+          window.blankClicks += 1;
+          for (const id of window.touchedRanges) {
+            const wrapper = document.getElementById(id);
+            const inputs = wrapper.querySelectorAll('input');
+            if (inputs[0].value && inputs[1].value) {
+              wrapper.classList.remove('throne-biz-date-range-picker-error');
+            }
+          }
+        });
+      </script>
+      `,
+    }));
+    await page.goto(url);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = [
+        { fieldId: 'a-start', label: '起止时间', type: 'date', groupIndex: 0, groupSize: 2, repeatSection: '项目经历', repeatIndex: 0 },
+        { fieldId: 'a-end', label: '起止时间', type: 'date', groupIndex: 1, groupSize: 2, repeatSection: '项目经历', repeatIndex: 0 },
+        { fieldId: 'b-start', label: '起止时间', type: 'date', groupIndex: 0, groupSize: 2, repeatSection: '项目经历', repeatIndex: 1 },
+        { fieldId: 'b-end', label: '起止时间', type: 'date', groupIndex: 1, groupSize: 2, repeatSection: '项目经历', repeatIndex: 1 },
+      ];
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        'a-start': '2024-10',
+        'a-end': '2025-05',
+        'b-start': '2025-09',
+        'b-end': '2025-12',
+      }, fields);
+      return {
+        fill,
+        validationClicks: window.validationClicks,
+        a: [document.getElementById('a-start').value, document.getElementById('a-end').value],
+        b: [document.getElementById('b-start').value, document.getElementById('b-end').value],
+        aError: document.getElementById('range-a').classList.contains('throne-biz-date-range-picker-error'),
+        bError: document.getElementById('range-b').classList.contains('throne-biz-date-range-picker-error'),
+        blankClicks: window.blankClicks,
+        validationRecords: fill.fillRecords
+          .filter(record => record.kind === 'date_group_validation')
+          .map(record => ({
+            status: record.status,
+            clickedFieldId: record.clickedFieldId,
+            clickedFieldIds: record.clickedFieldIds,
+            blankClickCount: record.blankClickCount,
+            afterValues: record.afterValues,
+          })),
+      };
+    });
+
+    assert.equal(result.fill.filled, 4);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.deepEqual(result.validationClicks, ['a-start', 'a-end', 'b-start', 'b-end']);
+    assert.equal(result.blankClicks, 4);
+    assert.deepEqual(result.a, ['2024-10', '2025-05']);
+    assert.deepEqual(result.b, ['2025-09', '2025-12']);
+    assert.equal(result.aError, false);
+    assert.equal(result.bError, false);
+    assert.deepEqual(result.validationRecords, [
+      {
+        status: 'validated',
+        clickedFieldId: 'a-start,a-end',
+        clickedFieldIds: ['a-start', 'a-end'],
+        blankClickCount: 2,
+        afterValues: ['2024-10', '2025-05'],
+      },
+      {
+        status: 'validated',
+        clickedFieldId: 'b-start,b-end',
+        clickedFieldIds: ['b-start', 'b-end'],
+        blankClickCount: 2,
+        afterValues: ['2025-09', '2025-12'],
+      },
+    ]);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('fill engine does not run Xiaopeng-only date validation clicks on other hosts', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const url = 'https://example.com/apply';
+    await page.route(url, route => route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `
+      <div id="range-a" class="throne-biz-date-range-picker-wrapper throne-biz-date-range-picker-error">
+        <input id="a-start"><span>~</span><input id="a-end">
+      </div>
+      <script>
+        window.validationClicks = [];
+        window.blankClicks = 0;
+        window.validationPhase = false;
+        for (const id of ['a-start', 'a-end']) {
+          document.getElementById(id).addEventListener('click', event => {
+            window.validationPhase = true;
+            window.validationClicks.push(id);
+          });
+        }
+        document.body.addEventListener('click', event => {
+          if (event.target.closest && event.target.closest('.throne-biz-date-range-picker-wrapper')) return;
+          if (!window.validationPhase) return;
+          window.blankClicks += 1;
+        });
+      </script>
+      `,
+    }));
+    await page.goto(url);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = [
+        { fieldId: 'a-start', label: '起止时间', type: 'date', groupIndex: 0, groupSize: 2 },
+        { fieldId: 'a-end', label: '起止时间', type: 'date', groupIndex: 1, groupSize: 2 },
+      ];
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        'a-start': '2024-10',
+        'a-end': '2025-05',
+      }, fields);
+      return {
+        fill,
+        validationClicks: window.validationClicks,
+        blankClicks: window.blankClicks,
+        values: [document.getElementById('a-start').value, document.getElementById('a-end').value],
+        validationRecords: fill.fillRecords.filter(record => record.kind === 'date_group_validation'),
+      };
+    });
+
+    assert.equal(result.fill.filled, 2);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.deepEqual(result.values, ['2024-10', '2025-05']);
+    assert.deepEqual(result.validationClicks, []);
+    assert.equal(result.blankClicks, 0);
+    assert.deepEqual(result.validationRecords, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('scanner recognizes nested Feishu date-range inputs as one labeled group', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <section>
+        <h2>项目经历</h2>
+        <div class="apply-form-array-card__1d6856">
+          <div class="ud-formily-item ud-formily-item-layout-vertical ud-formily-item-error ud-formily-item-size-large">
+            <div class="ud-formily-item-label"><label>起止时间*</label></div>
+            <div class="ud-formily-item-control">
+              <div class="ud-formily-item-control-content">
+                <div class="ud-formily-item-control-content-component">
+                  <div class="throne-biz-date-range-picker-wrapper throne-biz-date-range-picker-error">
+                    <div class="throne-biz-date-range-picker-input ud__dropdown-open">
+                      <div class="ud__input ud__input--focused ud__input--size-lg">
+                        <label class="ud__input-input-wrap">
+                          <div class="ud__input-input__placeholder__wrapper">
+                            <input class="ud__native-input">
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="throne-biz-date-range-picker-rangeInput-seperator">~</div>
+                    <div class="throne-biz-date-range-picker-input throne-biz-date-range-picker-hasValue">
+                      <div class="ud__input ud__input--size-lg">
+                        <label class="ud__input-input-wrap">
+                          <div class="ud__input-input__placeholder__wrapper">
+                            <input class="ud__native-input" value="2023-08">
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="ud-formily-item-extra">请填写完整时间</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(() => {
+      const fields = FieldScanner.scan();
+      return fields
+        .filter(field => field.label === '起止时间')
+        .map(field => ({
+          label: field.label,
+          type: field.type,
+          widget: field.widget,
+          groupIndex: field.groupIndex,
+          groupSize: field.groupSize,
+          currentValue: field.currentValue || '',
+          section: field.section,
+        }));
+    });
+
+    assert.deepEqual(result, [
+      {
+        label: '起止时间',
+        type: 'date',
+        widget: 'date-range',
+        groupIndex: 0,
+        groupSize: 2,
+        currentValue: '',
+        section: '项目经历',
+      },
+      {
+        label: '起止时间',
+        type: 'date',
+        widget: 'date-range',
+        groupIndex: 1,
+        groupSize: 2,
+        currentValue: '2023-08',
+        section: '项目经历',
+      },
+    ]);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('fill engine retries grouped date range when one endpoint already matches', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.setContent(`
+      <div class="ud-formily-item ud-formily-item-layout-vertical">
+        <div class="ud-formily-item-label"><label>起止时间*</label></div>
+        <div class="ud-formily-item-control-content-component">
+          <div class="throne-biz-date-range-picker-wrapper">
+            <div class="throne-biz-date-range-picker-input">
+              <div class="ud__input"><label class="ud__input-input-wrap"><input id="range-start" class="ud__native-input" readonly></label></div>
+            </div>
+            <div class="throne-biz-date-range-picker-seperator">~</div>
+            <div class="throne-biz-date-range-picker-input throne-biz-date-range-picker-hasValue">
+              <div class="ud__input"><label class="ud__input-input-wrap"><input id="range-end" class="ud__native-input" readonly value="2023-08"></label></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+    await injectExtensionScripts(page);
+
+    const result = await page.evaluate(async () => {
+      const fields = FieldScanner.scan()
+        .filter(field => field.label === '起止时间')
+        .sort((a, b) => a.groupIndex - b.groupIndex);
+      FillEngine.reset();
+      const fill = await FillEngine.fillAll({
+        [fields[0].fieldId]: '2023-01',
+        [fields[1].fieldId]: '2023-08',
+      }, fields);
+      return {
+        fill,
+        startValue: document.getElementById('range-start').value,
+        endValue: document.getElementById('range-end').value,
+      };
+    });
+
+    assert.equal(result.fill.filled, 2);
+    assert.equal(result.fill.skipped.length, 0);
+    assert.equal(result.startValue, '2023-01');
+    assert.equal(result.endValue, '2023-08');
   } finally {
     await browser.close();
   }
@@ -2909,6 +3565,58 @@ test('content trigger runs direct autofill across pages with dynamic expansion',
     assert.deepEqual(result.matchRequests[3].sections, [
       { name: '项目经历', currentCount: 3, addButton: true },
     ]);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('content trigger is rebound when content script is reinjected', async t => {
+  const playwright = loadPlaywright();
+  if (!playwright) {
+    t.skip('Playwright is not installed in this environment');
+    return;
+  }
+
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({ headless: true });
+  } catch (err) {
+    const message = err && err.message ? err.message.split('\n')[0] : String(err);
+    t.skip(`Chromium could not launch: ${message}`);
+    return;
+  }
+
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(pathToFileURL(path.join(extensionRoot, 'test-form.html')).href);
+    await installMockChromeRuntime(page);
+    await injectContentRuntimeScripts(page);
+
+    const before = await page.evaluate(() => {
+      window.__firstAutofillStartRef = window.__resumeAutofillStart;
+      return {
+        loaded: window.__resumeAutofillLoaded,
+        starterType: typeof window.__resumeAutofillStart,
+        ping: window.__resumeAutofillPing && window.__resumeAutofillPing(),
+      };
+    });
+
+    await injectScriptFiles(page, ['content/content.js']);
+
+    const after = await page.evaluate(() => ({
+      loaded: window.__resumeAutofillLoaded,
+      starterType: typeof window.__resumeAutofillStart,
+      ping: window.__resumeAutofillPing && window.__resumeAutofillPing(),
+      rebound: window.__resumeAutofillStart !== window.__firstAutofillStartRef,
+    }));
+
+    assert.equal(before.loaded, true);
+    assert.equal(before.starterType, 'function');
+    assert.equal(before.ping, true);
+    assert.equal(after.loaded, true);
+    assert.equal(after.starterType, 'function');
+    assert.equal(after.ping, true);
+    assert.equal(after.rebound, true);
   } finally {
     await browser.close();
   }

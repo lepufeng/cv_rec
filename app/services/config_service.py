@@ -17,6 +17,8 @@ from app.repositories.config_repo import AppConfigRepository
 # Keys that constitute the model configuration.
 KEY_MODEL_PROVIDER = "model_provider"
 KEY_MODEL_THINKING_MODE = "model_thinking_mode"
+KEY_MODEL_NETWORK_MODE = "model_network_mode"
+KEY_MODEL_PROXY_URL = "model_proxy_url"
 KEY_GLM_API_KEY = "glm_api_key"
 KEY_GLM_BASE_URL = "glm_base_url"
 KEY_GLM_OCR_MODEL = "glm_ocr_model"
@@ -37,6 +39,8 @@ SECRET_KEYS: set[str] = {KEY_GLM_API_KEY, KEY_QWEN_API_KEY}
 class ModelConfig:
     provider: str  # "glm" | "qwen" | "fake"
     model_thinking_mode: str
+    model_network_mode: str
+    model_proxy_url: str
     glm_api_key: str
     glm_base_url: str
     glm_ocr_model: str
@@ -69,6 +73,11 @@ class ConfigService:
                 KEY_MODEL_THINKING_MODE,
                 settings.model_thinking_mode,
             ),
+            model_network_mode=await self.repo.get_value(
+                KEY_MODEL_NETWORK_MODE,
+                settings.model_network_mode,
+            ),
+            model_proxy_url=await self.repo.get_value(KEY_MODEL_PROXY_URL, settings.model_proxy_url),
             glm_api_key=await self.repo.get_value(KEY_GLM_API_KEY, settings.glm_api_key),
             glm_base_url=await self.repo.get_value(KEY_GLM_BASE_URL, settings.glm_base_url),
             glm_ocr_model=await self.repo.get_value(KEY_GLM_OCR_MODEL, settings.glm_ocr_model),

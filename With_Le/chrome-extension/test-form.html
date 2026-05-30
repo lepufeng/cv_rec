@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Moka / Feishu / Beisen Recruitment Form Test</title>
+  <title>Feishu Recruiting Form Test</title>
   <style>
     body { font-family: -apple-system, sans-serif; max-width: 780px; margin: 40px auto; padding: 20px; }
     label { display: block; margin-top: 12px; font-weight: 600; font-size: 14px; }
@@ -19,13 +19,13 @@
     .radio-item[aria-checked="true"], .choice-item[aria-checked="true"] {
       border-color: #2563eb; color: #1d4ed8; background: #eff6ff;
     }
-    .education-card, .project-card, .moka-experience-card, .beisen-resume-item {
+    .apply-form-array-card, .project-card {
       padding: 14px; margin-top: 14px; border: 1px solid #e5e7eb; border-radius: 8px;
       background: #fff;
     }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .custom-select { position: relative; margin-top: 4px; }
-    .custom-select[aria-expanded="true"] .option-list { display: block; }
+    .ud__select { position: relative; margin-top: 4px; }
+    .ud__select[aria-expanded="true"] .option-list { display: block; }
     .option-list {
       display: none; position: absolute; z-index: 10; left: 0; right: 0; top: 42px;
       border: 1px solid #d1d5db; background: #fff; border-radius: 6px;
@@ -38,47 +38,47 @@
 </head>
 <body>
   <div class="test-banner">
-    本地插件验收页：覆盖 Moka、飞书、北森常见的自定义选择控件、动态项目/教育经历、多页下一步、最终提交保护。
+    本地插件验收页：覆盖飞书招聘常见的 Formily 标签、自定义选择控件、动态项目/教育经历、多页下一步、最终提交保护。
     使用真实后端时，先在平台上传一份含多条项目经历的简历，再点击插件“开始自动填写”。
   </div>
 
-  <div id="page1" class="form-page moka-form-section">
+  <div id="page1" class="form-page feishu-form-section" data-form-field-i18n-name="基本信息">
     <h2>基本信息</h2>
     <label>推荐方式</label>
-    <div id="referral-method" class="inline-options moka-radio-group">
+    <div id="referral-method" class="inline-options ud__radio-group" data-form-field-i18n-name="推荐方式">
       <button class="radio-item" type="button" aria-checked="false">无</button>
       <button class="radio-item" type="button" aria-checked="false">内推</button>
     </div>
 
     <label for="name">姓名</label>
-    <input id="name" type="text" data-moka-field="name" required>
+    <input id="name" type="text" data-form-field-i18n-name="姓名" required>
 
     <label for="email">邮箱</label>
-    <input id="email" type="text" data-moka-field="email" required>
+    <input id="email" type="text" data-form-field-i18n-name="邮箱" required>
 
     <label for="phone">手机号</label>
-    <input id="phone" type="text" data-moka-field="phone" required>
+    <input id="phone" type="text" data-form-field-i18n-name="手机号" required>
 
     <label for="gender">性别</label>
-    <div>
+    <div data-form-field-i18n-name="性别">
       <label><input type="radio" name="gender" value="male"> 男</label>
       <label><input type="radio" name="gender" value="female"> 女</label>
     </div>
 
     <label for="birth">出生日期</label>
-    <input id="birth" type="date">
+    <input id="birth" type="date" data-form-field-i18n-name="出生日期">
 
     <button onclick="showPage2()">下一步</button>
   </div>
 
-  <div id="page2" class="form-page feishu-form-section" style="display:none">
+  <div id="page2" class="form-page feishu-form-section" style="display:none" data-form-field-i18n-name="教育经历">
     <h2>教育经历</h2>
-    <div class="education-card atsx-education-card" data-form-field-i18n-name="教育经历">
+    <div class="apply-form-array-card atsx-education-card" data-field-list-item data-form-field-i18n-name="教育经历">
       <label for="school">学校</label>
       <input id="school" type="text" data-form-field-i18n-name="学校">
 
       <label for="degree">学历</label>
-      <div id="degree" class="custom-select atsx-select ud__select" role="combobox" aria-haspopup="listbox" aria-expanded="false" data-form-field-i18n-name="学历">
+      <div id="degree" class="ud__select atsx-select" role="combobox" aria-haspopup="listbox" aria-expanded="false" data-form-field-i18n-name="学历">
         <input type="text" placeholder="请选择学历" readonly>
         <div class="option-list" role="listbox">
           <div role="option">本科</div>
@@ -91,51 +91,51 @@
       <input id="major" type="text" data-form-field-i18n-name="专业">
     </div>
 
-    <button id="add-education">+ 添加教育经历</button>
+    <button id="add-education" class="ud__button" type="button">+ 添加教育经历</button>
 
     <button onclick="showPage1()">上一步</button>
     <button onclick="showPage3()">下一步</button>
   </div>
 
-  <div id="page3" class="form-page beisen-section" style="display:none">
-    <h2>项目经历</h2>
-    <div id="project-list" class="beisen-resume-list">
-      <div class="project-card moka-experience-card beisen-resume-item">
+  <div id="page3" class="form-page applyFormModuleWrapper__test" style="display:none" data-form-field-i18n-name="项目经历">
+    <h2 class="applyFormModuleWrapper-title">项目经历</h2>
+    <div id="project-list" data-field-list>
+      <div class="project-card apply-form-array-card" data-field-list-item data-form-field-i18n-name="项目经历">
         <label>项目名称</label>
-        <input type="text" placeholder="请输入项目名称">
+        <input type="text" data-form-field-i18n-name="项目名称" placeholder="请输入项目名称">
 
         <label>项目角色</label>
-        <input type="text" placeholder="请输入项目角色">
+        <input type="text" data-form-field-i18n-name="项目角色" placeholder="请输入项目角色">
 
         <div class="grid">
           <div>
             <label>项目时间</label>
-            <input type="month" placeholder="开始时间">
+            <input type="month" data-form-field-i18n-name="项目时间" placeholder="开始时间">
           </div>
           <div>
             <label>项目时间</label>
-            <input type="month" placeholder="结束时间">
+            <input type="month" data-form-field-i18n-name="项目时间" placeholder="结束时间">
           </div>
         </div>
 
         <label>技术栈</label>
-        <input type="text" placeholder="请输入项目技术栈">
+        <input type="text" data-form-field-i18n-name="技术栈" placeholder="请输入项目技术栈">
 
         <label>项目成果</label>
-        <textarea rows="3" placeholder="请输入项目成果"></textarea>
+        <textarea rows="3" data-form-field-i18n-name="项目成果" placeholder="请输入项目成果"></textarea>
       </div>
     </div>
 
-    <button id="add-project" class="beisen-add moka-add-btn" type="button">+ 添加项目经历</button>
+    <button id="add-project" class="ud__button apply-form-array-card-add-float-right__test" type="button">+ 添加项目经历</button>
 
     <button onclick="showPage2()">上一步</button>
     <button onclick="showPage4()">下一步</button>
   </div>
 
-  <div id="page4" class="form-page" style="display:none">
+  <div id="page4" class="form-page feishu-form-section" style="display:none" data-form-field-i18n-name="技能与自我评价">
     <h2>技能与自我评价</h2>
     <label>技能</label>
-    <div>
+    <div data-form-field-i18n-name="技能">
       <label><input type="checkbox" name="skill" value="Python"> Python</label>
       <label><input type="checkbox" name="skill" value="Java"> Java</label>
       <label><input type="checkbox" name="skill" value="JavaScript"> JavaScript</label>
@@ -143,10 +143,10 @@
     </div>
 
     <label for="self-intro">自我评价</label>
-    <textarea id="self-intro" rows="4"></textarea>
+    <textarea id="self-intro" rows="4" data-form-field-i18n-name="自我评价"></textarea>
 
     <label for="resume-file">附件简历</label>
-    <input id="resume-file" type="file">
+    <input id="resume-file" type="file" data-form-field-i18n-name="附件简历">
 
     <button onclick="showPage3()">上一步</button>
     <button id="final-submit" type="button">提交投递</button>
@@ -179,29 +179,32 @@
 
     document.getElementById('add-education').addEventListener('click', function() {
       const card = document.createElement('div');
-      card.className = 'education-card atsx-education-card';
+      card.className = 'apply-form-array-card atsx-education-card';
+      card.setAttribute('data-field-list-item', '');
       card.setAttribute('data-form-field-i18n-name', '教育经历');
       card.innerHTML = `
         <hr>
-        <label>学校</label><input type="text" placeholder="学校名称">
-        <label>学历</label><input type="text" placeholder="学历">
-        <label>专业</label><input type="text" placeholder="专业名称">
+        <label>学校</label><input type="text" data-form-field-i18n-name="学校" placeholder="学校名称">
+        <label>学历</label><input type="text" data-form-field-i18n-name="学历" placeholder="学历">
+        <label>专业</label><input type="text" data-form-field-i18n-name="专业" placeholder="专业名称">
       `;
       this.before(card);
     });
 
     document.getElementById('add-project').addEventListener('click', function() {
       const card = document.createElement('div');
-      card.className = 'project-card moka-experience-card beisen-resume-item';
+      card.className = 'project-card apply-form-array-card';
+      card.setAttribute('data-field-list-item', '');
+      card.setAttribute('data-form-field-i18n-name', '项目经历');
       card.innerHTML = `
-        <label>项目名称</label><input type="text" placeholder="请输入项目名称">
-        <label>项目角色</label><input type="text" placeholder="请输入项目角色">
+        <label>项目名称</label><input type="text" data-form-field-i18n-name="项目名称" placeholder="请输入项目名称">
+        <label>项目角色</label><input type="text" data-form-field-i18n-name="项目角色" placeholder="请输入项目角色">
         <div class="grid">
-          <div><label>项目时间</label><input type="month" placeholder="开始时间"></div>
-          <div><label>项目时间</label><input type="month" placeholder="结束时间"></div>
+          <div><label>项目时间</label><input type="month" data-form-field-i18n-name="项目时间" placeholder="开始时间"></div>
+          <div><label>项目时间</label><input type="month" data-form-field-i18n-name="项目时间" placeholder="结束时间"></div>
         </div>
-        <label>技术栈</label><input type="text" placeholder="请输入项目技术栈">
-        <label>项目成果</label><textarea rows="3" placeholder="请输入项目成果"></textarea>
+        <label>技术栈</label><input type="text" data-form-field-i18n-name="技术栈" placeholder="请输入项目技术栈">
+        <label>项目成果</label><textarea rows="3" data-form-field-i18n-name="项目成果" placeholder="请输入项目成果"></textarea>
       `;
       document.getElementById('project-list').appendChild(card);
     });
@@ -214,7 +217,7 @@
       });
     });
 
-    document.querySelectorAll('.custom-select').forEach(select => {
+    document.querySelectorAll('.ud__select').forEach(select => {
       const input = select.querySelector('input');
       select.addEventListener('click', () => {
         select.setAttribute('aria-expanded', select.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');

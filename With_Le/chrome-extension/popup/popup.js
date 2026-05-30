@@ -174,6 +174,13 @@ async function scanFieldsInAllFrames(tabId) {
         }
         FieldScanner._resetMap();
         const fields = FieldScanner.scan();
+        const sections = typeof SectionManager === 'undefined'
+          ? []
+          : SectionManager.collectSectionInfo().map(section => ({
+            name: section.name,
+            currentCount: section.currentCount || 0,
+            addButton: !!section.addButton,
+          }));
         const slim = fields.map(f => {
           const out = {
             fieldId: f.fieldId,
@@ -221,6 +228,7 @@ async function scanFieldsInAllFrames(tabId) {
           href: location.href,
           title: document.title,
           fields: slim,
+          sections,
         };
       } catch (e) {
         return { ok: false, href: location.href, reason: String(e && e.stack || e) };
@@ -233,6 +241,7 @@ async function scanFieldsInAllFrames(tabId) {
 function aggregateFrameResults(tab, frameResults) {
   const frames = [];
   const allFields = [];
+  const allSections = [];
   const idCount = new Map();
 
   frameResults.forEach((r, i) => {
@@ -247,6 +256,14 @@ function aggregateFrameResults(tab, frameResults) {
       return;
     }
     frames.push({ frameIndex: i, url: v.href, title: v.title, fieldCount: v.fields.length });
+    (v.sections || []).forEach(section => {
+      if (!section || !section.name) return;
+      allSections.push({
+        ...section,
+        frameIndex: i,
+        frameUrl: v.href,
+      });
+    });
     v.fields.forEach(f => {
       const count = (idCount.get(f.fieldId) || 0) + 1;
       idCount.set(f.fieldId, count);
@@ -261,7 +278,9 @@ function aggregateFrameResults(tab, frameResults) {
     title: tab.title,
     scannedAt: new Date().toISOString(),
     fieldCount: allFields.length,
+    sectionCount: allSections.length,
     frames,
+    sections: allSections,
     fields: allFields,
   };
 }
@@ -365,6 +384,12 @@ function renderScanResult(resp, payload) {
   lines.push('扫描校验完成');
   if (resp && resp.id) lines.push(`记录 ID: ${resp.id}`);
   lines.push(`字段总数: ${payload.fields.length}`);
+  lines.push(`动态板块: ${(payload.sections || []).length} 个`);
+  if (payload.sections && payload.sections.length) {
+    payload.sections.slice(0, 12).forEach(s => {
+      lines.push(`  - ${s.name}: 当前 ${s.currentCount || 0} 条${s.addButton ? '，可添加' : ''}`);
+    });
+  }
   if (resp && resp.warnings && resp.warnings.length) {
     lines.push('');
     lines.push('提示：');
@@ -405,8 +430,19 @@ function renderFillReport(report, title) {
       const failedActions = actionResults.filter(item => item.status && item.status !== 'completed').length;
       const expanded = page.expandedFieldCount == null ? '-' : page.expandedFieldCount;
       lines.push(
-        `  #${page.page}: 初扫 ${page.initialFieldCount}, 展开后 ${expanded}, 匹配 ${page.mappingCount}, 已填 ${page.filledCount}, 跳过 ${page.backendSkippedCount + page.runtimeSkippedCount}, 动态动作 ${actions}, 新增 ${added}${failedActions ? ', 异常 ' + failedActions : ''}`
+        `  #${page.page}: 初扫 ${page.initialFieldCount}, 动态板块 ${page.sectionCount || 0}, 展开后 ${expanded}, 匹配 ${page.mappingCount}, 已填 ${page.filledCount}, 跳过 ${page.backendSkippedCount + page.runtimeSkippedCount}, 动态动作 ${actions}, 新增 ${added}${failedActions ? ', 异常 ' + failedActions : ''}`
       );
+      if (Array.isArray(page.sections) && page.sections.length) {
+        lines.push(`      板块: ${page.sections.slice(0, 8).map(s => s.name).join('、')}`);
+      }
+      const readCount = (Array.isArray(page.expandedReadRecords) && page.expandedReadRecords.length)
+        ? page.expandedReadRecords.length
+        : (Array.isArray(page.initialReadRecords) ? page.initialReadRecords.length : 0);
+      const mappingLogCount = Array.isArray(page.mappingRecords) ? page.mappingRecords.length : 0;
+      const fillLogCount = Array.isArray(page.fillRecords) ? page.fillRecords.length : 0;
+      if (readCount || mappingLogCount || fillLogCount) {
+        lines.push(`      日志: 读取 ${readCount}, 映射 ${mappingLogCount}, 写入 ${fillLogCount}`);
+      }
       if (page.stopReason) lines.push(`      停止原因: ${page.stopReason}`);
     });
   }
@@ -553,7 +589,7 @@ scanBtn.addEventListener('click', async () => {
       statusEl.textContent = message;
     });
 
-    statusEl.textContent = `扫描到 ${payload.fields.length} 个字段，正在校验...`;
+    statusEl.textContent = `扫描到 ${payload.fields.length} 个字段、${payload.sectionCount || 0} 个动态板块，正在校验...`;
     const resp = await sendRuntimeMessage({ type: MSG.UPLOAD_SCAN, payload });
     renderScanResult(resp, payload);
     statusEl.textContent = '扫描校验完成';
