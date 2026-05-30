@@ -27,6 +27,7 @@ class RegisterUserResponse(BaseModel):
     username: str
     token: str
     is_admin: bool = False
+    plan_tier: str = "free"
 
 
 class LoginResponse(BaseModel):
@@ -34,6 +35,7 @@ class LoginResponse(BaseModel):
     username: str
     token: str
     is_admin: bool
+    plan_tier: str = "free"
 
 
 class CurrentUserResponse(BaseModel):

@@ -11,6 +11,7 @@ const MSG = {
   MATCH_RESULT: 'MATCH_RESULT',
   UPLOAD_SCAN: 'UPLOAD_SCAN',
   UPLOAD_SCAN_RESULT: 'UPLOAD_SCAN_RESULT',
+  CLEAR_CACHE: 'CLEAR_CACHE',
 };
 
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:8000/api/v1';
@@ -257,5 +258,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(data => sendResponse({ type: MSG.UPLOAD_SCAN_RESULT, data }))
       .catch(err => sendResponse({ type: MSG.FILL_ERROR, error: err.message }));
     return true;
+  }
+
+  if (message.type === MSG.CLEAR_CACHE) {
+    const targetId = message.resumeId;
+    if (targetId) {
+      for (const key of resumeCache.keys()) {
+        if (key.includes(targetId)) resumeCache.delete(key);
+      }
+      for (const key of resumeFileCache.keys()) {
+        if (key.includes(targetId)) resumeFileCache.delete(key);
+      }
+    } else {
+      resumeCache.clear();
+      resumeFileCache.clear();
+    }
+    sendResponse({ cleared: true });
+    return false;
   }
 });

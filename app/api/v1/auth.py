@@ -32,6 +32,7 @@ async def user_register(payload: RegisterUserRequest, svc: UserSvc) -> RegisterU
         username=user.username,
         token=issue_token(user.id, role="user"),
         is_admin=False,
+        plan_tier=user.plan_tier,
     )
 
 
@@ -43,6 +44,7 @@ async def user_login(payload: LoginRequest, svc: UserSvc) -> LoginResponse:
         username=user.username,
         token=issue_token(user.id, role="user"),
         is_admin=False,
+        plan_tier=user.plan_tier,
     )
 
 
@@ -68,6 +70,7 @@ async def admin_bootstrap(payload: RegisterUserRequest, svc: UserSvc) -> LoginRe
         username=admin.username,
         token=issue_token(admin.id, role="admin"),
         is_admin=True,
+        plan_tier=admin.plan_tier,
     )
 
 
@@ -79,4 +82,5 @@ async def admin_login(payload: LoginRequest, svc: UserSvc) -> LoginResponse:
         username=admin.username,
         token=issue_token(admin.id, role="admin"),
         is_admin=True,
+        plan_tier=admin.plan_tier,
     )

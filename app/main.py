@@ -30,6 +30,17 @@ FRONTEND_DIST = PROJECT_ROOT / "web" / "dist"
 async def lifespan(app: FastAPI):
     settings = get_settings()
     log.info("startup", env=settings.app_env, model_provider=settings.model_provider)
+
+    # Reject well-known default secret keys in production
+    _DEFAULT_KEYS = {"dev-secret-change-me", "change-me-in-production-please"}
+    if settings.secret_key in _DEFAULT_KEYS:
+        if settings.app_env == "prod":
+            raise RuntimeError(
+                "Refusing to start: SECRET_KEY is still set to a default value. "
+                "Set SECRET_KEY to a cryptographically random string in production."
+            )
+        log.warning("secret_key_is_default", hint="change SECRET_KEY before deploying to production")
+
     await init_db()
     yield
     log.info("shutdown")
@@ -47,10 +58,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS — open during MVP. Tighten for production.
+    # CORS — dev/test: allow all; prod: use cors_origins whitelist
+    _settings = get_settings()
+    if _settings.app_env in ("dev", "test") or not _settings.cors_origins:
+        _origins = ["*"]
+    else:
+        _origins = [o.strip() for o in _settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=_origins,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],

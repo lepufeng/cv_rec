@@ -57,7 +57,7 @@ export const useAuth = create<AuthState>((set) => ({
       user_id: resp.user_id,
       username: resp.username,
       is_admin: resp.is_admin,
-      plan_tier: "free",
+      plan_tier: resp.plan_tier,
     };
     if (role === "admin") set({ admin: user, loadingAdmin: false });
     else set({ user, loadingUser: false });

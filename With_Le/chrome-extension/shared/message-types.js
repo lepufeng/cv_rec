@@ -12,4 +12,6 @@ var MSG = {
   // Page scan + upload feature
   UPLOAD_SCAN: 'UPLOAD_SCAN',
   UPLOAD_SCAN_RESULT: 'UPLOAD_SCAN_RESULT',
+  // Cache management
+  CLEAR_CACHE: 'CLEAR_CACHE',
 };

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     app_env: Literal["dev", "prod", "test"] = "dev"
     log_level: str = "INFO"
     secret_key: str = "dev-secret-change-me"
+    cors_origins: str = ""
 
     # ---- Logging ----
     log_to_file: bool = True

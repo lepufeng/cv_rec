@@ -52,7 +52,14 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db() -> None:
-    """Create all tables. Idempotent. Called at startup for MVP."""
+    """Create all tables. Idempotent. Called at startup for MVP.
+
+    NOTE (MVP): This uses SQLAlchemy ``create_all`` instead of Alembic
+    migrations.  For a competition submission this is intentional — the
+    data model is simple, the DB is SQLite, and the only deployment
+    scenario is single-instance.  If this project evolves beyond MVP,
+    introduce Alembic before adding destructive schema changes.
+    """
     from app.models.base import Base  # noqa: WPS433
     # ensure all model modules are imported so metadata is populated
     from app.models import user, resume, fill_plan_cache, cost_log, app_config  # noqa: F401, WPS433

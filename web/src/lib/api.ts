@@ -139,6 +139,7 @@ export type AuthResponse = {
   username: string;
   token: string;
   is_admin: boolean;
+  plan_tier: string;
 };
 
 export type ResumeData = {

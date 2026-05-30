@@ -40,3 +40,4 @@ web/dist/
 
 # Browser extension local mock/runtime artifacts
 **/mock-server/scans/
+.claude/settings.local.json
