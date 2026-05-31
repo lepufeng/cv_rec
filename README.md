@@ -9,9 +9,12 @@ AI 简历智能填写平台：上传简历 → 多模态模型解析为结构化
 ## 目录
 
 - [Quickstart（快速开始）](#quickstart快速开始)
-  - [一键启动（推荐）](#一键启动推荐)
+  - [预装依赖](#预装依赖)
+  - [Windows 快速开始](#windows-快速开始)
+  - [macOS / Linux 快速开始](#macos--linux-快速开始)
+  - [首次使用流程](#首次使用流程)
   - [安装 Chrome 插件](#安装-chrome-插件)
-  - [手动开发启动](#手动开发启动)
+  - [测试与构建](#测试与构建)
 - [Web 界面](#web-界面)
 - [插件自动填写流程](#插件自动填写流程)
 - [API 示例](#api-示例)
@@ -21,32 +24,129 @@ AI 简历智能填写平台：上传简历 → 多模态模型解析为结构化
 
 ## Quickstart（快速开始）
 
-### 一键启动（推荐）
-
-预装依赖：
+### 预装依赖
 
 | 平台 | 需要预装 |
 |---|---|
-| Windows | Python 3.11+、Chrome |
-| macOS | Python 3.11+、Chrome、`brew install poppler` |
-| Linux | Python 3.11+、Chrome/Chromium、`poppler-utils` |
+| **Windows** | [Python 3.11+](https://www.python.org/downloads/)（安装时勾选「Add Python to PATH」）、[Node.js LTS](https://nodejs.org/)、Chrome |
+| **macOS** | Python 3.11+（`brew install python`）、[Node.js LTS](https://nodejs.org/)、Chrome、`brew install poppler` |
+| **Linux** | Python 3.11+、Node.js LTS、Chrome/Chromium、`poppler-utils` |
 
-从源码运行需额外安装 Node.js LTS；使用 `scripts/package_release.py` 生成的交付包则不需要。
+> 使用 `scripts/package_release.py` 生成的交付包无需安装 Node.js。
+
+---
+
+### Windows 快速开始
+
+#### 1. 一键启动
+
+打开 **命令提示符（CMD）** 或 **PowerShell**，进入项目目录后执行：
+
+```bat
+start_cv_rec.bat
+```
+
+或直接运行 Python 脚本：
+
+```bat
+python start_cv_rec.py
+```
+
+> ⚠️ 不要双击 `start_cv_rec.bat`，如果启动出错窗口会立刻关闭看不到报错。请先打开 CMD/PowerShell 再运行命令，这样报错信息能保留在窗口中。
+
+启动器自动完成：创建 `.venv`、安装依赖、构建前端、启动服务并打开浏览器 `http://127.0.0.1:8000`。
+
+#### 2. 手动开发启动
+
+打开两个终端窗口，分别执行：
+
+**终端 1 — 后端：**
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[dev]"
+copy .env.example .env
+uvicorn app.main:app --reload
+:: API: http://127.0.0.1:8000   Docs: http://127.0.0.1:8000/docs
+```
+
+**终端 2 — 前端：**
+
+```bat
+cd web
+npm install
+npm run dev
+:: http://localhost:5173  （Vite 已配置 /api 代理）
+```
+
+#### 3. Windows 常见问题
+
+| 问题 | 解决方式 |
+|---|---|
+| `'python' 不是内部或外部命令` | 重新安装 Python，勾选 **Add Python to PATH**；或改用 `py -3 start_cv_rec.py` |
+| `'npm' 不是内部或外部命令` | 安装 [Node.js LTS](https://nodejs.org/)，安装后重启终端 |
+| 双击 bat 闪退 | 不要双击，先打开 CMD/PowerShell 再输入命令运行 |
+| 端口 8000 被占用 | `netstat -ano \| findstr :8000` 查找占用进程并结束，或设置环境变量 `set CV_REC_PORT=9000` 后启动 |
+| pip 安装超时 | 使用国内镜像：`pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple` |
+
+---
+
+### macOS / Linux 快速开始
+
+#### 1. 一键启动
+
+打开终端，进入项目目录后执行：
 
 ```bash
-python start_cv_rec.py
+python3 start_cv_rec.py
 ```
 
 启动器自动完成：创建 `.venv`、安装依赖、构建前端、启动服务并打开浏览器 `http://127.0.0.1:8000`。
 
-首次使用需在 `.env` 中填写 `GLM_API_KEY` 或 `QWEN_API_KEY`，也可在管理员模型配置页填写。
+#### 2. 手动开发启动
 
-**首次使用流程：**
+打开两个终端窗口，分别执行：
+
+**终端 1 — 后端：**
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env          # 填写 API Key
+uvicorn app.main:app --reload
+# API: http://127.0.0.1:8000   Docs: http://127.0.0.1:8000/docs
+```
+
+**终端 2 — 前端：**
+
+```bash
+cd web && npm install && npm run dev
+# http://localhost:5173  （Vite 已配置 /api 代理）
+```
+
+#### 3. macOS / Linux 常见问题
+
+| 问题 | 解决方式 |
+|---|---|
+| `poppler not found` | macOS: `brew install poppler`，Ubuntu: `sudo apt install poppler-utils` |
+| 端口 8000 被占用 | `lsof -i :8000` 查找占用进程，或 `CV_REC_PORT=9000 python3 start_cv_rec.py` |
+| `python3: command not found` | macOS: `brew install python`，Ubuntu: `sudo apt install python3 python3-venv` |
+
+---
+
+### 首次使用流程
+
+无论哪个平台，首次启动后的使用流程相同：
 
 1. 启动后访问 `http://127.0.0.1:8000`，页面会自动跳转到管理员初始化页
 2. 创建管理员账户（仅需设置用户名和密码，整个系统只允许创建一次）
-3. 用管理员登录后，在 `/admin/models` 页面配置模型 API Key
+3. 用管理员登录后，在 `/admin/models` 页面配置模型 API Key（`GLM_API_KEY` 或 `QWEN_API_KEY`）
 4. 普通用户通过 `/register` 自行注册即可上传简历
+
+> 也可以在项目根目录的 `.env` 文件中直接填写 API Key，效果相同。
+
+---
 
 ### 安装 Chrome 插件
 
@@ -75,12 +175,12 @@ python start_cv_rec.py
 
 **第五步：连接平台**
 
-1. 启动后端服务（`python start_cv_rec.py`）
+1. 启动后端服务
 2. 点击插件弹窗中的「打开平台」按钮，或直接访问 `http://127.0.0.1:8000/plugin?autolink=1`
 3. 在网页注册/登录后，账号和简历信息会自动同步到插件
 4. 插件弹窗状态从「未连接」变为「已连接」即表示配置成功
 
-**常见问题**
+**插件常见问题**
 
 | 问题 | 解决方式 |
 |---|---|
@@ -89,31 +189,24 @@ python start_cv_rec.py
 | 弹窗显示「未连接」 | 确认后端已启动，点击「打开平台」登录后等待自动同步 |
 | 想更新插件代码 | 回到 `chrome://extensions`，点击插件卡片上的刷新🔄按钮即可 |
 
-生成交付包：
+---
+
+### 测试与构建
 
 ```bash
-.venv/bin/python scripts/package_release.py
+# 后端测试
+pytest
+
+# 前端构建检查
+cd web && npm run build
+
+# Chrome 插件测试
+node --test With_Le/chrome-extension/tests/*.test.js
+
+# 生成交付包
+.venv/bin/python scripts/package_release.py   # macOS/Linux
+.venv\Scripts\python scripts\package_release.py   # Windows
 # → dist/cv-rec-release.zip
-```
-
-### 手动开发启动
-
-```bash
-# 后端
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env          # 填写 API Key
-uvicorn app.main:app --reload
-# API: http://127.0.0.1:8000   Docs: http://127.0.0.1:8000/docs
-
-# 前端（另一终端）
-cd web && npm install && npm run dev
-# http://localhost:5173  （Vite 已配置 /api 代理）
-
-# 测试
-pytest                                        # 后端
-cd web && npm run build                       # 前端构建检查
-node --test With_Le/chrome-extension/tests/*.test.js  # 插件
 ```
 
 日志同时输出到控制台与 `data/logs/app.log`（JSON Lines，按大小轮转）。
