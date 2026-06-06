@@ -7,7 +7,7 @@ import {
   type ModelTestResponse,
 } from "@/lib/api";
 
-const PROVIDERS: ModelConfig["provider"][] = ["glm", "qwen", "fake"];
+const PROVIDERS: ModelConfig["provider"][] = ["glm", "qwen"];
 const NETWORK_MODES: ModelConfig["model_network_mode"][] = ["direct", "environment", "proxy"];
 
 export default function AdminModelConfig() {
@@ -103,11 +103,6 @@ export default function AdminModelConfig() {
               </button>
             ))}
           </div>
-          {merged.provider === "fake" && (
-            <p className="text-xs text-ink-500 mt-3">
-              Fake（测试）用于本地测试，不进行真实模型调用。
-            </p>
-          )}
         </Card>
 
         <Card
@@ -361,7 +356,6 @@ export default function AdminModelConfig() {
 const PROVIDER_LABEL: Record<ModelConfig["provider"], string> = {
   glm: "主力模型",
   qwen: "备用模型",
-  fake: "Fake（测试）",
 };
 
 const NETWORK_MODE_LABEL: Record<ModelConfig["model_network_mode"], string> = {
@@ -371,7 +365,7 @@ const NETWORK_MODE_LABEL: Record<ModelConfig["model_network_mode"], string> = {
 };
 
 function providerDisplayName(provider: string) {
-  if (provider === "glm" || provider === "qwen" || provider === "fake") {
+  if (provider === "glm" || provider === "qwen") {
     return PROVIDER_LABEL[provider];
   }
   return provider;

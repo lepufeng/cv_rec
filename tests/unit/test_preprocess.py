@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import io
-from types import SimpleNamespace
 
 import pytest
 from PIL import Image
 
 from app.core.exceptions import ValidationError
 from app.parsers.preprocess import _extract_pdf_text, detect_format, preprocess
+from tests.fixtures.build_pdf import make_minimal_pdf
 
 
 def _make_jpeg(width: int = 200, height: int = 200) -> bytes:
@@ -34,7 +34,7 @@ def test_preprocess_image():
     result = preprocess("photo.jpg", data)
     assert len(result.images) == 1
     assert result.text is None
-    # output should be valid JPEG
+    # output should be a valid normalized image
     Image.open(io.BytesIO(result.images[0])).verify()
 
 
@@ -67,13 +67,7 @@ def test_preprocess_docx_text_extraction():
     assert result.images == []
 
 
-def test_extract_pdf_text_uses_poppler_text_layer(monkeypatch):
-    def fake_run(*args, **kwargs):
-        return SimpleNamespace(returncode=0, stdout="杨林\n189-7072-8522\n".encode())
-
-    monkeypatch.setattr("app.parsers.preprocess.subprocess.run", fake_run)
-
-    text = _extract_pdf_text(b"%PDF fake")
+def test_extract_pdf_text_uses_embedded_text_layer():
+    text = _extract_pdf_text(make_minimal_pdf("Resume Sample"))
     assert text is not None
-    assert "杨林" in text
-    assert "189-7072-8522" in text
+    assert "Resume Sample" in text

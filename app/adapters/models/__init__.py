@@ -139,9 +139,6 @@ def _build(
             network_mode=network_mode,
             proxy_url=proxy_url,
         )
-    if provider == "fake":
-        from tests.fakes.fake_model import FakeModel
-        return FakeModel()  # type: ignore[return-value]
     raise ConfigError(f"Unsupported model provider: {provider}")
 
 

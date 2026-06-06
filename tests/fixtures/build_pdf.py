@@ -9,7 +9,7 @@ import zlib
 def make_minimal_pdf(text: str = "Resume Sample") -> bytes:
     """Return a syntactically valid 1-page PDF that rasterizes to a blank page.
 
-    For pdf2image's purposes only the structure must be valid; the rendered
+    For the parser's purposes only the structure must be valid; the rendered
     image is irrelevant since we feed it to a FakeModel anyway.
     """
     # Hand-rolled minimal PDF

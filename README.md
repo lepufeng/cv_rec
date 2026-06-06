@@ -28,11 +28,12 @@ AI 简历智能填写平台：上传简历 → 多模态模型解析为结构化
 
 | 平台 | 需要预装 |
 |---|---|
-| **Windows** | [Python 3.11+](https://www.python.org/downloads/)（安装时勾选「Add Python to PATH」）、[Node.js LTS](https://nodejs.org/)、Chrome |
-| **macOS** | Python 3.11+（`brew install python`）、[Node.js LTS](https://nodejs.org/)、Chrome、`brew install poppler` |
-| **Linux** | Python 3.11+、Node.js LTS、Chrome/Chromium、`poppler-utils` |
+| **Windows 交付包** | [Python 3.11+](https://www.python.org/downloads/)（安装时勾选「Add Python to PATH」）、Chrome |
+| **macOS 交付包** | Python 3.11+（可用 `brew install python` 安装）、Chrome |
+| **Linux 交付包** | Python 3.11+、Chrome/Chromium |
+| **源码开发 / 重新打包** | 在上述基础上额外安装 [Node.js LTS](https://nodejs.org/) |
 
-> 使用 `scripts/package_release.py` 生成的交付包无需安装 Node.js。
+> 使用 `scripts/package_release.py` 生成的交付包已内置前端构建产物，无需安装 Node.js；PDF 处理使用 PyMuPDF wheel，无需额外安装 Poppler。
 
 ---
 
@@ -43,7 +44,7 @@ AI 简历智能填写平台：上传简历 → 多模态模型解析为结构化
 打开 **命令提示符（CMD）** 或 **PowerShell**，进入项目目录后执行：
 
 ```bat
-start_cv_rec.bat
+.\start_cv_rec.bat
 ```
 
 或直接运行 Python 脚本：
@@ -52,9 +53,11 @@ start_cv_rec.bat
 python start_cv_rec.py
 ```
 
-> ⚠️ 不要双击 `start_cv_rec.bat`，如果启动出错窗口会立刻关闭看不到报错。请先打开 CMD/PowerShell 再运行命令，这样报错信息能保留在窗口中。
+> ⚠️ **不要双击** `start_cv_rec.bat`，如果启动出错窗口会立刻关闭看不到报错。请先打开 CMD/PowerShell 再输入命令运行，这样报错信息能保留在窗口中。
+>
+> ⚠️ **PowerShell** 中必须写 `.\start_cv_rec.bat`（带 `.\` 前缀），不能省略。CMD 中两种写法都可以。
 
-启动器自动完成：创建 `.venv`、安装依赖、构建前端、启动服务并打开浏览器 `http://127.0.0.1:8000`。
+启动器自动完成：创建 `.venv`、安装依赖、启动服务并打开浏览器 `http://127.0.0.1:8000`。源码仓库中如果前端构建缺失或过期，会自动调用 Node.js 重新构建；交付包不会触发这一步。
 
 #### 2. 手动开发启动
 
@@ -85,7 +88,7 @@ npm run dev
 | 问题 | 解决方式 |
 |---|---|
 | `'python' 不是内部或外部命令` | 重新安装 Python，勾选 **Add Python to PATH**；或改用 `py -3 start_cv_rec.py` |
-| `'npm' 不是内部或外部命令` | 安装 [Node.js LTS](https://nodejs.org/)，安装后重启终端 |
+| `'npm' 不是内部或外部命令` | 只有源码开发或重新打包才需要 Node.js；如果运行交付包仍出现该错误，说明包内缺少 `web/dist` |
 | 双击 bat 闪退 | 不要双击，先打开 CMD/PowerShell 再输入命令运行 |
 | 端口 8000 被占用 | `netstat -ano \| findstr :8000` 查找占用进程并结束，或设置环境变量 `set CV_REC_PORT=9000` 后启动 |
 | pip 安装超时 | 使用国内镜像：`pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple` |
@@ -102,7 +105,7 @@ npm run dev
 python3 start_cv_rec.py
 ```
 
-启动器自动完成：创建 `.venv`、安装依赖、构建前端、启动服务并打开浏览器 `http://127.0.0.1:8000`。
+启动器自动完成：创建 `.venv`、安装依赖、启动服务并打开浏览器 `http://127.0.0.1:8000`。源码仓库中如果前端构建缺失或过期，会自动调用 Node.js 重新构建；交付包不会触发这一步。
 
 #### 2. 手动开发启动
 
@@ -129,7 +132,6 @@ cd web && npm install && npm run dev
 
 | 问题 | 解决方式 |
 |---|---|
-| `poppler not found` | macOS: `brew install poppler`，Ubuntu: `sudo apt install poppler-utils` |
 | 端口 8000 被占用 | `lsof -i :8000` 查找占用进程，或 `CV_REC_PORT=9000 python3 start_cv_rec.py` |
 | `python3: command not found` | macOS: `brew install python`，Ubuntu: `sudo apt install python3 python3-venv` |
 
@@ -192,6 +194,8 @@ cd web && npm install && npm run dev
 ---
 
 ### 测试与构建
+
+以下命令仅用于源码仓库开发和生成交付包；发给赛事组的 `dist/cv-rec-release.zip` 不包含测试、前端源码、`node_modules` 或开发诊断脚本。
 
 ```bash
 # 后端测试

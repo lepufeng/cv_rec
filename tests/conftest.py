@@ -18,7 +18,7 @@ def _configure_test_env(tmpdir) -> None:
     os.environ["APP_ENV"] = "test"
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{tmpdir}/test.db"
     os.environ["STORAGE_LOCAL_PATH"] = str(tmpdir / "uploads")
-    os.environ["MODEL_PROVIDER"] = "fake"
+    os.environ["MODEL_PROVIDER"] = "glm"
     os.environ["GLM_API_KEY"] = "test-key"
     os.environ["SECRET_KEY"] = "test-secret"
     os.environ["LOG_LEVEL"] = "WARNING"

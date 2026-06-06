@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 # ---------------- model config ----------------
 
-ModelProvider = Literal["glm", "qwen", "fake"]
+ModelProvider = Literal["glm", "qwen"]
 ThinkingMode = Literal["enabled", "disabled"]
 ModelNetworkMode = Literal["direct", "environment", "proxy"]
 

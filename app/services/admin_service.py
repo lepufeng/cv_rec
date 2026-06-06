@@ -114,16 +114,6 @@ class AdminService:
     # ---------------- model connectivity test ----------------
     async def test_model(self) -> ModelTestResponse:
         cfg = await ConfigService(self.session).get_model_config()
-        if cfg.provider == "fake":
-            return ModelTestResponse(
-                ok=True,
-                provider="fake",
-                model_network_mode=cfg.model_network_mode,  # type: ignore[arg-type]
-                chat_model="fake-chat",
-                reasoning_model="fake-reasoning",
-                latency_ms=0,
-                sample="(fake provider; no real call)",
-            )
         try:
             client: OpenAICompatClient = build_model_from_config(cfg)
             reasoning_client: OpenAICompatClient = build_reasoning_model_from_config(cfg)

@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     storage_local_path: str = "./data/uploads"
 
     # ---- Model provider selection ----
-    model_provider: Literal["glm", "qwen", "fake"] = Field(
+    model_provider: Literal["glm", "qwen"] = Field(
         default="glm",
         description="Which model adapter to use as primary.",
     )

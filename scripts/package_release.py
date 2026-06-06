@@ -24,7 +24,10 @@ ROOT_FILES = (
     "start_cv_rec.bat",
     "start_cv_rec.sh",
 )
-SOURCE_DIRS = ("app", "scripts", "web")
+RUNTIME_DIRS = ("app",)
+RUNTIME_FILES = (
+    "scripts/one_click_start.py",
+)
 SKIP_PARTS = {
     "__pycache__",
     ".pytest_cache",
@@ -57,15 +60,18 @@ def write_release_zip(output: Path) -> None:
         for relative in ROOT_FILES:
             add_file(archive, ROOT / relative, relative)
 
-        for directory in SOURCE_DIRS:
+        for directory in RUNTIME_DIRS:
             add_tree(archive, ROOT / directory, directory)
+        for relative in RUNTIME_FILES:
+            add_file(archive, ROOT / relative, relative)
+        add_tree(archive, ROOT / "web" / "dist", Path("web") / "dist")
 
         add_extension_runtime(archive)
         if EXTENSION_ZIP.exists():
             add_file(archive, EXTENSION_ZIP, "dist/cv-rec-autofill-extension.zip")
 
 
-def add_tree(archive: zipfile.ZipFile, directory: Path, relative_root: str) -> None:
+def add_tree(archive: zipfile.ZipFile, directory: Path, relative_root: str | Path) -> None:
     for path in sorted(directory.rglob("*")):
         if path.is_file() and should_include(path):
             add_file(archive, path, Path(relative_root) / path.relative_to(directory))

@@ -13,7 +13,6 @@ fidelity matters less than text content).
 from __future__ import annotations
 
 import io
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,15 +60,12 @@ def preprocess(filename: str, content: bytes) -> PreprocessedDoc:
 # -----------------------------
 def _preprocess_pdf(content: bytes) -> PreprocessedDoc:
     try:
-        from pdf2image import convert_from_bytes
+        import fitz
     except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("pdf2image not installed") from exc
+        raise RuntimeError("PyMuPDF not installed") from exc
 
     try:
-        # 220 DPI gives ~1820x2570 for A4 — small Chinese characters at
-        # title size (~28px → ~52px) become reliably legible to the VLM.
-        # PNG keeps stroke details that JPEG would crush on tight kerning.
-        pages = convert_from_bytes(content, dpi=220, fmt="png")
+        doc = fitz.open(stream=content, filetype="pdf")
     except Exception as exc:
         raise ValidationError(
             "Failed to render PDF (file may be corrupt or password-protected)",
@@ -78,10 +74,16 @@ def _preprocess_pdf(content: bytes) -> PreprocessedDoc:
         ) from exc
 
     images: list[bytes] = []
-    for page in pages:
-        buf = io.BytesIO()
-        page.convert("RGB").save(buf, format="PNG", optimize=True)
-        images.append(buf.getvalue())
+    try:
+        # 220 DPI gives ~1820x2570 for A4, making small resume text legible
+        # while keeping payload size bounded. PyMuPDF ships wheels for
+        # macOS/Windows, so users do not need to install Poppler separately.
+        matrix = fitz.Matrix(220 / 72, 220 / 72)
+        for page in doc:
+            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+            images.append(pixmap.tobytes("png"))
+    finally:
+        doc.close()
     return PreprocessedDoc(images=images, text=_extract_pdf_text(content))
 
 
@@ -95,21 +97,19 @@ def _extract_pdf_text(content: bytes) -> str | None:
     image-only path.
     """
     try:
-        proc = subprocess.run(
-            ["pdftotext", "-layout", "-", "-"],
-            input=content,
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.SubprocessError):
+        import fitz
+
+        doc = fitz.open(stream=content, filetype="pdf")
+    except Exception:
         return None
-    if proc.returncode != 0:
-        return None
-    text = proc.stdout.decode("utf-8", errors="replace").strip()
-    if not text:
-        return None
-    return text[:20_000]
+
+    try:
+        text = "\n".join(page.get_text("text", sort=True) for page in doc).strip()
+        if not text:
+            return None
+        return text[:20_000]
+    finally:
+        doc.close()
 
 
 # -----------------------------

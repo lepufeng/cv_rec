@@ -185,7 +185,7 @@ export type ResumeDetail = {
 };
 
 export type ModelConfig = {
-  provider: "glm" | "qwen" | "fake";
+  provider: "glm" | "qwen";
   model_thinking_mode: ThinkingMode;
   model_network_mode: ModelNetworkMode;
   model_proxy_url: string;

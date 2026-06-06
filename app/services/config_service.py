@@ -37,7 +37,7 @@ SECRET_KEYS: set[str] = {KEY_GLM_API_KEY, KEY_QWEN_API_KEY}
 
 @dataclass(slots=True)
 class ModelConfig:
-    provider: str  # "glm" | "qwen" | "fake"
+    provider: str  # "glm" | "qwen"
     model_thinking_mode: str
     model_network_mode: str
     model_proxy_url: str
